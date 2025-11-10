@@ -1,0 +1,52 @@
+import axios from "axios";
+import { useAuthStore } from "@/stores/useAuthStore";
+import Swal from "sweetalert2";
+
+const api = axios.create({
+  // (สำคัญ) baseURL คือ /api ซึ่งจะถูก proxy โดย Vite
+  baseURL: "/api",
+  withCredentials: true,
+});
+
+// (สำคัญ) Request Interceptor สำหรับแนบ CSRF Token
+api.interceptors.request.use((config) => {
+  // ดึง store มาใช้แบบ dynamic
+  const authStore = useAuthStore();
+
+  if (authStore.csrfToken) {
+    config.headers["x-csrf-token"] = authStore.csrfToken;
+  }
+  return config;
+});
+
+// (สำคัญ) Response Interceptor สำหรับ 401 (Session หมดอายุ)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // ถ้า Session หมดอายุ (401) และไม่ได้กำลังพยายาม login
+    if (
+      error.response &&
+      error.response.status === 401 &&
+      !error.config.url.endsWith("/auth/login") &&
+      !error.config.url.endsWith("/auth/me")
+    ) {
+      console.warn("Session expired or unauthorized. Logging out.");
+      const authStore = useAuthStore();
+      authStore.logoutCleanup(); // ล้าง state ฝั่ง client
+
+      // Redirect ไปหน้า login
+      // (ใช้ window.location เพราะ router อาจจะไม่พร้อม)
+      window.location.href = "/#/login"; // (ใช้ /# เพราะเป็น Hash mode)
+
+      Swal.fire({
+        title: "Session Expired",
+        text: "Please log in again.",
+        icon: "warning",
+        timer: 3000,
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default api;

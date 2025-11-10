@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  provider     String // 'LOCAL' | 'GOOGLE'
+  providerId   String?  @unique // Google's profile.id
+  email        String   @unique
+  passwordHash String?
+  role         String   @default("USER") // 'ADMIN' | 'USER'
+  links        Link[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Link {
+  id        Int       @id @default(autoincrement())
+  slug      String    @unique
+  targetUrl String
+  ownerId   Int?
+  owner     User?     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  isPublic  Boolean   @default(false)
+  expiredAt DateTime
+  disabled  Boolean   @default(false)
+  clicks    Click[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([ownerId])
+}
+
+model Click {
+  id        Int      @id @default(autoincrement())
+  linkId    Int
+  link      Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  ip        String
+  userAgent String?
+  referrer  String?
+  createdAt DateTime @default(now())
+
+  @@index([linkId])
+}
