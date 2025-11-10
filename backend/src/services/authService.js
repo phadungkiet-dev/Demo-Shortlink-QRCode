@@ -28,7 +28,35 @@ const getSafeUser = (user) => {
   return safeUser;
 };
 
+// Function for registering a new user +++
+const registerUser = async (email, password) => {
+  // 1. Check if user already exists
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (existingUser) {
+    throw new Error("Email address is already in use.");
+  }
+
+  // 2. Hash the new password
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  // 3. Create the new user
+  const newUser = await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      provider: "LOCAL", // Mark as a local account
+      role: "USER",
+    },
+  });
+
+  return newUser;
+};
+
 module.exports = {
   changePassword,
   getSafeUser,
+  registerUser,
 };

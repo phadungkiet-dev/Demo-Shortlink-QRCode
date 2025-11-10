@@ -1,49 +1,55 @@
 <template>
-  <header class="bg-white shadow-sm">
-    <nav
-      class="container mx-auto px-4 lg:px-8 flex justify-between items-center h-16"
-    >
-      <router-link to="/" class="flex items-center gap-2">
-        <Link class="h-6 w-6 text-indigo-600" />
-        <span class="text-xl font-bold text-gray-800">Shortlink</span>
-      </router-link>
-
-      <div class="flex items-center gap-4">
-        <router-link
-          v-if="authStore.user"
-          to="/dashboard"
-          class="text-sm font-medium text-gray-600 hover:text-indigo-600"
-        >
-          Dashboard
+  <div>
+    <header class="bg-white shadow-sm">
+      <nav
+        class="container mx-auto px-4 lg:px-8 flex justify-between items-center h-16"
+      >
+        <router-link to="/" class="flex items-center gap-2">
+          <Link class="h-6 w-6 text-indigo-600" />
+          <QrCode class="h-6 w-6 text-indigo-600" />
+          <span class="text-xl font-bold text-gray-800">Shortlink-QRcode</span>
         </router-link>
 
-        <div v-if="authStore.user" class="flex items-center gap-3">
-          <span class="text-sm text-gray-500 hidden sm:block">{{
-            authStore.user.email
-          }}</span>
-          <button
-            @click="authStore.logout()"
+        <div class="flex items-center gap-4">
+          <router-link
+            v-if="authStore.user"
+            to="/dashboard"
             class="text-sm font-medium text-gray-600 hover:text-indigo-600"
           >
-            Logout
+            Dashboard
+          </router-link>
+
+<!-- (เพิ่มใหม่) 2. เพิ่ม Avatar/Dropdown Component ใหม่ -->
+<UserDropdown v-if="authStore.user" />
+
+          <button
+            v-if="!authStore.user"
+            @click="openLoginModal"
+            class="p-2 rounded-full text-gray-600 hover:text-indigo-600 hover:bg-gray-100"
+            aria-label="Login"
+          >
+            <User class="h-5 w-5" />
           </button>
         </div>
+      </nav>
+    </header>
 
-        <router-link
-          v-if="!authStore.user"
-          to="/login"
-          class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-indigo-700"
-        >
-          Login
-        </router-link>
-      </div>
-    </nav>
-  </header>
+    <LoginModal v-model="isLoginModalOpen" />
+  </div>
 </template>
 
 <script setup>
+import { ref } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { Link } from "lucide-vue-next";
+import { Link, QrCode, User } from "lucide-vue-next";
+import LoginModal from "./LoginModal.vue"; // (Req #3) Import Modal
+import UserDropdown from "./UserDropdown.vue"; // (เพิ่มใหม่) 1. Import
 
 const authStore = useAuthStore();
+// State สำหรับควบคุม Modal
+const isLoginModalOpen = ref(false);
+const openLoginModal = () => {
+  console.log("User button clicked! State is now true.");
+  isLoginModalOpen.value = true;
+};
 </script>

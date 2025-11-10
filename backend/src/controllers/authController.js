@@ -3,6 +3,7 @@ const { validationResult } = require("express-validator");
 const {
   changePasswordSchema,
   loginSchema,
+  registerSchema,
 } = require("../utils/validationSchemas");
 const authService = require("../services/authService");
 const logger = require("../utils/logger");
@@ -118,6 +119,43 @@ const googleCallback = (req, res, next) => {
   })(req, res, next);
 };
 
+// 8. Local Registration
+const register = async (req, res, next) => {
+  // 1. Validate input
+  let validatedData;
+  try {
+    validatedData = registerSchema.parse(req.body);
+  } catch (error) {
+    return res
+      .status(400)
+      .json({ message: "Validation failed.", errors: error.errors });
+  }
+
+  const { email, password } = validatedData;
+
+  try {
+    // 2. Call service to create user
+    const newUser = await authService.registerUser(email, password);
+
+    // 3. (สำคัญ) Auto-login the new user (same as loginLocal)
+    req.logIn(newUser, (err) => {
+      if (err) {
+        return next(err); // Passport error
+      }
+      // Send 201 Created status and safe user object
+      res.status(201).json(authService.getSafeUser(newUser));
+    });
+  } catch (error) {
+    // Handle specific "Email already in use" error
+    if (error.message.includes("Email address is already in use")) {
+      return res.status(409).json({ message: error.message }); // 409 Conflict
+    }
+    // Other errors
+    next(error);
+  }
+};
+
+
 module.exports = {
   getCsrfToken,
   loginLocal,
@@ -126,4 +164,5 @@ module.exports = {
   getMe,
   googleAuth,
   googleCallback,
+  register, // (เพิ่มใหม่)
 };

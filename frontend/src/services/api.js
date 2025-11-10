@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useAuthStore } from "@/stores/useAuthStore";
 import Swal from "sweetalert2";
+import router from "@/router";
 
 const api = axios.create({
   // (สำคัญ) baseURL คือ /api ซึ่งจะถูก proxy โดย Vite
@@ -34,9 +35,8 @@ api.interceptors.response.use(
       const authStore = useAuthStore();
       authStore.logoutCleanup(); // ล้าง state ฝั่ง client
 
-      // Redirect ไปหน้า login
-      // (ใช้ window.location เพราะ router อาจจะไม่พร้อม)
-      window.location.href = "/#/login"; // (ใช้ /# เพราะเป็น Hash mode)
+      // ซึ่ง router/index.js จะแสดง Login Modal เอง
+      router.push({ name: "Home" });
 
       Swal.fire({
         title: "Session Expired",

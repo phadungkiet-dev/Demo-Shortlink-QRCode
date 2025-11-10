@@ -1,6 +1,12 @@
-import { createRouter, createWebHashHistory } from "vue-router";
+import {
+  createRouter,
+  createWebHashHistory,
+  createWebHistory,
+} from "vue-router";
 import { useAuthStore } from "@/stores/useAuthStore";
 import HomeView from "@/views/HomeView.vue";
+import DashboardView from "@/views/DashboardView.vue";
+// import LoginView from "@/views/LoginView.vue";
 
 const routes = [
   {
@@ -11,13 +17,13 @@ const routes = [
   {
     path: "/login",
     name: "Login",
-    component: () => import("@/views/LoginView.vue"),
-    meta: { requiresGuest: true }, // คน login แล้ว ห้ามเข้า
+    redirect: "/",
+    meta: { requiresGuest: true },
   },
   {
     path: "/dashboard",
     name: "Dashboard",
-    component: () => import("@/views/DashboardView.vue"),
+    component: DashboardView,
     meta: { requiresAuth: true }, // ต้อง login
   },
   // (Optional) Google OAuth Callback Success
@@ -26,7 +32,8 @@ const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHashHistory(), // (สำคัญ) ใช้ Hash mode ง่ายกว่าสำหรับ proxy
+  // history: createWebHashHistory(), // (สำคัญ) ใช้ Hash mode ง่ายกว่าสำหรับ proxy
+  history: createWebHistory(),
   routes,
 });
 
@@ -43,8 +50,12 @@ router.beforeEach(async (to, from, next) => {
   const isAuthenticated = !!authStore.user;
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    // ถ้าหน้านี้ต้อง login แต่ยังไม่ login -> ไปหน้า /login
-    next({ name: "Login" });
+    // (แก้ไขจุดที่ 3)
+    // ถ้าหน้านี้ต้อง login แต่ยังไม่ login
+    // (Logic เก่า) -> ไปหน้า /login
+    // next({ name: "Login" });
+    // (Logic ใหม่) -> ไปหน้า Home (/) เพื่อเปิด Modal
+    next({ name: "Home" });
   } else if (to.meta.requiresGuest && isAuthenticated) {
     // ถ้าหน้านี้สำหรับ Guest แต่ดัน login แล้ว -> ไปหน้า /dashboard
     next({ name: "Dashboard" });

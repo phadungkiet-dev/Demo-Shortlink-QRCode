@@ -48,10 +48,6 @@
             <div
               class="mt-4 sm:mt-0 sm:ml-6 flex-shrink-0 flex items-center space-x-4"
             >
-              <div class="flex items-center text-sm text-gray-500">
-                <BarChart2 class="h-5 w-5 mr-1.5 text-gray-400" />
-                {{ link._count.clicks }} Clicks
-              </div>
               <div
                 class="flex items-center text-sm"
                 :class="
@@ -75,15 +71,17 @@
             >
               Stats
             </button>
+            <!-- (แก้ไข) 1. เปลี่ยนไปเรียก Store Action -->
             <button
-              @click="renewLink(link.id)"
+              @click="handleRenew(link.id)"
               :disabled="isRenewing"
               class="px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200"
             >
               Renew (30 days)
             </button>
+            <!-- (แก้ไข) 2. เปลี่ยนไปเรียก Store Action -->
             <button
-              @click="deleteLink(link.id, link.slug)"
+              @click="handleDelete(link.id)"
               :disabled="isDeleting"
               class="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200"
             >
@@ -104,8 +102,8 @@ import Swal from "sweetalert2";
 import { Loader2, Link2, BarChart2, Calendar, Plus } from "lucide-vue-next";
 
 const authStore = useAuthStore();
-const isRenewing = ref(false);
-const isDeleting = ref(false);
+const isRenewing = ref(false); // เรายังเก็บ state นี้ไว้เพื่อ disable ปุ่ม
+const isDeleting = ref(false); // เรายังเก็บ state นี้ไว้เพื่อ disable ปุ่ม
 
 // Helper: Check if expired
 const isExpired = (dateString) => new Date(dateString) < new Date();
@@ -120,46 +118,37 @@ const formatRelativeTime = (dateString) => {
   });
 };
 
-const renewLink = async (linkId) => {
+// (แก้ไข) 3. ฟังก์ชันนี้จะ "หุ้ม" Store Action
+// เราแยก isRenewing (UI) ออกจาก Logic (Store)
+const handleRenew = async (linkId) => {
   isRenewing.value = true;
   try {
-    await api.patch(`/links/${linkId}`, { renew: true });
-    Swal.fire("Success!", "Link has been renewed for 30 days.", "success");
-    authStore.fetchMyLinks(); // Refresh list
+    // (สำคัญ) เรียก Action ใหม่ที่เราสร้างใน Store
+    await authStore.renewLink(linkId);
   } catch (error) {
-    console.error("Failed to renew link:", error);
-    Swal.fire("Error", "Could not renew link.", "error");
+    // Store จัดการ Error Swal ให้แล้ว, แต่เรา log ไว้เผื่อ
+    console.error("DashboardView: Error renewing link:", error);
   } finally {
     isRenewing.value = false;
   }
 };
 
-const deleteLink = async (linkId, slug) => {
-  const result = await Swal.fire({
-    title: "Are you sure?",
-    text: `This will permanently delete the link /r/${slug}`,
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonColor: "#d33",
-    cancelButtonColor: "#3085d6",
-    confirmButtonText: "Yes, delete it!",
-  });
-
-  if (result.isConfirmed) {
-    isDeleting.value = true;
-    try {
-      await api.delete(`/links/${linkId}`);
-      Swal.fire("Deleted!", "Your link has been deleted.", "success");
-      authStore.fetchMyLinks(); // Refresh list
-    } catch (error) {
-      console.error("Failed to delete link:", error);
-      Swal.fire("Error", "Could not delete link.", "error");
-    } finally {
-      isDeleting.value = false;
-    }
+// (แก้ไข) 4. ฟังก์ชันนี้จะ "หุ้ม" Store Action
+const handleDelete = async (linkId) => {
+  isDeleting.value = true;
+  try {
+    // (สำคัญ) เรียก Action ใหม่ที่เราสร้างใน Store
+    // (Store Action จะยิง Swal ยืนยันเอง)
+    await authStore.deleteLink(linkId);
+  } catch (error) {
+    console.error("DashboardView: Error deleting link:", error);
+  } finally {
+    // (Store จะลบรายการออกจาก 'myLinks' ให้อัตโนมัติ)
+    isDeleting.value = false;
   }
 };
 
+// (เก็บไว้) 5. ฟังก์ชันนี้สมบูรณ์แบบ
 const showStats = async (link) => {
   try {
     const { data: stats } = await api.get(`/links/${link.id}/stats`);
@@ -212,7 +201,7 @@ const showStats = async (link) => {
   }
 };
 
-// Fetch links when component is mounted
+// Fetch links when component is mounted (เก็บไว้)
 onMounted(() => {
   authStore.fetchMyLinks();
 });

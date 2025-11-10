@@ -39,9 +39,22 @@ const changePasswordSchema = z
     path: ["confirmPassword"],
   });
 
+// Schema for new user registration +++
+const registerSchema = z
+  .object({
+    email: z.string().email("Invalid email format."),
+    password: z.string().min(8, "Password must be at least 8 characters long."),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
 module.exports = {
   createLinkSchema,
   updateLinkSchema,
   loginSchema,
   changePasswordSchema,
+  registerSchema,
 };

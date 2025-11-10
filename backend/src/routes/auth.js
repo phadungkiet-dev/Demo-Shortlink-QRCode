@@ -26,4 +26,8 @@ router.get("/google", authController.googleAuth);
 // GET /api/auth/google/callback (Callback URL)
 router.get("/google/callback", authController.googleCallback);
 
+// POST /api/auth/register
+router.post("/register", authController.register);
+
+
 module.exports = router;
