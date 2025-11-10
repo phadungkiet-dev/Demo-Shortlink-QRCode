@@ -64,13 +64,16 @@
               </div>
             </div>
           </div>
+
+
           <div class="mt-4 flex items-center justify-end space-x-3">
-            <button
-              @click="showStats(link)"
+            <!-- (แก้ไข) 1. เปลี่ยนจาก <button> เป็น <router-link> -->
+            <router-link
+              :to="`/dashboard/link/${link.id}/stats`"
               class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
             >
               Stats
-            </button>
+            </router-link>
             <!-- (แก้ไข) 1. เปลี่ยนไปเรียก Store Action -->
             <button
               @click="handleRenew(link.id)"
@@ -97,9 +100,8 @@
 <script setup>
 import { onMounted, computed, ref } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
-import api from "@/services/api";
-import Swal from "sweetalert2";
-import { Loader2, Link2, BarChart2, Calendar, Plus } from "lucide-vue-next";
+
+import { Loader2, Link2, Calendar, Plus } from "lucide-vue-next";
 
 const authStore = useAuthStore();
 const isRenewing = ref(false); // เรายังเก็บ state นี้ไว้เพื่อ disable ปุ่ม
@@ -145,59 +147,6 @@ const handleDelete = async (linkId) => {
   } finally {
     // (Store จะลบรายการออกจาก 'myLinks' ให้อัตโนมัติ)
     isDeleting.value = false;
-  }
-};
-
-// (เก็บไว้) 5. ฟังก์ชันนี้สมบูรณ์แบบ
-const showStats = async (link) => {
-  try {
-    const { data: stats } = await api.get(`/links/${link.id}/stats`);
-
-    const statsHtml = `
-      <div class="text-left space-y-4">
-        <h3 class="text-lg font-medium">Stats for <span class="font-bold text-indigo-600">/r/${
-          link.slug
-        }</span></h3>
-        <p class="text-gray-600"><strong>Total Clicks:</strong> ${
-          stats.totalClicks
-        }</p>
-        
-        <div>
-          <h4 class="font-medium text-gray-800">Top Referrers:</h4>
-          <ul class="list-disc list-inside text-gray-600 mt-1">
-            ${
-              stats.topReferrers.length > 0
-                ? stats.topReferrers
-                    .map((r) => `<li>${r.referrer}: ${r.count}</li>`)
-                    .join("")
-                : "<li>No referrer data</li>"
-            }
-          </ul>
-        </div>
-        
-        <div>
-          <h4 class="font-medium text-gray-800">Clicks per Day (Last 7):</h4>
-          <ul class="list-disc list-inside text-gray-600 mt-1">
-              ${
-                Object.keys(stats.dailyCounts).length > 0
-                  ? Object.entries(stats.dailyCounts)
-                      .map(([day, count]) => `<li>${day}: ${count}</li>`)
-                      .join("")
-                  : "<li>No clicks recently</li>"
-              }
-          </ul>
-        </div>
-      </div>
-    `;
-    Swal.fire({
-      title: "Link Statistics",
-      html: statsHtml,
-      icon: "info",
-      width: "500px",
-    });
-  } catch (error) {
-    console.error("Failed to fetch stats:", error);
-    Swal.fire("Error", "Could not fetch link statistics.", "error");
   }
 };
 

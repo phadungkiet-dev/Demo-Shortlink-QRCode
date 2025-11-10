@@ -5,7 +5,7 @@ import {
 } from "vue-router";
 import { useAuthStore } from "@/stores/useAuthStore";
 import HomeView from "@/views/HomeView.vue";
-import DashboardView from "@/views/DashboardView.vue";
+// import DashboardView from "@/views/DashboardView.vue";
 // import LoginView from "@/views/LoginView.vue";
 
 const routes = [
@@ -23,9 +23,19 @@ const routes = [
   {
     path: "/dashboard",
     name: "Dashboard",
-    component: DashboardView,
+    component: () => import("@/views/DashboardView.vue"),
     meta: { requiresAuth: true }, // ต้อง login
   },
+  // +++ (เพิ่มใหม่) Route for individual link stats +++
+  {
+    path: "/dashboard/link/:id/stats", // :id คือ Dynamic
+    name: "LinkStats",
+    // (นี่คือไฟล์ใหม่ที่เราจะสร้างในขั้นตอนถัดไป)
+    component: () => import("@/views/LinkStatsView.vue"),
+    meta: { requiresAuth: true }, // (ต้อง login)
+    props: true, // (สำคัญมาก) ส่ง :id ไปเป็น prop ให้ component
+  },
+  // +++ (จบส่วนที่เพิ่มใหม่) +++
   // (Optional) Google OAuth Callback Success
   // เราจะ redirect จาก /dashboard ไปเอง
   // แต่ถ้า Google redirect มาที่ / (Home) เราก็ต้องเช็ค
