@@ -35,6 +35,12 @@ passport.use(
           });
         }
 
+        if (user.isBlocked) {
+          return done(null, false, {
+            message: "Your account has been suspended by an administrator.",
+          });
+        }
+
         // Return user (without password)
         const { passwordHash, ...userWithoutPass } = user;
         return done(null, userWithoutPass);
@@ -76,6 +82,12 @@ passport.use(
                 "Email already registered with a different method (e.g., local password).",
             });
           }
+
+          if (existingUser.isBlocked) {
+            return done(null, false, {
+              message: "Your account has been suspended by an administrator.",
+            });
+          }
           // Logged in with Google successfully
           const { passwordHash, ...userWithoutPass } = existingUser;
           return done(null, userWithoutPass);
@@ -110,6 +122,10 @@ passport.deserializeUser(async (id, done) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
     if (user) {
+      if (user.isBlocked) {
+        return done(null, false); // (ทำให้ req.user = null)
+      }
+
       const { passwordHash, ...userWithoutPass } = user;
       done(null, userWithoutPass); // req.user
     } else {

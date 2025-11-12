@@ -1,157 +1,41 @@
 <template>
-  <div class="container mx-auto px-4 lg:px-8 py-12">
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold text-gray-900">My Links</h1>
-      <router-link
-        to="/"
-        class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-indigo-700 flex items-center gap-2"
-      >
-        <Plus class="h-4 w-4" />
-        Create New
-      </router-link>
-    </div>
+  <div>
+    <!-- 
+      (สำคัญ) นี่คือ "สวิตช์" (Switcher)
+      Router (router/index.js) ของเราจะ "รอ" (await)
+      ให้ authStore.initAuth() (ดึง user) ทำงานเสร็จก่อน
+      ดังนั้น 'authStore.user' จะมีข้อมูลที่ถูกต้องเสมอเมื่อหน้านี้โหลด
+    -->
+    <AdminDashboard v-if="authStore.user && authStore.user.role === 'ADMIN'" />
+    <UserDashboard v-else-if="authStore.user" />
 
-    <!-- Loading State -->
-    <div v-if="authStore.isLoadingLinks" class="text-center py-10">
-      <Loader2 class="h-8 w-8 text-indigo-600 mx-auto animate-spin" />
-      <p class="mt-2 text-gray-600">Loading links...</p>
-    </div>
-
-    <!-- Empty State -->
-    <div
-      v-else-if="!authStore.isLoadingLinks && authStore.myLinks.length === 0"
-      class="text-center py-10 bg-white shadow rounded-lg"
-    >
-      <Link2 class="h-12 w-12 text-gray-400 mx-auto" />
-      <h3 class="mt-2 text-lg font-medium text-gray-900">No links found</h3>
-      <p class="mt-1 text-sm text-gray-500">
-        Get started by creating your first shortlink.
-      </p>
-    </div>
-
-    <!-- Links List -->
-    <div v-else class="bg-white shadow overflow-hidden rounded-lg">
-      <ul class="divide-y divide-gray-200">
-        <li v-for="link in authStore.myLinks" :key="link.id" class="p-4 sm:p-6">
-          <div
-            class="flex flex-col sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div class="flex-1 min-w-0">
-              <a
-                :href="link.shortUrl"
-                target="_blank"
-                class="text-lg font-medium text-indigo-600 hover:text-indigo-800 truncate"
-                >{{ link.shortUrl }}</a
-              >
-              <p class="text-sm text-gray-500 truncate">{{ link.targetUrl }}</p>
-            </div>
-            <div
-              class="mt-4 sm:mt-0 sm:ml-6 flex-shrink-0 flex items-center space-x-4"
-            >
-              <div
-                class="flex items-center text-sm"
-                :class="
-                  isExpired(link.expiredAt) ? 'text-red-500' : 'text-gray-500'
-                "
-              >
-                <Calendar
-                  class="h-5 w-5 mr-1.5"
-                  :class="
-                    isExpired(link.expiredAt) ? 'text-red-400' : 'text-gray-400'
-                  "
-                />
-                Expires {{ formatRelativeTime(link.expiredAt) }}
-              </div>
-            </div>
-          </div>
-
-
-          <div class="mt-4 flex items-center justify-end space-x-3">
-            <!-- (แก้ไข) 1. เปลี่ยนจาก <button> เป็น <router-link> -->
-            <router-link
-              :to="`/dashboard/link/${link.id}/stats`"
-              class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
-            >
-              Stats
-            </router-link>
-            <!-- (แก้ไข) 1. เปลี่ยนไปเรียก Store Action -->
-            <button
-              @click="handleRenew(link.id)"
-              :disabled="isRenewing"
-              class="px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200"
-            >
-              Renew (30 days)
-            </button>
-            <!-- (แก้ไข) 2. เปลี่ยนไปเรียก Store Action -->
-            <button
-              @click="handleDelete(link.id)"
-              :disabled="isDeleting"
-              class="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200"
-            >
-              Delete
-            </button>
-          </div>
-        </li>
-      </ul>
+    <!-- 
+      (เผื่อไว้) ถ้า User หายไป (ซึ่งไม่ควรเกิดขึ้น)
+      หรือ authStore.isAuthReady ยังไม่เสร็จ
+    -->
+    <div v-else class="text-center py-20">
+      <Loader2 class="h-12 w-12 text-indigo-600 mx-auto animate-spin" />
+      <p class="mt-4 text-gray-600">Loading user data...</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, computed, ref } from "vue";
+// (สำคัญ) 1. Import Store เพื่อเช็ค 'role'
 import { useAuthStore } from "@/stores/useAuthStore";
 
-import { Loader2, Link2, Calendar, Plus } from "lucide-vue-next";
+// (สำคัญ) 2. Import 2 Components ที่เราเพิ่งสร้าง
+import AdminDashboard from "@/components/AdminDashboard.vue";
+import UserDashboard from "@/components/UserDashboard.vue";
 
+// (เพิ่ม) 3. Import Loader (เผื่อไว้)
+import { Loader2 } from "lucide-vue-next";
+
+// 4. เรียก Store
 const authStore = useAuthStore();
-const isRenewing = ref(false); // เรายังเก็บ state นี้ไว้เพื่อ disable ปุ่ม
-const isDeleting = ref(false); // เรายังเก็บ state นี้ไว้เพื่อ disable ปุ่ม
 
-// Helper: Check if expired
-const isExpired = (dateString) => new Date(dateString) < new Date();
-
-// Helper: Format time
-const formatRelativeTime = (dateString) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
-
-// (แก้ไข) 3. ฟังก์ชันนี้จะ "หุ้ม" Store Action
-// เราแยก isRenewing (UI) ออกจาก Logic (Store)
-const handleRenew = async (linkId) => {
-  isRenewing.value = true;
-  try {
-    // (สำคัญ) เรียก Action ใหม่ที่เราสร้างใน Store
-    await authStore.renewLink(linkId);
-  } catch (error) {
-    // Store จัดการ Error Swal ให้แล้ว, แต่เรา log ไว้เผื่อ
-    console.error("DashboardView: Error renewing link:", error);
-  } finally {
-    isRenewing.value = false;
-  }
-};
-
-// (แก้ไข) 4. ฟังก์ชันนี้จะ "หุ้ม" Store Action
-const handleDelete = async (linkId) => {
-  isDeleting.value = true;
-  try {
-    // (สำคัญ) เรียก Action ใหม่ที่เราสร้างใน Store
-    // (Store Action จะยิง Swal ยืนยันเอง)
-    await authStore.deleteLink(linkId);
-  } catch (error) {
-    console.error("DashboardView: Error deleting link:", error);
-  } finally {
-    // (Store จะลบรายการออกจาก 'myLinks' ให้อัตโนมัติ)
-    isDeleting.value = false;
-  }
-};
-
-// Fetch links when component is mounted (เก็บไว้)
-onMounted(() => {
-  authStore.fetchMyLinks();
-});
+// (เรียบร้อย!)
+// (Logic 'onMounted', 'fetchMyLinks', 'handleDelete' ฯลฯ
+// ทั้งหมดถูกย้ายไปอยู่ใน 'UserDashboard.vue' แล้ว
+// ทำให้ไฟล์ "แม่" (View) นี้... "สะอาด" มากครับ)
 </script>

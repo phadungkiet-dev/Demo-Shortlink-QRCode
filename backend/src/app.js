@@ -40,7 +40,7 @@ const pgPool = new pg.Pool({
 const sessionStore = new ConnectPgSimple({
   pool: pgPool,
   tableName: "user_sessions", // You might want to create this table
-  createTableIfMissing: true,
+  createTableIfMissing: false,
 });
 
 // --- Core Middlewares ---

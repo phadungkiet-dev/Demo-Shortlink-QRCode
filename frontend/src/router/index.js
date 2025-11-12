@@ -35,6 +35,12 @@ const routes = [
     meta: { requiresAuth: true }, // (ต้อง login)
     props: true, // (สำคัญมาก) ส่ง :id ไปเป็น prop ให้ component
   },
+  {
+    path: "/profile",
+    name: "Profile",
+    component: () => import("@/views/ProfileView.vue"), // (ไฟล์ใหม่)
+    meta: { requiresAuth: true }, // (ต้องล็อกอิน)
+  },
   // +++ (จบส่วนที่เพิ่มใหม่) +++
   // (Optional) Google OAuth Callback Success
   // เราจะ redirect จาก /dashboard ไปเอง

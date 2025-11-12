@@ -1,5 +1,3 @@
-// frontend/src/components/UserDropdown.vue
-
 <template>
   <div class="relative" ref="dropdownRoot">
     <!-- 1. Avatar Button (ปุ่มวงกลม) -->
@@ -22,7 +20,7 @@
     >
       <div
         v-if="isOpen"
-        class="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+        class="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-30"
       >
         <div class="py-1" role="menu" aria-orientation="vertical">
           <!-- Header (Email) -->
@@ -35,18 +33,23 @@
 
           <!-- Menu Items (อนาคต) -->
           <div class="py-1" role="none">
+            <!-- (แก้ไข) 1. เปลี่ยนเป็น router-link และลบ class ปิด (opacity-50) -->
+            <router-link
+              to="/profile"
+              @click="isOpen = false"
+              class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              role="menuitem"
+            >
+              My Profile
+            </router-link>
+
             <a
               href="#"
               class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 opacity-50 cursor-not-allowed"
               role="menuitem"
-              >(My Profile - soon)</a
             >
-            <a
-              href="#"
-              class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 opacity-50 cursor-not-allowed"
-              role="menuitem"
-              >(Settings - soon)</a
-            >
+              (Settings - soon)
+            </a>
           </div>
 
           <!-- Logout Button -->
@@ -71,10 +74,11 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { LogOut } from "lucide-vue-next";
 import Swal from "sweetalert2";
+import { RouterLink } from "vue-router"; // (เพิ่ม) Import RouterLink
 
 const authStore = useAuthStore();
 const isOpen = ref(false);
-const dropdownRoot = ref(null); // (สำหรับ Click Outside)
+const dropdownRoot = ref(null);
 
 // (สำคัญ) 1. Logic สร้าง "ตัวย่อ" (Initials)
 const initials = computed(() => {
@@ -83,19 +87,16 @@ const initials = computed(() => {
   }
 
   const email = authStore.user.email;
-  const parts = email.split("@")[0].split("."); // เช่น 'phadungkiet.b'
+  const parts = email.split("@")[0].split(".");
 
   if (parts.length > 1 && parts[0].length > 0 && parts[1].length > 0) {
-    // "PB" (จาก 'p'hadungkiet และ 'b')
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 
-  // "PH" (จาก 'ph'adungkiet)
   return email.substring(0, 2).toUpperCase();
 });
 
 // (สำคัญ) 2. Logic "Click Outside"
-// (ถ้าคลิกที่อื่น... ให้ปิด Dropdown)
 const handleClickOutside = (event) => {
   if (dropdownRoot.value && !dropdownRoot.value.contains(event.target)) {
     isOpen.value = false;
@@ -109,9 +110,9 @@ onUnmounted(() => {
   document.removeEventListener("mousedown", handleClickOutside);
 });
 
-// (สำคัญ) 3. Logic "Logout" (ย้ายมาจาก AppHeader.vue)
+// (สำคัญ) 3. Logic "Logout"
 const handleLogoutClick = () => {
-  isOpen.value = false; // (ปิด Dropdown ก่อน)
+  isOpen.value = false;
 
   Swal.fire({
     title: "Are you sure?",

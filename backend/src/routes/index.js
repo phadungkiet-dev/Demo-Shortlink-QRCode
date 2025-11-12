@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const authRouter = require("./auth");
 const linksRouter = require("./links");
+const adminRouter = require("./admin"); // (เพิ่มใหม่) 1. Import
+
 const logger = require("../utils/logger");
 const { apiLimiter } = require("../middlewares/rateLimit");
 
@@ -21,6 +23,7 @@ router.get("/health", (req, res) => {
 // Mount other routers
 router.use("/auth", authRouter);
 router.use("/links", linksRouter);
+router.use("/admin", adminRouter); // (เพิ่มใหม่) 2. ติดตั้ง (Mount)
 
 // Fallback for unknown API routes
 router.use((req, res) => {
