@@ -40,13 +40,22 @@
           class="block text-sm font-medium text-gray-700"
           >Password</label
         >
-        <input
-          id="password-login"
-          v-model="password"
-          type="password"
-          required
-          class="mt-1 block w-full px-4 py-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-        />
+        <div class="relative mt-1">
+          <input
+            id="password-login"
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            required
+            class="block w-full px-4 py-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+          />
+          <button
+            type="button"
+            @click="showPassword = !showPassword"
+            class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+          >
+            <component :is="showPassword ? EyeOff : Eye" class="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       <button
@@ -64,13 +73,14 @@
 <script setup>
 import { ref } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { Loader2 } from "lucide-vue-next";
+import { Loader2, Eye, EyeOff } from "lucide-vue-next";
 
 // เราจะ emit (ส่งสัญญาณ) บอก Component แม่ เมื่อ Login สำเร็จ
 const emit = defineEmits(["login-success"]);
 
 const email = ref("");
 const password = ref("");
+const showPassword = ref(false);
 const isLoading = ref(false);
 const authStore = useAuthStore();
 

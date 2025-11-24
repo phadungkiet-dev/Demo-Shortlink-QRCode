@@ -43,85 +43,130 @@
             Change Password
           </h2>
 
-          <p class="text-sm text-gray-600 mb-6">
-            You are currently signed in with Email/Password. Please enter your
-            old password and new password below.
-          </p>
-
-          <form @submit.prevent="handleChangePassword" class="space-y-6">
-            <!-- Old Password -->
-            <div>
-              <label
-                for="old-password"
-                class="block text-sm font-medium text-gray-700"
-              >
-                Old Password
-              </label>
-              <input
-                id="old-password"
-                v-model="formData.oldPassword"
-                type="password"
-                required
-                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <!-- New Password -->
-            <div>
-              <label
-                for="new-password"
-                class="block text-sm font-medium text-gray-700"
-              >
-                New Password
-              </label>
-              <input
-                id="new-password"
-                v-model="formData.newPassword"
-                type="password"
-                required
-                minlength="6"
-                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <p class="mt-1 text-xs text-gray-500">Minimum 6 characters.</p>
-            </div>
-
-            <!-- Confirm Password -->
-            <div>
-              <label
-                for="confirm-password"
-                class="block text-sm font-medium text-gray-700"
-              >
-                Confirm New Password
-              </label>
-              <input
-                id="confirm-password"
-                v-model="formData.confirmPassword"
-                type="password"
-                required
-                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <!-- Error Message -->
-            <p v-if="passwordMatchError" class="text-sm text-red-600">
-              New Password and Confirm Password do not match.
-            </p>
-            <p v-if="apiError" class="text-sm text-red-600">
-              Error: {{ apiError }}
+          <div v-if="authStore.user?.provider === 'LOCAL'">
+            <p class="text-sm text-gray-600 mb-6">
+              You are currently signed in with Email/Password. Please enter your
+              old password and new password below.
             </p>
 
-            <!-- Submit Button -->
-            <div class="pt-4 border-t">
-              <button
-                type="submit"
-                :disabled="isLoading || passwordMatchError"
-                class="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                <Loader2 v-if="isLoading" class="h-5 w-5 animate-spin mr-2" />
-                {{ isLoading ? "Processing..." : "Save New Password" }}
-              </button>
-            </div>
-          </form>
+            <form @submit.prevent="handleChangePassword" class="space-y-6">
+              <div>
+                <label
+                  for="old-password"
+                  class="block text-sm font-medium text-gray-700"
+                >
+                  Old Password
+                </label>
+                <div class="relative mt-1">
+                  <input
+                    id="old-password"
+                    v-model="formData.oldPassword"
+                    :type="showOldPassword ? 'text' : 'password'"
+                    required
+                    class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+                  />
+                  <button
+                    type="button"
+                    @click="showOldPassword = !showOldPassword"
+                    class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                  >
+                    <component
+                      :is="showOldPassword ? EyeOff : Eye"
+                      class="h-5 w-5"
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  for="new-password"
+                  class="block text-sm font-medium text-gray-700"
+                >
+                  New Password
+                </label>
+                <div class="relative mt-1">
+                  <input
+                    id="new-password"
+                    v-model="formData.newPassword"
+                    :type="showNewPassword ? 'text' : 'password'"
+                    required
+                    minlength="6"
+                    class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+                  />
+                  <button
+                    type="button"
+                    @click="showNewPassword = !showNewPassword"
+                    class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                  >
+                    <component
+                      :is="showNewPassword ? EyeOff : Eye"
+                      class="h-5 w-5"
+                    />
+                  </button>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">Minimum 6 characters.</p>
+              </div>
+
+              <div>
+                <label
+                  for="confirm-password"
+                  class="block text-sm font-medium text-gray-700"
+                >
+                  Confirm New Password
+                </label>
+                <div class="relative mt-1">
+                  <input
+                    id="confirm-password"
+                    v-model="formData.confirmPassword"
+                    :type="showConfirmPassword ? 'text' : 'password'"
+                    required
+                    class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+                  />
+                  <button
+                    type="button"
+                    @click="showConfirmPassword = !showConfirmPassword"
+                    class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                  >
+                    <component
+                      :is="showConfirmPassword ? EyeOff : Eye"
+                      class="h-5 w-5"
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <p v-if="passwordMatchError" class="text-sm text-red-600">
+                New Password and Confirm Password do not match.
+              </p>
+              <p v-if="apiError" class="text-sm text-red-600">
+                Error: {{ apiError }}
+              </p>
+
+              <div class="pt-4 border-t">
+                <button
+                  type="submit"
+                  :disabled="isLoading || passwordMatchError"
+                  class="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                >
+                  <Loader2 v-if="isLoading" class="h-5 w-5 animate-spin mr-2" />
+                  {{ isLoading ? "Processing..." : "Save New Password" }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div
+            v-else
+            class="text-center py-8 bg-gray-50 rounded-lg border border-gray-200"
+          >
+            <p class="text-gray-600">
+              You are signed in with <strong>Google</strong>.
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+              Please manage your password through your Google Account settings.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -133,11 +178,15 @@ import { reactive, ref, computed } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
 import api from "@/services/api"; // Axios instance สำหรับเรียก API
 import Swal from "sweetalert2";
-import { User, Lock, Loader2 } from "lucide-vue-next";
+import { User, Lock, Loader2, Eye, EyeOff } from "lucide-vue-next";
 
 const authStore = useAuthStore();
 const isLoading = ref(false);
 const apiError = ref(null);
+
+const showOldPassword = ref(false);
+const showNewPassword = ref(false);
+const showConfirmPassword = ref(false);
 
 const formData = reactive({
   oldPassword: "",
@@ -178,10 +227,11 @@ const handleChangePassword = async () => {
     const payload = {
       oldPassword: formData.oldPassword,
       newPassword: formData.newPassword,
+      confirmPassword: formData.confirmPassword,
     };
 
     // เรียก API ที่มีอยู่แล้ว (POST /api/auth/change-password)
-    await api.post("/api/auth/change-password", payload);
+    await api.post("/auth/change-password", payload);
 
     Swal.fire({
       icon: "success",

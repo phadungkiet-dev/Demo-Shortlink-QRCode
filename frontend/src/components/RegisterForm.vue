@@ -41,13 +41,22 @@
           class="block text-sm font-medium text-gray-700"
           >Password</label
         >
-        <input
-          id="password-register"
-          v-model="password"
-          type="password"
-          required
-          class="mt-1 block w-full px-4 py-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-        />
+        <div class="relative mt-1">
+          <input
+            id="password-register"
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            required
+            class="block w-full px-4 py-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+          />
+          <button
+            type="button"
+            @click="showPassword = !showPassword"
+            class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+          >
+            <component :is="showPassword ? EyeOff : Eye" class="h-5 w-5" />
+          </button>
+        </div>
         <p class="mt-1 text-xs text-gray-500">
           Must be at least 8 characters long.
         </p>
@@ -59,13 +68,25 @@
           class="block text-sm font-medium text-gray-700"
           >Confirm Password</label
         >
-        <input
-          id="confirm-password"
-          v-model="confirmPassword"
-          type="password"
-          required
-          class="mt-1 block w-full px-4 py-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-        />
+        <div class="relative mt-1">
+          <input
+            id="confirm-password"
+            v-model="confirmPassword"
+            :type="showConfirmPassword ? 'text' : 'password'"
+            required
+            class="block w-full px-4 py-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 pr-10"
+          />
+          <button
+            type="button"
+            @click="showConfirmPassword = !showConfirmPassword"
+            class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+          >
+            <component
+              :is="showConfirmPassword ? EyeOff : Eye"
+              class="h-5 w-5"
+            />
+          </button>
+        </div>
       </div>
 
       <button
@@ -83,7 +104,7 @@
 <script setup>
 import { ref } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { Loader2, AlertCircle } from "lucide-vue-next";
+import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-vue-next";
 
 // เราจะ emit (ส่งสัญญาณ) บอก Component แม่ (LoginModal) เมื่อสมัครสำเร็จ
 const emit = defineEmits(["register-success"]);
@@ -91,6 +112,8 @@ const emit = defineEmits(["register-success"]);
 const email = ref("");
 const password = ref("");
 const confirmPassword = ref(""); // (เพิ่มใหม่)
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
 const isLoading = ref(false);
 const errorMsg = ref(null); // (เพิ่มใหม่)
 const authStore = useAuthStore();

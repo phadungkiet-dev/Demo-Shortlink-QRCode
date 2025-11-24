@@ -7,9 +7,10 @@ const globalErrorHandler = (err, req, res, next) => {
 
   // 1. Zod Validation Errors
   if (err instanceof ZodError) {
+    const validationErrors = err.errors || err.issues || [];
     return res.status(400).json({
       message: "Validation failed.",
-      errors: err.errors.map((e) => ({
+      errors: validationErrors.map((e) => ({
         path: e.path.join("."),
         message: e.message,
       })),
