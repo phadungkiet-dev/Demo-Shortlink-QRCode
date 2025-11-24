@@ -52,7 +52,7 @@ app.use(
 );
 app.use(helmet());
 app.use(compression());
-app.use(morgan("dev"));
+app.use(morgan("combined", { stream: logger.stream }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser(process.env.SESSION_SECRET));
@@ -63,10 +63,11 @@ const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
+  rolling: true,
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS || "604800000"), // 7 days
+    maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS || "900000"), // 15 min
     sameSite: process.env.NODE_ENV === "production" ? "lax" : "lax", // 'strict' can cause issues
   },
 });
