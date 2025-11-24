@@ -1,5 +1,3 @@
-// frontend/src/components/ResultModal.vue
-
 <template>
   <div>
     <!-- 1. ฉากหลัง (Backdrop) -->
@@ -9,7 +7,7 @@
       @click="closeModal"
     ></div>
 
-    <!-- 2. ตัว Modal (Panel) -->
+    <!-- Modal (Panel) -->
     <transition
       enter-active-class="transition ease-out duration-300"
       enter-from-class="transform opacity-0 scale-95"
@@ -23,11 +21,9 @@
         class="fixed inset-0 z-50 flex items-center justify-center p-4"
         @click.stop
       >
-        <!-- (Req 1) เพิ่มความกว้าง Modal -->
         <div
-          class="relative w-full max-w-4xl bg-white p-6 rounded-lg shadow-lg"
+          class="relative w-full max-w-4xl bg-white p-6 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto"
         >
-          <!-- ปุ่มปิด (X) -->
           <button
             @click="closeModal"
             class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
@@ -35,13 +31,9 @@
             <X class="h-6 w-6" />
           </button>
 
-          <!-- (Layout สลับด้านแล้ว) -->
           <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <!-- (ฝั่งซ้าย) 1. CONTROL PANEL (3 คอลัมน์) -->
             <div class="lg:col-span-3 space-y-4 lg:border-r lg:pr-6">
-              <h2 class="text-2xl font-bold text-gray-900">Customize QR</h2>
-
-              <!-- B.1 Link Info -->
+              <h2 class="text-2xl font-bold text-gray-900">🛠️ Customize QR</h2>
               <div>
                 <label class="block text-sm font-medium text-gray-700"
                   >Short Link</label
@@ -61,7 +53,7 @@
                 </div>
               </div>
 
-              <!-- (FIX) B.2 Accordion "Design" -->
+              <!-- Dropdown design & color -->
               <details class="border rounded-lg" :open="isDesignOpen">
                 <summary
                   class="p-3 font-medium cursor-pointer flex justify-between items-center"
@@ -74,7 +66,7 @@
                   />
                 </summary>
                 <div class="p-4 border-t space-y-4 bg-gray-50">
-                  <!-- (Req 2) Main Color -->
+                  <!-- Color -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700"
                       >Color (Dots & Corners)</label
@@ -82,7 +74,7 @@
                     <div class="mt-1 flex rounded-md shadow-sm">
                       <label
                         :style="{ backgroundColor: mainColor }"
-                        class="w-12 h-10 border border-r-0 border-gray-300 rounded-l-md cursor-pointer hover:opacity-90"
+                        class="w-12 h-auto border border-r-0 border-gray-300 rounded-l-md cursor-pointer hover:opacity-90"
                       >
                         <input
                           type="color"
@@ -97,7 +89,36 @@
                       />
                     </div>
                   </div>
-                  <!-- (Req 6) Transparent BG -->
+
+                  <!-- Background -->
+                  <div
+                    :class="{ 'opacity-50 pointer-events-none': isTransparent }"
+                  >
+                    <label class="block text-sm font-medium text-gray-700"
+                      >Background Color</label
+                    >
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                      <label
+                        :style="{ backgroundColor: backgroundColor }"
+                        class="w-12 h-auto border border-r-0 border-gray-300 rounded-l-md cursor-pointer hover:opacity-90 transition-colors"
+                      >
+                        <input
+                          type="color"
+                          v-model="backgroundColor"
+                          :disabled="isTransparent"
+                          class="opacity-0 w-0 h-0 absolute"
+                        />
+                      </label>
+                      <input
+                        type="text"
+                        v-model="backgroundColor"
+                        :disabled="isTransparent"
+                        class="flex-1 block w-full rounded-none rounded-r-md px-3 py-2 border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- Transparent BG -->
                   <div class="flex items-center justify-between">
                     <label class="text-sm font-medium text-gray-700"
                       >Transparent Background</label
@@ -116,7 +137,8 @@
                       ></span>
                     </button>
                   </div>
-                  <!-- (Req 3) Dots Options -->
+
+                  <!-- Dots Style -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700"
                       >Dots Style</label
@@ -133,7 +155,8 @@
                       <option value="classy-rounded">Classy Rounded</option>
                     </select>
                   </div>
-                  <!-- (Req 4) Corners Square Options -->
+
+                  <!-- Corners Square Style -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700"
                       >Corners Square Style</label
@@ -142,13 +165,14 @@
                       v-model="cornersSquareOptionsType"
                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                     >
-                      <option value="square">Square</option>
                       <option :value="null">None</option>
+                      <option value="square">Square</option>
                       <option value="dot">Dot</option>
                       <option value="extra-rounded">Extra Rounded</option>
                     </select>
                   </div>
-                  <!-- (Req 5) Corners Dot Options -->
+
+                  <!-- Corners Dot Style -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700"
                       >Corners Dot Style</label
@@ -157,15 +181,15 @@
                       v-model="cornersDotOptionsType"
                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                     >
-                      <option value="dot">Dot</option>
                       <option :value="null">None</option>
+                      <option value="dot">Dot</option>
                       <option value="square">Square</option>
                     </select>
                   </div>
                 </div>
               </details>
 
-              <!-- (FIX) B.3 Accordion "Logo" -->
+              <!-- Dropdown Logo -->
               <details class="border rounded-lg" :open="isLogoOpen">
                 <summary
                   class="p-3 font-medium cursor-pointer flex justify-between items-center"
@@ -177,38 +201,44 @@
                     :class="logoChevronClasses"
                   />
                 </summary>
+                <!-- Drag and Drop -->
                 <div class="p-4 border-t space-y-4 bg-gray-50">
-                  <!-- (Req 7) Drag and Drop -->
                   <label
                     for="logo-upload"
                     @dragover.prevent="dragOver = true"
                     @dragleave.prevent="dragOver = false"
                     @drop.prevent="handleDrop"
-                    :class="
+                    :class="[
                       dragOver
-                        ? 'border-indigo-600 bg-indigo-50'
-                        : 'border-gray-300'
-                    "
-                    class="mt-1 flex justify-center rounded-md border-2 border-dashed px-6 pt-5 pb-6 cursor-pointer"
+                        ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
+                        : 'border-gray-300 bg-white hover:bg-gray-50 hover:border-indigo-400',
+                      'mt-1 flex flex-col justify-center items-center rounded-xl border-2 border-dashed px-6 pt-8 pb-8 cursor-pointer transition-all duration-200 ease-in-out group',
+                    ]"
                   >
-                    <div class="space-y-1 text-center">
-                      <Image class="mx-auto h-12 w-12 text-gray-400" />
-                      <div class="flex text-sm text-gray-600">
-                        <span
-                          class="font-medium text-indigo-600 hover:text-indigo-500"
-                          >Upload a file</span
-                        >
-                        <input
-                          id="logo-upload"
-                          @change="handleFileSelect"
-                          type="file"
-                          accept="image/png, image/jpeg"
-                          class="sr-only"
-                        />
+                    <div class="space-y-2 text-center">
+                      <div
+                        class="mx-auto h-12 w-12 text-gray-400 group-hover:text-indigo-500 group-hover:scale-110 transition-transform duration-200"
+                      >
+                        <Image class="h-full w-full" />
                       </div>
-                      <p class="pl-1">or drag and drop</p>
-                      <p class="text-xs text-gray-500">PNG, JPG up to 1MB</p>
+
+                      <div class="text-sm text-gray-600">
+                        <span
+                          class="font-semibold text-indigo-600 hover:text-indigo-500"
+                          >Click to upload</span
+                        >
+                        <span class="mx-1">or drag and drop</span>
+                      </div>
+                      <p class="text-xs text-gray-400">PNG, JPG up to 1MB</p>
                     </div>
+
+                    <input
+                      id="logo-upload"
+                      @change="handleFileSelect"
+                      type="file"
+                      accept="image/png, image/jpeg"
+                      class="sr-only"
+                    />
                   </label>
 
                   <!-- Logo Preview / Remove -->
@@ -235,22 +265,27 @@
               </details>
             </div>
 
-            <!-- (ฝั่งขวา) 2. PREVIEW AREA (2 คอลัมน์) -->
+            <!-- Preview qrCode -->
             <div class="lg:col-span-2 space-y-4">
               <h2 class="text-2xl font-bold text-gray-900 invisible">
                 Preview
               </h2>
 
-              <!-- (แก้ไข) 1. บังคับขนาด Preview ที่ 300px -->
+              <!-- บังคับขนาด Preview ที่ 300px -->
               <div
-                class="flex items-center justify-center p-4 border rounded-lg bg-gray-50"
+                class="flex items-center justify-center p-4 border rounded-lg transition-colors duration-300"
+                :class="
+                  isTransparent
+                    ? 'bg-checkerboard border-indigo-200'
+                    : 'bg-gray-50 border-gray-200'
+                "
               >
                 <div ref="qrCodeRef" style="width: 300px; height: 300px">
                   <!-- QR Code will render here -->
                 </div>
               </div>
 
-              <!-- (Req 9) Size Options (สำหรับ Download) -->
+              <!-- Size (px) -->
               <div>
                 <label class="block text-sm font-medium text-gray-700"
                   >Size (px)</label
@@ -267,7 +302,7 @@
                 </select>
               </div>
 
-              <!-- (Req 8) Download Options -->
+              <!-- Download Format -->
               <div>
                 <label class="block text-sm font-medium text-gray-700"
                   >Download Format</label
@@ -308,10 +343,11 @@
 </template>
 
 <script setup>
-// (ไม่แก้ไข Script ... Logic ถูกต้องอยู่แล้ว)
+// import & setup
 import { ref, watchEffect, watch, computed } from "vue";
 import { X, Copy, Check, Download, ChevronDown, Image } from "lucide-vue-next";
 import QrCodeStyling from "qr-code-styling";
+import Swal from "sweetalert2";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -319,26 +355,25 @@ const props = defineProps({
 });
 const emit = defineEmits(["update:modelValue"]);
 
-// --- (ไม่แก้ไข) Accordion State (ถูกต้องแล้ว) ---
+// (State: UI)
 const isDesignOpen = ref(true);
 const isLogoOpen = ref(false);
-
-// (เพิ่มใหม่) 2. สร้าง 'computed' functions สำหรับ :class
 const designChevronClasses = computed(() => {
-  return { 'rotate-180': isDesignOpen.value };
+  return { "rotate-180": isDesignOpen.value };
 });
 
 const logoChevronClasses = computed(() => {
-  return { 'rotate-180': isLogoOpen.value };
+  return { "rotate-180": isLogoOpen.value };
 });
 
-// --- (ไม่แก้ไข) QR Customization State (ถูกต้องแล้ว) ---
+// (State: QR Config)
 const qrSize = ref(300);
 const mainColor = ref("#4267b2");
+const backgroundColor = ref("#ffffff");
 const isTransparent = ref(false);
 const dotsOptionsType = ref("rounded");
-const cornersSquareOptionsType = ref("square");
-const cornersDotOptionsType = ref("dot");
+const cornersSquareOptionsType = ref(null);
+const cornersDotOptionsType = ref(null);
 const logoImage = ref(null);
 const downloadExtension = ref("png");
 
@@ -350,7 +385,7 @@ const closeModal = () => {
   }, 200);
 };
 
-// --- (ไม่แก้ไข) QR Code Logic (ถูกต้องแล้ว) ---
+// (Logic: Render QR)
 const qrCodeRef = ref(null);
 const qrCodeInstance = ref(null);
 
@@ -389,7 +424,7 @@ watchEffect(() => {
         type: cornersDotOptionsType.value,
       },
       backgroundOptions: {
-        color: isTransparent.value ? "transparent" : "#ffffff",
+        color: isTransparent.value ? "transparent" : backgroundColor.value,
       },
     });
   } else if (qrCodeRef.value) {
@@ -398,14 +433,13 @@ watchEffect(() => {
   }
 });
 
-// (ไม่แก้ไข) (ถูกต้องแล้ว)
+// (Logic: Helpers)
 watch(isTransparent, (newValue) => {
   if (newValue && downloadExtension.value === "jpeg") {
     downloadExtension.value = "png";
   }
 });
 
-// (ไม่แก้ไข) (ถูกต้องแล้ว)
 const downloadQR = () => {
   const downloadOptions = {
     width: qrSize.value,
@@ -426,7 +460,7 @@ const downloadQR = () => {
       type: cornersDotOptionsType.value,
     },
     backgroundOptions: {
-      color: isTransparent.value ? "transparent" : "#ffffff",
+      color: isTransparent.value ? "transparent" : backgroundColor.value,
     },
     imageOptions: {
       crossOrigin: "anonymous",
@@ -435,14 +469,13 @@ const downloadQR = () => {
   };
 
   const downloadInstance = new QrCodeStyling(downloadOptions);
-
   downloadInstance.download({
     name: `qrcode-${props.link.slug}`,
     extension: downloadExtension.value,
   });
 };
 
-// --- (ไม่แก้ไข) Drag & Drop Logic (ถูกต้องแล้ว) ---
+// (Logic: Drag & Drop)
 const dragOver = ref(false);
 
 const handleDrop = (e) => {
@@ -462,12 +495,22 @@ const handleFileSelect = (e) => {
 
 const processFile = (file) => {
   if (!file.type.startsWith("image/")) {
-    alert("Please drop an image file (PNG, JPG).");
+    Swal.fire({
+      icon: "error",
+      title: "Invalid File Type",
+      text: "Please upload an image file (PNG, JPG).",
+      confirmButtonColor: "#4F46E5",
+    });
     return;
   }
   if (file.size > 1024 * 1024) {
     // 1MB Limit
-    alert("File is too large (Max 1MB).");
+    Swal.fire({
+      icon: "warning",
+      title: "File too large",
+      text: "Image size must be less than 1MB.",
+      confirmButtonColor: "#4F46E5",
+    });
     return;
   }
 
@@ -478,7 +521,7 @@ const processFile = (file) => {
   reader.readAsDataURL(file);
 };
 
-// --- (ไม่แก้ไข) Copy Logic (ถูกต้องแล้ว) ---
+// (Logic: Copy)
 const copyIcon = ref(Copy);
 const copyToClipboard = (text) => {
   navigator.clipboard.writeText(text).then(() => {
@@ -491,7 +534,6 @@ const copyToClipboard = (text) => {
 </script>
 
 <style scoped>
-/* (ไม่แก้ไข) (ถูกต้องแล้ว) */
 input[type="color"] {
   -webkit-appearance: none;
   appearance: none;
@@ -501,8 +543,18 @@ input[type="color"] {
   padding: 0;
   opacity: 0;
 }
-/* (ไม่แก้ไข) (ถูกต้องแล้ว) */
+
 details[open] summary .rotate-180 {
   transform: rotate(180deg);
+}
+
+.bg-checkerboard {
+  background-color: #ffffff;
+  background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }
 </style>
