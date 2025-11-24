@@ -382,7 +382,40 @@ const closeModal = () => {
   setTimeout(() => {
     logoImage.value = null;
     dragOver.value = false;
-  }, 200);
+  }, 20000);
+};
+
+// ============================================================
+// [REFACTOR] Helper function สร้าง Options กลาง (ใช้ทั้ง Preview & Download)
+// ============================================================
+const getQrOptions = (width, height) => {
+  return {
+    width: width,
+    height: height,
+    type: "canvas",
+    data: props.link?.shortUrl || "",
+    image: logoImage.value,
+    dotsOptions: {
+      color: mainColor.value,
+      type: dotsOptionsType.value,
+    },
+    cornersSquareOptions: {
+      color: mainColor.value,
+      // ถ้าเป็น null ให้ส่ง undefined เพื่อซ่อน
+      type: cornersSquareOptionsType.value || undefined,
+    },
+    cornersDotOptions: {
+      color: mainColor.value,
+      type: cornersDotOptionsType.value || undefined,
+    },
+    backgroundOptions: {
+      color: isTransparent.value ? "transparent" : backgroundColor.value,
+    },
+    imageOptions: {
+      crossOrigin: "anonymous",
+      margin: 10,
+    },
+  };
 };
 
 // (Logic: Render QR)
@@ -391,42 +424,15 @@ const qrCodeInstance = ref(null);
 
 watchEffect(() => {
   if (props.link && props.link.shortUrl && qrCodeRef.value) {
+    // Init Instance ถ้ายังไม่มี
     if (!qrCodeInstance.value) {
-      qrCodeInstance.value = new QrCodeStyling({
-        width: 300,
-        height: 300,
-        type: "canvas",
-        data: props.link.shortUrl,
-        imageOptions: {
-          crossOrigin: "anonymous",
-          margin: 10,
-        },
-      });
+      // สร้างด้วยขนาด default 300x300
+      qrCodeInstance.value = new QrCodeStyling(getQrOptions(300, 300));
       qrCodeRef.value.innerHTML = "";
       qrCodeInstance.value.append(qrCodeRef.value);
     }
 
-    qrCodeInstance.value.update({
-      width: 300,
-      height: 300,
-      data: props.link.shortUrl,
-      image: logoImage.value,
-      dotsOptions: {
-        color: mainColor.value,
-        type: dotsOptionsType.value,
-      },
-      cornersSquareOptions: {
-        color: mainColor.value,
-        type: cornersSquareOptionsType.value,
-      },
-      cornersDotOptions: {
-        color: mainColor.value,
-        type: cornersDotOptionsType.value,
-      },
-      backgroundOptions: {
-        color: isTransparent.value ? "transparent" : backgroundColor.value,
-      },
-    });
+    qrCodeInstance.value.update(getQrOptions(300, 300));
   } else if (qrCodeRef.value) {
     qrCodeRef.value.innerHTML = "";
     qrCodeInstance.value = null;
@@ -441,34 +447,12 @@ watch(isTransparent, (newValue) => {
 });
 
 const downloadQR = () => {
-  const downloadOptions = {
-    width: qrSize.value,
-    height: qrSize.value,
-    type: "canvas",
-    data: props.link.shortUrl,
-    image: logoImage.value,
-    dotsOptions: {
-      color: mainColor.value,
-      type: dotsOptionsType.value,
-    },
-    cornersSquareOptions: {
-      color: mainColor.value,
-      type: cornersSquareOptionsType.value,
-    },
-    cornersDotOptions: {
-      color: mainColor.value,
-      type: cornersDotOptionsType.value,
-    },
-    backgroundOptions: {
-      color: isTransparent.value ? "transparent" : backgroundColor.value,
-    },
-    imageOptions: {
-      crossOrigin: "anonymous",
-      margin: 10,
-    },
-  };
+  // สร้าง Instance ใหม่สำหรับดาวน์โหลด โดยใช้ขนาดจริง (qrSize)
+  // เรียก getQrOptions เพื่อให้มั่นใจว่าหน้าตาเหมือน Preview เป๊ะๆ
+  const downloadInstance = new QrCodeStyling(
+    getQrOptions(qrSize.value, qrSize.value)
+  );
 
-  const downloadInstance = new QrCodeStyling(downloadOptions);
   downloadInstance.download({
     name: `qrcode-${props.link.slug}`,
     extension: downloadExtension.value,
