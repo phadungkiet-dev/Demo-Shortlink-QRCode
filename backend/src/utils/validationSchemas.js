@@ -7,6 +7,16 @@ const createLinkSchema = z.object({
     .trim()
     .min(1, "Target URL is required.")
     .url("Invalid URL format."),
+  slug: z
+    .string()
+    .trim()
+    .min(3, "Slug must be at least 3 characters.")
+    .max(30, "Slug must be at most 30 characters.")
+    .regex(
+      /^[a-zA-Z0-9_-]+$/,
+      "Slug can only contain letters, numbers, hyphens, and underscores."
+    )
+    .optional(), // Optional เพราะถ้าไม่ส่งมา เราจะสุ่มให้
   // Optional: Allow custom slug
   // slug: z.string().trim().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, 'Invalid slug format.').optional(),
 });
@@ -17,6 +27,7 @@ const updateLinkSchema = z.object({
   renew: z.boolean().optional(),
   // Can be extended to update targetUrl
   // targetUrl: z.string().trim().url('Invalid URL format.').optional(),
+  targetUrl: z.string().trim().url("Invalid URL format.").optional(),
 });
 
 // Schema for local login

@@ -9,7 +9,7 @@ const logger = require("../utils/logger");
 const createLink = async (req, res, next) => {
   try {
     // Validate input
-    const { targetUrl } = createLinkSchema.parse(req.body);
+    const { targetUrl, slug } = createLinkSchema.parse(req.body);
 
     // Check for self-redirect
     if (targetUrl.includes(process.env.BASE_URL)) {
@@ -21,7 +21,13 @@ const createLink = async (req, res, next) => {
     // Get ownerId (null if not logged in)
     const ownerId = req.user ? req.user.id : null;
 
-    const link = await linkService.createLink(targetUrl, ownerId);
+    if (slug && !ownerId) {
+      return res
+        .status(403)
+        .json({ message: "Custom slugs are for logged-in users only." });
+    }
+
+    const link = await linkService.createLink(targetUrl, ownerId, slug);
 
     // Add base URL to slug
     const shortUrl = `${process.env.BASE_URL}/r/${link.slug}`;

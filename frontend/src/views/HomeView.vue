@@ -1,3 +1,82 @@
+<script setup>
+// ==========================================
+// 1. IMPORTS
+// ==========================================
+import { ref, computed } from "vue";
+import api from "@/services/api";
+import { useAuthStore } from "@/stores/useAuthStore";
+import {
+  Loader2,
+  Link2,
+  AlertCircle,
+  Zap,
+  QrCode,
+  BarChart3,
+} from "lucide-vue-next";
+import ResultModal from "@/components/ResultModal.vue";
+import LoginModal from "@/components/LoginModal.vue";
+
+// ==========================================
+// 2. STATE & VARIABLES
+// ==========================================
+const authStore = useAuthStore();
+const targetUrl = ref("");
+const customSlug = ref("");
+const isSubmitting = ref(false);
+const generatedLink = ref(null);
+const errorMsg = ref(null);
+
+// Login Modal State
+const isLoginModalOpen = ref(false);
+const openLoginModal = () => {
+  isLoginModalOpen.value = true;
+};
+
+// ==========================================
+// 3. FUNCTIONS
+// ==========================================
+const handleSubmit = async () => {
+  isSubmitting.value = true;
+  generatedLink.value = null;
+  errorMsg.value = null;
+
+  try {
+    const payload = { targetUrl: targetUrl.value };
+    // ส่ง customSlug เฉพาะตอนล็อกอินและมีการกรอกค่ามา
+    if (authStore.user && customSlug.value) {
+      payload.slug = customSlug.value;
+    }
+
+    const response = await api.post("/links", payload);
+    generatedLink.value = response.data;
+  } catch (error) {
+    console.error("Error creating link:", error);
+    let errorText = error.response?.data?.message || "Failed to create link.";
+
+    // ดึง Error Detail จาก Zod (ถ้ามี)
+    if (error.response?.data?.errors?.length > 0) {
+      const details = error.response.data.errors
+        .map((e) => e.message)
+        .join(", ");
+      errorText = `${errorText}: ${details}`;
+    }
+    errorMsg.value = errorText;
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+
+// Computed prop เช็คว่ามี Link ใหม่ที่สร้างเสร็จหรือยัง
+const isResultModalOpen = computed(() => !!generatedLink.value);
+
+// Reset Form เมื่อปิด Modal ผลลัพธ์
+const closeResultModal = () => {
+  generatedLink.value = null;
+  targetUrl.value = "";
+  customSlug.value = "";
+};
+</script>
+
 <template>
   <div
     class="min-h-[calc(100vh-64px)] bg-gradient-to-b from-white via-indigo-50/30 to-white"
@@ -35,13 +114,10 @@
 
       <div class="max-w-3xl mx-auto mt-12 relative z-10">
         <div
-          class="bg-white p-2 rounded-2xl shadow-xl border border-gray-100 transform transition-all hover:shadow-2xl"
+          class="bg-white p-4 rounded-2xl shadow-xl border border-gray-100 transform transition-all hover:shadow-2xl"
         >
-          <form
-            @submit.prevent="handleSubmit"
-            class="flex flex-col sm:flex-row gap-2"
-          >
-            <div class="relative flex-grow">
+          <form @submit.prevent="handleSubmit" class="flex flex-col gap-4">
+            <div class="relative">
               <div
                 class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
               >
@@ -58,9 +134,41 @@
               />
             </div>
 
+            <div v-if="authStore.user" class="relative animate-fade-in-down">
+              <div
+                class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+              >
+                <span class="text-gray-400 font-medium text-lg">/</span>
+              </div>
+              <input
+                type="text"
+                v-model="customSlug"
+                placeholder="Custom alias (optional)"
+                class="block w-full pl-8 pr-4 py-4 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-lg transition-all duration-200"
+                :disabled="isSubmitting"
+              />
+            </div>
+
+            <div
+              v-else
+              class="text-center py-2 bg-gray-50 rounded-xl border border-dashed border-gray-200"
+            >
+              <p class="text-sm text-gray-500">
+                Want to customize your link?
+                <button
+                  type="button"
+                  class="text-indigo-600 hover:underline font-semibold"
+                  @click="openLoginModal"
+                >
+                  Log in
+                </button>
+                to set a custom alias.
+              </p>
+            </div>
+
             <button
               type="submit"
-              class="px-8 py-4 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center whitespace-nowrap min-w-[160px]"
+              class="w-full px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg hover:shadow-indigo-500/30 transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
               :disabled="isSubmitting"
             >
               <Loader2 v-if="isSubmitting" class="h-5 w-5 animate-spin mr-2" />
@@ -71,7 +179,7 @@
 
         <div
           v-if="errorMsg"
-          class="mt-4 p-4 bg-red-50 border border-red-100 rounded-xl flex items-center text-red-600 text-sm font-medium animate-pulse"
+          class="mt-4 p-4 bg-red-50 border border-red-100 rounded-xl flex items-center justify-center text-red-600 text-sm font-medium animate-pulse"
         >
           <AlertCircle class="h-5 w-5 mr-2 flex-shrink-0" />
           {{ errorMsg }}
@@ -130,60 +238,16 @@
       </div>
     </div>
 
-    <ResultModal
-      :modelValue="isResultModalOpen"
-      :link="generatedLink"
-      @update:modelValue="closeResultModal"
-    />
+    <Teleport to="body">
+      <ResultModal
+        :modelValue="isResultModalOpen"
+        :link="generatedLink"
+        @update:modelValue="closeResultModal"
+      />
+    </Teleport>
+
+    <Teleport to="body">
+      <LoginModal v-model="isLoginModalOpen" />
+    </Teleport>
   </div>
 </template>
-
-<script setup>
-import { ref, computed } from "vue";
-import api from "@/services/api";
-import {
-  Loader2,
-  Link2,
-  AlertCircle,
-  Zap,
-  QrCode,
-  BarChart3,
-} from "lucide-vue-next";
-import ResultModal from "@/components/ResultModal.vue";
-
-const targetUrl = ref("");
-const isSubmitting = ref(false);
-const generatedLink = ref(null);
-const errorMsg = ref(null);
-
-// (เปลี่ยนชื่อฟังก์ชัน)
-const handleSubmit = async () => {
-  isSubmitting.value = true;
-  generatedLink.value = null;
-  errorMsg.value = null;
-
-  try {
-    const response = await api.post("/links", { targetUrl: targetUrl.value });
-    // (สำเร็จ!) สั่งให้ Modal เปิด โดยการใส่ data ลงใน ref นี้
-    generatedLink.value = response.data;
-  } catch (error) {
-    console.error("Error creating link:", error);
-    const errorText = error.response?.data?.message || "Failed to create link.";
-    // (แสดง Error ข้างล่างฟอร์ม)
-    errorMsg.value = errorText;
-  } finally {
-    isSubmitting.value = false;
-  }
-};
-
-// --- (เพิ่ม Logic ควบคุม Modal) ---
-
-// Computed prop เพื่อเช็คว่า Modal ควรเปิดหรือไม่
-const isResultModalOpen = computed(() => !!generatedLink.value);
-
-// ฟังก์ชันสำหรับปิด Modal (และ Reset ฟอร์ม)
-const closeResultModal = () => {
-  generatedLink.value = null;
-  targetUrl.value = ""; // ล้างช่อง Input
-};
-</script>

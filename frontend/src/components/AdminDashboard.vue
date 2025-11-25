@@ -6,6 +6,20 @@
         <ShieldCheck class="h-8 w-8 text-indigo-600" />
         User Management
       </h1>
+
+      <div class="relative w-full sm:w-64">
+        <div
+          class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+        >
+          <Search class="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          v-model="searchQuery"
+          placeholder="Search users..."
+          class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+        />
+      </div>
       <!-- (เราสามารถเพิ่มปุ่ม "Create User" ได้ในอนาคต) -->
     </div>
 
@@ -72,7 +86,7 @@
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
-          <tr v-for="user in users" :key="user.id">
+          <tr v-for="user in filteredUsers" :key="user.id">
             <!-- Email -->
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="text-sm font-medium text-gray-900">
@@ -172,13 +186,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import {
   ShieldCheck,
   Users,
   Loader2,
   AlertCircle,
   Trash2,
+  Search,
 } from "lucide-vue-next";
 import api from "@/services/api";
 import Swal from "sweetalert2";
@@ -189,6 +204,7 @@ const isLoading = ref(true);
 const errorMsg = ref(null);
 const isUpdating = ref([]); // (Array of IDs... เพื่อ Disable ปุ่ม Toggle)
 const isDeleting = ref([]); // (Array of IDs... เพื่อ Disable ปุ่ม Delete)
+const searchQuery = ref("");
 
 // --- Lifecycle ---
 onMounted(() => {
@@ -308,6 +324,19 @@ const handleDeleteUser = async (userId, userEmail) => {
     isDeleting.value = isDeleting.value.filter((id) => id !== userId);
   }
 };
+
+const filteredUsers = computed(() => {
+  if (!users.value) return [];
+  if (!searchQuery.value) return users.value;
+
+  const query = searchQuery.value.toLowerCase();
+  return users.value.filter(
+    (user) =>
+      user.email.toLowerCase().includes(query) ||
+      user.role.toLowerCase().includes(query) ||
+      user.provider.toLowerCase().includes(query)
+  );
+});
 
 // --- Helper ---
 const formatDate = (dateString) => {

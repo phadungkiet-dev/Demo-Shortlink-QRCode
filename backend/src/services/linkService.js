@@ -13,12 +13,33 @@ const MAX_SLUG_RETRIES = 5;
  * @param {number|null} ownerId The user ID if logged in, null otherwise.
  * @returns {Promise<import('@prisma/client').Link>}
  */
-const createLink = async (targetUrl, ownerId) => {
+const createLink = async (targetUrl, ownerId, customSlug = null) => {
   const now = getNow();
   const isAnonymous = ownerId === null;
 
   const expiryDays = isAnonymous ? 7 : 30;
   const expiredAt = addDays(now, expiryDays);
+
+  if (customSlug) {
+    const existing = await prisma.link.findUnique({
+      where: { slug: customSlug },
+    });
+
+    if (existing) {
+      throw new Error("This custom alias is already taken.");
+    }
+
+    return prisma.link.create({
+      data: {
+        slug: customSlug,
+        targetUrl,
+        ownerId,
+        expiredAt,
+        isPublic: false,
+        disabled: false,
+      },
+    });
+  }
 
   let slug;
   let retries = 0;
@@ -141,6 +162,14 @@ const updateLink = async (linkId, ownerId, data) => {
     // Renew for 30 days from *now*
     updateData.expiredAt = addDays(now, 30);
     updateData.disabled = false; // Re-enable if it was disabled due to expiry
+  }
+
+  if (data.targetUrl) {
+    // Check for self-redirect
+    if (data.targetUrl.includes(process.env.BASE_URL)) {
+      throw new Error("Cannot point to itself.");
+    }
+    updateData.targetUrl = data.targetUrl;
   }
 
   // TODO: Add logic for updating targetUrl, isPublic, etc.

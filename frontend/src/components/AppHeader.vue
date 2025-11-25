@@ -41,8 +41,10 @@
         </div>
       </nav>
     </header>
-
-    <LoginModal v-model="isLoginModalOpen" />
+    <Teleport to="body">
+      <LoginModal v-model="isLoginModalOpen" />
+    </Teleport>
+    <!-- <LoginModal v-model="isLoginModalOpen" /> -->
   </div>
 </template>
 

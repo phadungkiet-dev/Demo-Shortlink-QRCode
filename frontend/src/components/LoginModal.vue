@@ -1,7 +1,7 @@
 <template>
   <div
     v-show="modelValue"
-    class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
+    class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity"
     @click="closeModal"
   >
     <transition
@@ -14,7 +14,7 @@
     >
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
         @click.stop
       >
         <div class="relative w-full max-w-md bg-white p-8 rounded-lg shadow-lg">

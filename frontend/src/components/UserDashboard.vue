@@ -199,6 +199,14 @@
               </router-link>
 
               <button
+                @click="handleEdit(link)"
+                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+              >
+                <Pencil class="h-3.5 w-3.5 mr-1.5" />
+                Edit
+              </button>
+
+              <button
                 @click="handleRenew(link.id)"
                 :disabled="isRenewing"
                 class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors disabled:opacity-50"
@@ -241,6 +249,7 @@ import {
   BarChart2,
   Trash2,
   Clock,
+  Pencil,
 } from "lucide-vue-next";
 
 const authStore = useAuthStore();
@@ -341,6 +350,56 @@ const handleDelete = async (linkId) => {
     console.error("Error deleting link:", error);
   } finally {
     isDeleting.value = false;
+  }
+};
+
+const handleEdit = async (link) => {
+  const { value: newUrl } = await Swal.fire({
+    title: "Edit Target URL",
+    input: "url",
+    inputLabel: "Enter the new destination URL",
+    inputValue: link.targetUrl,
+    showCancelButton: true,
+    confirmButtonText: "Update",
+    confirmButtonColor: "#4F46E5",
+    inputValidator: (value) => {
+      if (!value) {
+        return "You need to write something!";
+      }
+    },
+  });
+
+  if (newUrl && newUrl !== link.targetUrl) {
+    try {
+      // เรียก API Update (ใช้ endpoint เดิม /links/:id แต่ส่ง targetUrl ไปด้วย)
+      const response = await api.patch(`/links/${link.id}`, {
+        targetUrl: newUrl,
+      });
+
+      // Update local state
+      const index = authStore.myLinks.findIndex((l) => l.id === link.id);
+      if (index !== -1) {
+        authStore.myLinks[index] = {
+          ...authStore.myLinks[index],
+          ...response.data,
+        };
+      }
+
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: "Link updated!",
+        showConfirmButton: false,
+        timer: 1500,
+      });
+    } catch (error) {
+      Swal.fire(
+        "Error",
+        error.response?.data?.message || "Update failed",
+        "error"
+      );
+    }
   }
 };
 
