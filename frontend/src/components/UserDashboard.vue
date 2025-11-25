@@ -1,97 +1,227 @@
 <template>
-  <div class="container mx-auto px-4 lg:px-8 py-12">
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold text-gray-900">My Links</h1>
-      <router-link
-        to="/"
-        class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-indigo-700 flex items-center gap-2"
+  <div
+    class="min-h-[calc(100vh-64px)] bg-gradient-to-b from-white via-indigo-50/30 to-white"
+  >
+    <div class="container mx-auto px-4 lg:px-8 py-12">
+      <div
+        class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10"
       >
-        <Plus class="h-4 w-4" />
-        Create New
-      </router-link>
-    </div>
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 tracking-tight">
+            My Links
+          </h1>
+          <p class="text-sm text-gray-500 mt-2">
+            Manage your short links and track their performance.
+          </p>
+        </div>
 
-    <!-- Loading State -->
-    <div v-if="authStore.isLoadingLinks" class="text-center py-10">
-      <Loader2 class="h-8 w-8 text-indigo-600 mx-auto animate-spin" />
-      <p class="mt-2 text-gray-600">Loading links...</p>
-    </div>
+        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <div class="relative group w-full md:w-72">
+            <div
+              class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+            >
+              <Search
+                class="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors"
+              />
+            </div>
+            <input
+              type="text"
+              v-model="searchQuery"
+              placeholder="Search by link or target..."
+              class="block w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+            />
+          </div>
 
-    <!-- Empty State -->
-    <div
-      v-else-if="!authStore.isLoadingLinks && authStore.myLinks.length === 0"
-      class="text-center py-10 bg-white shadow rounded-lg"
-    >
-      <Link2 class="h-12 w-12 text-gray-400 mx-auto" />
-      <h3 class="mt-2 text-lg font-medium text-gray-900">No links found</h3>
-      <p class="mt-1 text-sm text-gray-500">
-        Get started by creating your first shortlink.
-      </p>
-    </div>
+          <div class="flex gap-2 shrink-0">
+            <button
+              @click="handleRefresh"
+              :disabled="isRefreshing || authStore.isLoadingLinks"
+              class="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
+              title="Refresh Data"
+            >
+              <RefreshCw class="h-5 w-5" :class="refreshIconClasses" />
+            </button>
 
-    <!-- Links List -->
-    <div v-else class="bg-white shadow overflow-hidden rounded-lg">
-      <ul class="divide-y divide-gray-200">
-        <li v-for="link in authStore.myLinks" :key="link.id" class="p-4 sm:p-6">
+            <router-link
+              to="/"
+              class="flex-1 sm:flex-none px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-lg hover:shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5"
+            >
+              <Plus class="h-5 w-5" />
+              <span>Create New</span>
+            </router-link>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="authStore.isLoadingLinks || isRefreshing"
+        class="py-32 text-center"
+      >
+        <div
+          class="inline-flex items-center justify-center p-4 bg-indigo-50 rounded-full mb-4 animate-pulse"
+        >
+          <Loader2 class="h-8 w-8 text-indigo-600 animate-spin" />
+        </div>
+        <h3 class="text-lg font-medium text-gray-900">
+          Updating your links...
+        </h3>
+      </div>
+
+      <div
+        v-else-if="filteredLinks.length === 0"
+        class="py-24 text-center bg-white border-2 border-dashed border-gray-200 rounded-2xl"
+      >
+        <div
+          class="inline-flex items-center justify-center p-6 bg-gray-50 rounded-full mb-4"
+        >
+          <Link2 class="h-10 w-10 text-gray-300" />
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">No links found</h3>
+        <p class="text-gray-500 max-w-sm mx-auto">
+          {{
+            searchQuery
+              ? `We couldn't find any links matching "${searchQuery}"`
+              : "Create your first short link to get started."
+          }}
+        </p>
+        <button
+          v-if="searchQuery"
+          @click="searchQuery = ''"
+          class="mt-6 text-indigo-600 hover:text-indigo-700 font-semibold text-sm hover:underline"
+        >
+          Clear search query
+        </button>
+      </div>
+
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div
+          v-for="link in filteredLinks"
+          :key="link.id"
+          class="bg-white rounded-2xl border border-gray-200/60 shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 transition-all duration-300 hover:-translate-y-1 flex flex-col overflow-hidden group"
+        >
           <div
-            class="flex flex-col sm:flex-row sm:items-center sm:justify-between"
+            class="p-5 flex items-start justify-between gap-3 border-b border-gray-50"
           >
-            <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-3 min-w-0">
+              <div
+                class="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-105 transition-transform"
+              >
+                <img
+                  :src="getFaviconUrl(link.targetUrl)"
+                  @error="
+                    $event.target.src =
+                      'https://www.svgrepo.com/show/508699/landscape-placeholder.svg'
+                  "
+                  alt="Icon"
+                  class="w-6 h-6 object-contain"
+                />
+              </div>
+              <div class="min-w-0">
+                <h3
+                  class="text-sm font-bold text-gray-900 truncate"
+                  :title="link.targetUrl"
+                >
+                  {{ getDomain(link.targetUrl) }}
+                </h3>
+                <p
+                  class="text-xs text-gray-500 truncate max-w-[180px] group-hover:text-indigo-500 transition-colors"
+                >
+                  {{ link.targetUrl }}
+                </p>
+              </div>
+            </div>
+
+            <div
+              class="shrink-0 w-2.5 h-2.5 rounded-full ring-2 ring-white"
+              :class="
+                isExpired(link.expiredAt) ? 'bg-red-500' : 'bg-emerald-500'
+              "
+              :title="isExpired(link.expiredAt) ? 'Expired' : 'Active'"
+            ></div>
+          </div>
+
+          <div
+            class="p-6 flex-grow flex flex-col justify-center items-center bg-gradient-to-b from-white to-gray-50/50"
+          >
+            <div class="flex items-center gap-2 mb-1">
               <a
                 :href="link.shortUrl"
                 target="_blank"
-                class="text-lg font-medium text-indigo-600 hover:text-indigo-800 truncate"
-                >{{ link.shortUrl }}</a
+                class="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 hover:to-indigo-800 truncate cursor-pointer"
               >
-              <p class="text-sm text-gray-500 truncate">{{ link.targetUrl }}</p>
+                /{{ link.slug }}
+              </a>
+              <button
+                @click="copyToClipboard(link.shortUrl)"
+                class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Copy Link"
+              >
+                <Copy class="h-4 w-4" />
+              </button>
             </div>
-            <div
-              class="mt-4 sm:mt-0 sm:ml-6 flex-shrink-0 flex items-center space-x-4"
+            <span
+              class="text-[10px] uppercase tracking-widest text-gray-400 font-medium"
+              >Short Link</span
             >
-              <div
-                class="flex items-center text-sm"
-                :class="
-                  isExpired(link.expiredAt) ? 'text-red-500' : 'text-gray-500'
-                "
-              >
-                <Calendar
-                  class="h-5 w-5 mr-1.5"
-                  :class="
-                    isExpired(link.expiredAt) ? 'text-red-400' : 'text-gray-400'
-                  "
-                />
-                Expires {{ formatRelativeTime(link.expiredAt) }}
-              </div>
-            </div>
           </div>
 
-          <div class="mt-4 flex items-center justify-end space-x-3">
-            <!-- (แก้ไข) 1. เปลี่ยนจาก <button> เป็น <router-link> -->
-            <router-link
-              :to="`/dashboard/link/${link.id}/stats`"
-              class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+          <div class="p-4 border-t border-gray-100 bg-white">
+            <div
+              class="flex justify-between items-center text-[11px] text-gray-500 mb-3 px-1"
             >
-              Stats
-            </router-link>
-            <!-- (แก้ไข) 1. เปลี่ยนไปเรียก Store Action -->
-            <button
-              @click="handleRenew(link.id)"
-              :disabled="isRenewing"
-              class="px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200"
-            >
-              Renew (30 days)
-            </button>
-            <!-- (แก้ไข) 2. เปลี่ยนไปเรียก Store Action -->
-            <button
-              @click="handleDelete(link.id)"
-              :disabled="isDeleting"
-              class="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200"
-            >
-              Delete
-            </button>
+              <div class="flex items-center" title="Date Created">
+                <Clock class="h-3 w-3 mr-1" />
+                <span>Created: {{ formatShortDate(link.createdAt) }}</span>
+              </div>
+              <div
+                class="flex items-center"
+                :class="{
+                  'text-red-500 font-medium': isExpired(link.expiredAt),
+                }"
+                title="Expiration Date"
+              >
+                <Calendar class="h-3 w-3 mr-1" />
+                <span>{{
+                  isExpired(link.expiredAt)
+                    ? "Expired"
+                    : "Expired: " + formatShortDate(link.expiredAt)
+                }}</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+              <router-link
+                :to="`/dashboard/link/${link.id}/stats`"
+                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+              >
+                <BarChart2 class="h-3.5 w-3.5 mr-1.5" />
+                Stats
+              </router-link>
+
+              <button
+                @click="handleRenew(link.id)"
+                :disabled="isRenewing"
+                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <RefreshCw
+                  class="h-3.5 w-3.5 mr-1.5"
+                  :class="renewIconClasses"
+                />
+                Renew
+              </button>
+
+              <button
+                @click="handleDelete(link.id)"
+                :disabled="isDeleting"
+                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Trash2 class="h-3.5 w-3.5 mr-1.5" />
+                Delete
+              </button>
+            </div>
           </div>
-        </li>
-      </ul>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -99,57 +229,121 @@
 <script setup>
 import { onMounted, computed, ref } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
-
-import { Loader2, Link2, Calendar, Plus } from "lucide-vue-next";
+import Swal from "sweetalert2";
+import {
+  Loader2,
+  Link2,
+  Calendar,
+  Plus,
+  RefreshCw,
+  Search,
+  Copy,
+  BarChart2,
+  Trash2,
+  Clock,
+} from "lucide-vue-next";
 
 const authStore = useAuthStore();
-const isRenewing = ref(false); // เรายังเก็บ state นี้ไว้เพื่อ disable ปุ่ม
-const isDeleting = ref(false); // เรายังเก็บ state นี้ไว้เพื่อ disable ปุ่ม
+const isRenewing = ref(false);
+const isDeleting = ref(false);
+const isRefreshing = ref(false);
+const searchQuery = ref("");
 
-// Helper: Check if expired
+// Computed Classes
+const refreshIconClasses = computed(() => ({
+  "animate-spin": isRefreshing.value || authStore.isLoadingLinks,
+}));
+const renewIconClasses = computed(() => ({ "animate-spin": isRenewing.value }));
+
+// Search Logic
+const filteredLinks = computed(() => {
+  if (!searchQuery.value) return authStore.myLinks;
+  const query = searchQuery.value.toLowerCase();
+  return authStore.myLinks.filter(
+    (link) =>
+      link.targetUrl.toLowerCase().includes(query) ||
+      link.shortUrl.toLowerCase().includes(query) ||
+      link.slug.toLowerCase().includes(query)
+  );
+});
+
+// Helpers
+const getFaviconUrl = (url) => {
+  try {
+    const domain = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+  } catch (e) {
+    return "https://www.svgrepo.com/show/508699/landscape-placeholder.svg";
+  }
+};
+
+const getDomain = (url) => {
+  try {
+    return new URL(url).hostname.replace("www.", "");
+  } catch (e) {
+    return url;
+  }
+};
+
 const isExpired = (dateString) => new Date(dateString) < new Date();
 
-// Helper: Format time
-const formatRelativeTime = (dateString) => {
+const formatShortDate = (dateString) => {
   const date = new Date(dateString);
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
+    year: "2-digit", // 24
   });
 };
 
-// (แก้ไข) 3. ฟังก์ชันนี้จะ "หุ้ม" Store Action
-// เราแยก isRenewing (UI) ออกจาก Logic (Store)
+// Actions
+const copyToClipboard = (text) => {
+  navigator.clipboard.writeText(text).then(() => {
+    Swal.fire({
+      toast: true,
+      position: "top-end",
+      icon: "success",
+      title: "Copied!",
+      showConfirmButton: false,
+      timer: 1500,
+    });
+  });
+};
+
+const handleRefresh = async () => {
+  isRefreshing.value = true;
+  try {
+    await authStore.fetchMyLinks();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  } catch (error) {
+    console.error("Refresh failed:", error);
+  } finally {
+    isRefreshing.value = false;
+  }
+};
+
 const handleRenew = async (linkId) => {
   isRenewing.value = true;
   try {
-    // (สำคัญ) เรียก Action ใหม่ที่เราสร้างใน Store
     await authStore.renewLink(linkId);
   } catch (error) {
-    // Store จัดการ Error Swal ให้แล้ว, แต่เรา log ไว้เผื่อ
-    console.error("DashboardView: Error renewing link:", error);
+    console.error("Error renewing link:", error);
   } finally {
     isRenewing.value = false;
   }
 };
 
-// (แก้ไข) 4. ฟังก์ชันนี้จะ "หุ้ม" Store Action
 const handleDelete = async (linkId) => {
   isDeleting.value = true;
   try {
-    // (สำคัญ) เรียก Action ใหม่ที่เราสร้างใน Store
-    // (Store Action จะยิง Swal ยืนยันเอง)
     await authStore.deleteLink(linkId);
   } catch (error) {
-    console.error("DashboardView: Error deleting link:", error);
+    console.error("Error deleting link:", error);
   } finally {
-    // (Store จะลบรายการออกจาก 'myLinks' ให้อัตโนมัติ)
     isDeleting.value = false;
   }
 };
 
-// Fetch links when component is mounted (เก็บไว้)
 onMounted(() => {
   authStore.fetchMyLinks();
 });
