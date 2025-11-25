@@ -6,8 +6,8 @@
       ให้ authStore.initAuth() (ดึง user) ทำงานเสร็จก่อน
       ดังนั้น 'authStore.user' จะมีข้อมูลที่ถูกต้องเสมอเมื่อหน้านี้โหลด
     -->
-    <AdminDashboard v-if="authStore.user && authStore.user.role === 'ADMIN'" />
-    <UserDashboard v-else-if="authStore.user" />
+    <!-- <AdminDashboard v-if="authStore.user && authStore.user.role === 'ADMIN'" /> -->
+    <UserDashboard v-if="authStore.user" />
 
     <!-- 
       (เผื่อไว้) ถ้า User หายไป (ซึ่งไม่ควรเกิดขึ้น)
@@ -25,7 +25,7 @@
 import { useAuthStore } from "@/stores/useAuthStore";
 
 // (สำคัญ) 2. Import 2 Components ที่เราเพิ่งสร้าง
-import AdminDashboard from "@/components/AdminDashboard.vue";
+// import AdminDashboard from "@/components/AdminDashboard.vue";
 import UserDashboard from "@/components/UserDashboard.vue";
 
 // (เพิ่ม) 3. Import Loader (เผื่อไว้)

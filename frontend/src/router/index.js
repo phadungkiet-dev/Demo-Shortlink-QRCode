@@ -41,6 +41,12 @@ const routes = [
     component: () => import("@/views/ProfileView.vue"), // (ไฟล์ใหม่)
     meta: { requiresAuth: true }, // (ต้องล็อกอิน)
   },
+  {
+    path: "/admin/users",
+    name: "AdminUsers",
+    component: () => import("@/views/AdminUsersView.vue"),
+    meta: { requiresAuth: true, requiresAdmin: true }, // เพิ่ม Flag requiresAdmin
+  },
   // +++ (จบส่วนที่เพิ่มใหม่) +++
   // (Optional) Google OAuth Callback Success
   // เราจะ redirect จาก /dashboard ไปเอง
@@ -65,6 +71,8 @@ router.beforeEach(async (to, from, next) => {
   // (Auth flow 4) หลังจาก isAuthReady = true แล้ว...
   const isAuthenticated = !!authStore.user;
 
+  const isAdmin = authStore.user?.role === "ADMIN";
+
   if (to.meta.requiresAuth && !isAuthenticated) {
     // (แก้ไขจุดที่ 3)
     // ถ้าหน้านี้ต้อง login แต่ยังไม่ login
@@ -74,6 +82,9 @@ router.beforeEach(async (to, from, next) => {
     next({ name: "Home" });
   } else if (to.meta.requiresGuest && isAuthenticated) {
     // ถ้าหน้านี้สำหรับ Guest แต่ดัน login แล้ว -> ไปหน้า /dashboard
+    next({ name: "Dashboard" });
+  } else if (to.meta.requiresAdmin && !isAdmin) {
+    // +++ (เพิ่ม) ถ้าไม่ใช่ Admin แต่พยายามเข้าหน้า Admin -> ดีดกลับ Dashboard
     next({ name: "Dashboard" });
   } else {
     // ไปหน้าปกติ

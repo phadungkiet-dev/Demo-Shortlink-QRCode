@@ -19,8 +19,16 @@
             Dashboard
           </router-link>
 
-<!-- (เพิ่มใหม่) 2. เพิ่ม Avatar/Dropdown Component ใหม่ -->
-<UserDropdown v-if="authStore.user" />
+          <router-link
+            v-if="authStore.user?.role === 'ADMIN'"
+            to="/admin/users"
+            class="text-sm font-medium text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-md hover:bg-indigo-100 transition-colors"
+          >
+            Manage Users
+          </router-link>
+
+          <!-- (เพิ่มใหม่) 2. เพิ่ม Avatar/Dropdown Component ใหม่ -->
+          <UserDropdown v-if="authStore.user" />
 
           <button
             v-if="!authStore.user"
