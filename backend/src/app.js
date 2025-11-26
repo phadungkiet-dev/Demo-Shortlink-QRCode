@@ -83,6 +83,9 @@ app.use(passport.session());
 // This route is public and must not have CSRF protection
 app.use("/r", redirectRouter);
 
+// เปิดให้เข้าถึงไฟล์ใน folder 'backend/storage' ผ่าน url '/uploads'
+app.use("/uploads", express.static(path.join(__dirname, "../storage")));
+
 // 2. API Routes (With CSRF)
 // CSRF protection middleware
 const csrfProtection = csurf({ cookie: true });

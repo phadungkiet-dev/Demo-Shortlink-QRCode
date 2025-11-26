@@ -5,6 +5,7 @@ import {
 } from "vue-router";
 import { useAuthStore } from "@/stores/useAuthStore";
 import HomeView from "@/views/HomeView.vue";
+import NotFoundView from "@/views/NotFoundView.vue";
 // import DashboardView from "@/views/DashboardView.vue";
 // import LoginView from "@/views/LoginView.vue";
 
@@ -46,6 +47,15 @@ const routes = [
     name: "AdminUsers",
     component: () => import("@/views/AdminUsersView.vue"),
     meta: { requiresAuth: true, requiresAdmin: true }, // เพิ่ม Flag requiresAdmin
+  },
+  {
+    path: "/404",
+    name: "NotFound",
+    component: NotFoundView,
+  },
+  {
+    path: "/:pathMatch(.*)*",
+    redirect: "/404",
   },
   // +++ (จบส่วนที่เพิ่มใหม่) +++
   // (Optional) Google OAuth Callback Success

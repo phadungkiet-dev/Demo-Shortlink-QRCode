@@ -49,3 +49,7 @@ typings/
 #Prisma
 prisma/dev.db
 prisma/dev.db-journal
+
+# Storage
+storage/logos/*
+!storage/logos/.gitkeep

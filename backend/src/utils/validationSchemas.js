@@ -28,6 +28,7 @@ const updateLinkSchema = z.object({
   // Can be extended to update targetUrl
   // targetUrl: z.string().trim().url('Invalid URL format.').optional(),
   targetUrl: z.string().trim().url("Invalid URL format.").optional(),
+  qrOptions: z.record(z.any()).optional(),
 });
 
 // Schema for local login

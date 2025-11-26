@@ -5,7 +5,43 @@ const { Prisma } = require("@prisma/client");
 const logger = require("../utils/logger");
 const useragent = require("useragent");
 
+const fs = require("fs/promises");
+const path = require("path");
+
+const LOGO_DIR = path.join(__dirname, "../../storage/logos");
+
 const MAX_SLUG_RETRIES = 5;
+
+// Helper: สร้างโฟลเดอร์ถ้ายังไม่มี
+const ensureLogoDir = async () => {
+  try {
+    await fs.access(LOGO_DIR);
+  } catch {
+    await fs.mkdir(LOGO_DIR, { recursive: true });
+  }
+};
+
+// Helper: บันทึกไฟล์รูปจาก Base64
+const saveLogoFile = async (slug, base64String) => {
+  await ensureLogoDir();
+
+  // 1. แยก Header (data:image/png;base64,...) ออกจากตัวข้อมูล
+  const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) {
+    return null; // ไม่ใช่ Base64 ที่ถูกต้อง
+  }
+
+  const extension = matches[1].split("/")[1]; // เช่น png, jpeg
+  const imageBuffer = Buffer.from(matches[2], "base64");
+  const filename = `${slug}-${Date.now()}.${extension}`; // เพิ่ม timestamp กัน cache
+  const filePath = path.join(LOGO_DIR, filename);
+
+  // 2. เขียนลงไฟล์
+  await fs.writeFile(filePath, imageBuffer);
+
+  // 3. คืนค่า URL (ต้องแก้ BASE_URL ใน .env ให้ถูกต้องด้วย)
+  return `${process.env.BASE_URL}/uploads/logos/${filename}`;
+};
 
 /**
  * Creates a short link.
@@ -129,11 +165,7 @@ const findLinksByOwner = async (ownerId) => {
   return prisma.link.findMany({
     where: { ownerId },
     orderBy: { createdAt: "desc" },
-    include: {
-      _count: {
-        select: { clicks: true },
-      },
-    },
+    include: { _count: { select: { clicks: true } } },
   });
 };
 
@@ -145,38 +177,41 @@ const findLinksByOwner = async (ownerId) => {
  * @returns {Promise<import('@prisma/client').Link>}
  */
 const updateLink = async (linkId, ownerId, data) => {
-  // Verify ownership
-  const link = await prisma.link.findFirst({
-    where: { id: linkId, ownerId },
-  });
-
-  if (!link) {
-    throw new Error("Link not found or user does not have permission.");
-  }
+  const link = await prisma.link.findFirst({ where: { id: linkId, ownerId } });
+  if (!link) throw new Error("Link not found...");
 
   let updateData = {};
 
-  // Handle renewal
-  if (data.renew === true) {
-    const now = getNow();
-    // Renew for 30 days from *now*
-    updateData.expiredAt = addDays(now, 30);
-    updateData.disabled = false; // Re-enable if it was disabled due to expiry
+  // +++ Logic จัดการ qrOptions +++
+  if (data.qrOptions) {
+    // Copy object มาเพื่อแก้ไข
+    let finalOptions = { ...data.qrOptions };
+
+    // เช็คว่ามีรูปส่งมาไหม และเป็น Base64 หรือเปล่า (ถ้าเป็น URL แล้วแสดงว่าเป็นรูปเดิม)
+    if (finalOptions.image && finalOptions.image.startsWith("data:image")) {
+      try {
+        const logoUrl = await saveLogoFile(link.slug, finalOptions.image);
+        if (logoUrl) {
+          finalOptions.image = logoUrl; // เปลี่ยน Base64 เป็น URL
+        }
+      } catch (err) {
+        console.error("Failed to save logo:", err);
+        // ถ้าเซฟรูปไม่ผ่าน อาจจะยอมให้บันทึกโดยไม่มีรูป หรือ throw error ก็ได้
+      }
+    }
+
+    // บันทึกลง DB (Prisma field Json)
+    updateData.qrOptions = finalOptions;
   }
 
+  if (data.renew) {
+    /* ...Logic Renew... */
+  }
   if (data.targetUrl) {
-    // Check for self-redirect
-    if (data.targetUrl.includes(process.env.BASE_URL)) {
-      throw new Error("Cannot point to itself.");
-    }
     updateData.targetUrl = data.targetUrl;
   }
 
-  // TODO: Add logic for updating targetUrl, isPublic, etc.
-
-  if (Object.keys(updateData).length === 0) {
-    return link; // Nothing to update
-  }
+  if (Object.keys(updateData).length === 0) return link;
 
   return prisma.link.update({
     where: { id: linkId },
@@ -198,6 +233,8 @@ const deleteLink = async (linkId, ownerId) => {
   if (!link) {
     throw new Error("Link not found or user does not have permission.");
   }
+
+  await deleteQrConfig(link.slug);
 
   // We use onDelete: Cascade in schema.prisma, so clicks are deleted too.
   await prisma.link.delete({

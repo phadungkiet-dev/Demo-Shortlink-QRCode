@@ -1,13 +1,277 @@
+<script setup>
+// import & setup
+import { ref, watchEffect, watch, computed } from "vue";
+import {
+  X,
+  Copy,
+  Check,
+  Download,
+  ChevronDown,
+  Image,
+  Save, // +++ เพิ่มไอคอน Save +++
+} from "lucide-vue-next";
+import QrCodeStyling from "qr-code-styling";
+import Swal from "sweetalert2";
+import api from "@/services/api"; // +++ Import API +++
+import { useAuthStore } from "@/stores/useAuthStore"; // +++ Import Store +++
+
+const props = defineProps({
+  modelValue: { type: Boolean, default: false },
+  link: { type: Object, default: null },
+});
+const emit = defineEmits(["update:modelValue"]);
+const authStore = useAuthStore();
+
+// (State: UI)
+const isDesignOpen = ref(true);
+const isLogoOpen = ref(false);
+
+const designChevronClasses = computed(() => {
+  return { "rotate-180": isDesignOpen.value };
+});
+
+const logoChevronClasses = computed(() => {
+  return { "rotate-180": isLogoOpen.value };
+});
+
+// (State: QR Config)
+const qrSize = ref(300);
+const mainColor = ref("#4267b2");
+const backgroundColor = ref("#ffffff");
+const isTransparent = ref(false);
+const dotsOptionsType = ref("rounded");
+const cornersSquareOptionsType = ref(null);
+const cornersDotOptionsType = ref(null);
+const logoImage = ref(null);
+const downloadExtension = ref("png");
+const isSaving = ref(false); // +++ สถานะการ Save +++
+
+const closeModal = () => {
+  emit("update:modelValue", false);
+  setTimeout(() => {
+    logoImage.value = null;
+    dragOver.value = false;
+    qrCodeInstance.value = null;
+  }, 200);
+};
+
+// ============================================================
+// [REFACTOR] Helper function สร้าง Options กลาง
+// ============================================================
+const getQrOptions = (width, height) => {
+  return {
+    width: width,
+    height: height,
+    type: "canvas",
+    data: props.link?.shortUrl || "",
+    image: logoImage.value,
+    dotsOptions: {
+      color: mainColor.value,
+      type: dotsOptionsType.value,
+    },
+    cornersSquareOptions: {
+      color: mainColor.value,
+      type: cornersSquareOptionsType.value || undefined,
+    },
+    cornersDotOptions: {
+      color: mainColor.value,
+      type: cornersDotOptionsType.value || undefined,
+    },
+    backgroundOptions: {
+      color: isTransparent.value ? "transparent" : backgroundColor.value,
+    },
+    imageOptions: {
+      crossOrigin: "anonymous",
+      margin: 10,
+    },
+  };
+};
+
+// +++ Function: Save QR Style +++
+const saveQrStyle = async () => {
+  if (!props.link) return;
+  isSaving.value = true;
+
+  // 1. รวบรวม Config
+  const currentConfig = {
+    mainColor: mainColor.value,
+    backgroundColor: backgroundColor.value,
+    isTransparent: isTransparent.value,
+    dotsOptionsType: dotsOptionsType.value,
+    cornersSquareOptionsType: cornersSquareOptionsType.value,
+    cornersDotOptionsType: cornersDotOptionsType.value,
+    // logoImage: logoImage.value // (Optional: ถ้าอยากเก็บรูปด้วย)
+  };
+
+  try {
+    // 2. ส่งไป Backend
+    await api.patch(`/links/${props.link.id}`, { qrOptions: currentConfig });
+
+    // 3. อัปเดต Store Local
+    const index = authStore.myLinks.findIndex((l) => l.id === props.link.id);
+    if (index !== -1) {
+      authStore.myLinks[index].qrOptions = currentConfig;
+    }
+
+    Swal.fire({
+      toast: true,
+      position: "top-end",
+      icon: "success",
+      title: "Style saved!",
+      showConfirmButton: false,
+      timer: 1500,
+    });
+  } catch (error) {
+    console.error("Save failed:", error);
+    Swal.fire("Error", "Could not save style.", "error");
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+// (Logic: Render QR)
+const qrCodeRef = ref(null);
+const qrCodeInstance = ref(null);
+
+watch(
+  () => props.modelValue,
+  (isOpen) => {
+    if (!isOpen) {
+      qrCodeInstance.value = null;
+    }
+  }
+);
+
+// +++ Watcher: Load Config เมื่อเปิดลิงก์ใหม่ +++
+watch(
+  () => props.link,
+  (newLink) => {
+    if (newLink && newLink.qrOptions) {
+      // โหลดค่าจาก DB/File
+      const opts = newLink.qrOptions;
+      if (opts.mainColor) mainColor.value = opts.mainColor;
+      if (opts.backgroundColor) backgroundColor.value = opts.backgroundColor;
+      if (opts.isTransparent !== undefined)
+        isTransparent.value = opts.isTransparent;
+      if (opts.dotsOptionsType) dotsOptionsType.value = opts.dotsOptionsType;
+      if (opts.cornersSquareOptionsType)
+        cornersSquareOptionsType.value = opts.cornersSquareOptionsType;
+      if (opts.cornersDotOptionsType)
+        cornersDotOptionsType.value = opts.cornersDotOptionsType;
+    } else {
+      // Reset ค่า Default
+      mainColor.value = "#4267b2";
+      backgroundColor.value = "#ffffff";
+      isTransparent.value = false;
+      dotsOptionsType.value = "rounded";
+      cornersSquareOptionsType.value = null;
+      cornersDotOptionsType.value = null;
+      logoImage.value = null;
+    }
+  },
+  { immediate: true }
+);
+
+watchEffect(() => {
+  if (props.link && props.link.shortUrl && qrCodeRef.value) {
+    if (!qrCodeInstance.value) {
+      qrCodeInstance.value = new QrCodeStyling(getQrOptions(300, 300));
+    }
+    qrCodeRef.value.innerHTML = "";
+    qrCodeInstance.value.append(qrCodeRef.value);
+    qrCodeInstance.value.update(getQrOptions(300, 300));
+  } else if (qrCodeRef.value) {
+    qrCodeRef.value.innerHTML = "";
+    qrCodeInstance.value = null;
+  }
+});
+
+// (Logic: Helpers)
+watch(isTransparent, (newValue) => {
+  if (newValue && downloadExtension.value === "jpeg") {
+    downloadExtension.value = "png";
+  }
+});
+
+const downloadQR = () => {
+  const downloadInstance = new QrCodeStyling(
+    getQrOptions(qrSize.value, qrSize.value)
+  );
+
+  downloadInstance.download({
+    name: `qrcode-${props.link.slug}`,
+    extension: downloadExtension.value,
+  });
+};
+
+const dragOver = ref(false);
+const handleDrop = (e) => {
+  dragOver.value = false;
+  const file = e.dataTransfer?.files[0];
+  if (file) {
+    processFile(file);
+  }
+};
+
+const handleFileSelect = (e) => {
+  const file = e.target?.files[0];
+  if (file) {
+    processFile(file);
+  }
+};
+
+const processFile = (file) => {
+  if (!file.type.startsWith("image/")) {
+    Swal.fire({
+      icon: "error",
+      title: "Invalid File Type",
+      text: "Please upload an image file (PNG, JPG).",
+      confirmButtonColor: "#4F46E5",
+    });
+    return;
+  }
+  if (file.size > 1024 * 1024) {
+    Swal.fire({
+      icon: "warning",
+      title: "File too large",
+      text: "Image size must be less than 1MB.",
+      confirmButtonColor: "#4F46E5",
+    });
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    logoImage.value = e.target?.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+const copyIcon = ref(Copy);
+const copyToClipboard = (text) => {
+  navigator.clipboard.writeText(text).then(() => {
+    copyIcon.value = Check;
+    setTimeout(() => {
+      copyIcon.value = Copy;
+    }, 2000);
+  });
+};
+
+const saveIconClasses = computed(() => {
+  return {
+    "animate-bounce": isSaving.value,
+  };
+});
+</script>
+
 <template>
   <div>
-    <!-- 1. ฉากหลัง (Backdrop) -->
     <div
       v-show="modelValue"
       class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
       @click="closeModal"
     ></div>
 
-    <!-- Modal (Panel) -->
     <transition
       enter-active-class="transition ease-out duration-300"
       enter-from-class="transform opacity-0 scale-95"
@@ -53,7 +317,6 @@
                 </div>
               </div>
 
-              <!-- Dropdown design & color -->
               <details class="border rounded-lg" :open="isDesignOpen">
                 <summary
                   class="p-3 font-medium cursor-pointer flex justify-between items-center"
@@ -66,7 +329,6 @@
                   />
                 </summary>
                 <div class="p-4 border-t space-y-4 bg-gray-50">
-                  <!-- Color -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700"
                       >Color (Dots & Corners)</label
@@ -90,7 +352,6 @@
                     </div>
                   </div>
 
-                  <!-- Background -->
                   <div
                     :class="{ 'opacity-50 pointer-events-none': isTransparent }"
                   >
@@ -118,7 +379,6 @@
                     </div>
                   </div>
 
-                  <!-- Transparent BG -->
                   <div class="flex items-center justify-between">
                     <label class="text-sm font-medium text-gray-700"
                       >Transparent Background</label
@@ -138,7 +398,6 @@
                     </button>
                   </div>
 
-                  <!-- Dots Style -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700"
                       >Dots Style</label
@@ -156,7 +415,6 @@
                     </select>
                   </div>
 
-                  <!-- Corners Square Style -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700"
                       >Corners Square Style</label
@@ -172,7 +430,6 @@
                     </select>
                   </div>
 
-                  <!-- Corners Dot Style -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700"
                       >Corners Dot Style</label
@@ -189,7 +446,6 @@
                 </div>
               </details>
 
-              <!-- Dropdown Logo -->
               <details class="border rounded-lg" :open="isLogoOpen">
                 <summary
                   class="p-3 font-medium cursor-pointer flex justify-between items-center"
@@ -201,7 +457,6 @@
                     :class="logoChevronClasses"
                   />
                 </summary>
-                <!-- Drag and Drop -->
                 <div class="p-4 border-t space-y-4 bg-gray-50">
                   <label
                     for="logo-upload"
@@ -241,7 +496,6 @@
                     />
                   </label>
 
-                  <!-- Logo Preview / Remove -->
                   <div
                     v-if="logoImage"
                     class="flex items-center justify-between"
@@ -265,13 +519,11 @@
               </details>
             </div>
 
-            <!-- Preview qrCode -->
             <div class="lg:col-span-2 space-y-4">
               <h2 class="text-2xl font-bold text-gray-900 invisible">
                 Preview
               </h2>
 
-              <!-- บังคับขนาด Preview ที่ 300px -->
               <div
                 class="flex items-center justify-center p-4 border rounded-lg transition-colors duration-300"
                 :class="
@@ -280,12 +532,9 @@
                     : 'bg-gray-50 border-gray-200'
                 "
               >
-                <div ref="qrCodeRef" style="width: 300px; height: 300px">
-                  <!-- QR Code will render here -->
-                </div>
+                <div ref="qrCodeRef" style="width: 300px; height: 300px"></div>
               </div>
 
-              <!-- Size (px) -->
               <div>
                 <label class="block text-sm font-medium text-gray-700"
                   >Size (px)</label
@@ -302,10 +551,9 @@
                 </select>
               </div>
 
-              <!-- Download Format -->
               <div>
                 <label class="block text-sm font-medium text-gray-700"
-                  >Download Format</label
+                  >Actions</label
                 >
                 <div class="mt-1 flex gap-3">
                   <select
@@ -316,6 +564,18 @@
                     <option value="svg">SVG</option>
                     <option value="jpeg">JPEG</option>
                   </select>
+
+                  <button
+                    v-if="authStore.user"
+                    @click="saveQrStyle"
+                    :disabled="isSaving"
+                    class="px-3 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md shadow-sm hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
+                    title="Save Current Style"
+                  >
+                    <Save class="h-4 w-4" :class="saveIconClasses" />
+                    {{ isSaving ? "Saving..." : "Save" }}
+                  </button>
+
                   <button
                     @click="downloadQR"
                     :disabled="isTransparent && downloadExtension === 'jpeg'"
@@ -325,7 +585,6 @@
                     Download
                   </button>
                 </div>
-                <!-- Logic แจ้งเตือน -->
                 <p
                   v-if="isTransparent && downloadExtension === 'jpeg'"
                   class="mt-2 text-xs text-red-600"
@@ -341,181 +600,6 @@
     </transition>
   </div>
 </template>
-
-<script setup>
-// import & setup
-import { ref, watchEffect, watch, computed } from "vue";
-import { X, Copy, Check, Download, ChevronDown, Image } from "lucide-vue-next";
-import QrCodeStyling from "qr-code-styling";
-import Swal from "sweetalert2";
-
-const props = defineProps({
-  modelValue: { type: Boolean, default: false },
-  link: { type: Object, default: null },
-});
-const emit = defineEmits(["update:modelValue"]);
-
-// (State: UI)
-const isDesignOpen = ref(true);
-const isLogoOpen = ref(false);
-const designChevronClasses = computed(() => {
-  return { "rotate-180": isDesignOpen.value };
-});
-
-const logoChevronClasses = computed(() => {
-  return { "rotate-180": isLogoOpen.value };
-});
-
-// (State: QR Config)
-const qrSize = ref(300);
-const mainColor = ref("#4267b2");
-const backgroundColor = ref("#ffffff");
-const isTransparent = ref(false);
-const dotsOptionsType = ref("rounded");
-const cornersSquareOptionsType = ref(null);
-const cornersDotOptionsType = ref(null);
-const logoImage = ref(null);
-const downloadExtension = ref("png");
-
-const closeModal = () => {
-  emit("update:modelValue", false);
-  setTimeout(() => {
-    logoImage.value = null;
-    dragOver.value = false;
-  }, 20000);
-};
-
-// ============================================================
-// [REFACTOR] Helper function สร้าง Options กลาง (ใช้ทั้ง Preview & Download)
-// ============================================================
-const getQrOptions = (width, height) => {
-  return {
-    width: width,
-    height: height,
-    type: "canvas",
-    data: props.link?.shortUrl || "",
-    image: logoImage.value,
-    dotsOptions: {
-      color: mainColor.value,
-      type: dotsOptionsType.value,
-    },
-    cornersSquareOptions: {
-      color: mainColor.value,
-      // ถ้าเป็น null ให้ส่ง undefined เพื่อซ่อน
-      type: cornersSquareOptionsType.value || undefined,
-    },
-    cornersDotOptions: {
-      color: mainColor.value,
-      type: cornersDotOptionsType.value || undefined,
-    },
-    backgroundOptions: {
-      color: isTransparent.value ? "transparent" : backgroundColor.value,
-    },
-    imageOptions: {
-      crossOrigin: "anonymous",
-      margin: 10,
-    },
-  };
-};
-
-// (Logic: Render QR)
-const qrCodeRef = ref(null);
-const qrCodeInstance = ref(null);
-
-watchEffect(() => {
-  if (props.link && props.link.shortUrl && qrCodeRef.value) {
-    // Init Instance ถ้ายังไม่มี
-    if (!qrCodeInstance.value) {
-      // สร้างด้วยขนาด default 300x300
-      qrCodeInstance.value = new QrCodeStyling(getQrOptions(300, 300));
-      qrCodeRef.value.innerHTML = "";
-      qrCodeInstance.value.append(qrCodeRef.value);
-    }
-
-    qrCodeInstance.value.update(getQrOptions(300, 300));
-  } else if (qrCodeRef.value) {
-    qrCodeRef.value.innerHTML = "";
-    qrCodeInstance.value = null;
-  }
-});
-
-// (Logic: Helpers)
-watch(isTransparent, (newValue) => {
-  if (newValue && downloadExtension.value === "jpeg") {
-    downloadExtension.value = "png";
-  }
-});
-
-const downloadQR = () => {
-  // สร้าง Instance ใหม่สำหรับดาวน์โหลด โดยใช้ขนาดจริง (qrSize)
-  // เรียก getQrOptions เพื่อให้มั่นใจว่าหน้าตาเหมือน Preview เป๊ะๆ
-  const downloadInstance = new QrCodeStyling(
-    getQrOptions(qrSize.value, qrSize.value)
-  );
-
-  downloadInstance.download({
-    name: `qrcode-${props.link.slug}`,
-    extension: downloadExtension.value,
-  });
-};
-
-// (Logic: Drag & Drop)
-const dragOver = ref(false);
-
-const handleDrop = (e) => {
-  dragOver.value = false;
-  const file = e.dataTransfer?.files[0];
-  if (file) {
-    processFile(file);
-  }
-};
-
-const handleFileSelect = (e) => {
-  const file = e.target?.files[0];
-  if (file) {
-    processFile(file);
-  }
-};
-
-const processFile = (file) => {
-  if (!file.type.startsWith("image/")) {
-    Swal.fire({
-      icon: "error",
-      title: "Invalid File Type",
-      text: "Please upload an image file (PNG, JPG).",
-      confirmButtonColor: "#4F46E5",
-    });
-    return;
-  }
-  if (file.size > 1024 * 1024) {
-    // 1MB Limit
-    Swal.fire({
-      icon: "warning",
-      title: "File too large",
-      text: "Image size must be less than 1MB.",
-      confirmButtonColor: "#4F46E5",
-    });
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    logoImage.value = e.target?.result;
-  };
-  reader.readAsDataURL(file);
-};
-
-// (Logic: Copy)
-const copyIcon = ref(Copy);
-const copyToClipboard = (text) => {
-  navigator.clipboard.writeText(text).then(() => {
-    copyIcon.value = Check;
-    setTimeout(() => {
-      copyIcon.value = Copy;
-    }, 2000);
-  });
-};
-</script>
 
 <style scoped>
 input[type="color"] {

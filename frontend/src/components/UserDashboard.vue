@@ -1,3 +1,206 @@
+<script setup>
+// ==========================================
+// 1. IMPORTS
+// ==========================================
+import { onMounted, computed, ref } from "vue";
+import { useAuthStore } from "@/stores/useAuthStore";
+import api from "@/services/api";
+import Swal from "sweetalert2";
+import {
+  Loader2,
+  Link2,
+  Calendar,
+  Plus,
+  RefreshCw,
+  Search,
+  Copy,
+  BarChart2,
+  Trash2,
+  Clock,
+  Pencil,
+  QrCode, // +++ (เพิ่ม) Import QrCode Icon +++
+} from "lucide-vue-next";
+// +++ (เพิ่ม) Import ResultModal +++
+import ResultModal from "@/components/ResultModal.vue";
+
+// ==========================================
+// 2. STATE
+// ==========================================
+const authStore = useAuthStore();
+const isRenewing = ref(false);
+const isDeleting = ref(false);
+const isRefreshing = ref(false);
+const searchQuery = ref("");
+
+// +++ (เพิ่ม) State สำหรับ QR Code Modal +++
+const isResultModalOpen = ref(false);
+const selectedLink = ref(null);
+
+// ==========================================
+// 3. COMPUTED & HELPERS
+// ==========================================
+// (ส่วนเดิมคงเดิม)
+const refreshIconClasses = computed(() => ({
+  "animate-spin": isRefreshing.value || authStore.isLoadingLinks,
+}));
+const renewIconClasses = computed(() => ({ "animate-spin": isRenewing.value }));
+
+const filteredLinks = computed(() => {
+  if (!searchQuery.value) return authStore.myLinks;
+  const query = searchQuery.value.toLowerCase();
+  return authStore.myLinks.filter(
+    (link) =>
+      link.targetUrl.toLowerCase().includes(query) ||
+      link.shortUrl.toLowerCase().includes(query) ||
+      link.slug.toLowerCase().includes(query)
+  );
+});
+
+const getFaviconUrl = (url) => {
+  try {
+    const domain = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+  } catch (e) {
+    return "https://www.svgrepo.com/show/508699/landscape-placeholder.svg";
+  }
+};
+
+const getDomain = (url) => {
+  try {
+    return new URL(url).hostname.replace("www.", "");
+  } catch (e) {
+    return url;
+  }
+};
+
+const isExpired = (dateString) => new Date(dateString) < new Date();
+
+const formatShortDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "2-digit",
+  });
+};
+
+// ==========================================
+// 4. ACTIONS
+// ==========================================
+
+// +++ (เพิ่ม) ฟังก์ชันเปิด Modal QR +++
+const handleShowQr = (link) => {
+  selectedLink.value = link;
+  isResultModalOpen.value = true;
+};
+
+// +++ (เพิ่ม) ฟังก์ชันปิด Modal +++
+const closeResultModal = () => {
+  isResultModalOpen.value = false;
+  setTimeout(() => {
+    selectedLink.value = null;
+  }, 200);
+};
+
+// (ฟังก์ชันเดิม: handleEdit, copyToClipboard, handleRefresh, handleRenew, handleDelete)
+const handleEdit = async (link) => {
+  const { value: newUrl } = await Swal.fire({
+    title: "Edit Destination URL",
+    input: "url",
+    inputLabel: "Where should this short link go?",
+    inputValue: link.targetUrl,
+    showCancelButton: true,
+    confirmButtonText: "Update Link",
+    confirmButtonColor: "#4F46E5",
+    cancelButtonColor: "#d33",
+    inputValidator: (value) => {
+      if (!value) return "Please enter a valid URL!";
+    },
+  });
+
+  if (newUrl && newUrl !== link.targetUrl) {
+    try {
+      const response = await api.patch(`/links/${link.id}`, {
+        targetUrl: newUrl,
+      });
+      const index = authStore.myLinks.findIndex((l) => l.id === link.id);
+      if (index !== -1) {
+        authStore.myLinks[index] = {
+          ...authStore.myLinks[index],
+          ...response.data,
+        };
+      }
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: "Link updated successfully!",
+        showConfirmButton: false,
+        timer: 1500,
+      });
+    } catch (error) {
+      console.error("Update failed:", error);
+      Swal.fire(
+        "Update Failed",
+        error.response?.data?.message || "Could not update link.",
+        "error"
+      );
+    }
+  }
+};
+
+const copyToClipboard = (text) => {
+  navigator.clipboard.writeText(text).then(() => {
+    Swal.fire({
+      toast: true,
+      position: "top-end",
+      icon: "success",
+      title: "Copied!",
+      showConfirmButton: false,
+      timer: 1500,
+    });
+  });
+};
+
+const handleRefresh = async () => {
+  isRefreshing.value = true;
+  try {
+    await authStore.fetchMyLinks();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  } catch (error) {
+    console.error("Refresh failed:", error);
+  } finally {
+    isRefreshing.value = false;
+  }
+};
+
+const handleRenew = async (linkId) => {
+  isRenewing.value = true;
+  try {
+    await authStore.renewLink(linkId);
+  } catch (error) {
+    console.error("Error renewing link:", error);
+  } finally {
+    isRenewing.value = false;
+  }
+};
+
+const handleDelete = async (linkId) => {
+  isDeleting.value = true;
+  try {
+    await authStore.deleteLink(linkId);
+  } catch (error) {
+    console.error("Error deleting link:", error);
+  } finally {
+    isDeleting.value = false;
+  }
+};
+
+onMounted(() => {
+  authStore.fetchMyLinks();
+});
+</script>
+
 <template>
   <div
     class="min-h-[calc(100vh-64px)] bg-gradient-to-b from-white via-indigo-50/30 to-white"
@@ -130,7 +333,6 @@
                 </p>
               </div>
             </div>
-
             <div
               class="shrink-0 w-2.5 h-2.5 rounded-full ring-2 ring-white"
               :class="
@@ -184,37 +386,46 @@
                 <span>{{
                   isExpired(link.expiredAt)
                     ? "Expired"
-                    : "Expired: " + formatShortDate(link.expiredAt)
+                    : formatShortDate(link.expiredAt)
                 }}</span>
               </div>
             </div>
 
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-5 gap-2">
               <router-link
                 :to="`/dashboard/link/${link.id}/stats`"
                 class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+                title="View Stats"
               >
-                <BarChart2 class="h-3.5 w-3.5 mr-1.5" />
+                <BarChart2 class="h-3.5 w-3.5 mr-1" />
                 Stats
               </router-link>
 
               <button
                 @click="handleEdit(link)"
                 class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                title="Edit URL"
               >
-                <Pencil class="h-3.5 w-3.5 mr-1.5" />
+                <Pencil class="h-3.5 w-3.5 mr-1" />
                 Edit
+              </button>
+
+              <button
+                @click="handleShowQr(link)"
+                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-colors"
+                title="Show QR Code"
+              >
+                <QrCode class="h-3.5 w-3.5 mr-1" />
+                QR
               </button>
 
               <button
                 @click="handleRenew(link.id)"
                 :disabled="isRenewing"
                 class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors disabled:opacity-50"
+                title="Renew"
               >
-                <RefreshCw
-                  class="h-3.5 w-3.5 mr-1.5"
-                  :class="renewIconClasses"
-                />
+                <RefreshCw class="h-3.5 w-3.5 mr-1" :class="renewIconClasses" />
                 Renew
               </button>
 
@@ -222,188 +433,23 @@
                 @click="handleDelete(link.id)"
                 :disabled="isDeleting"
                 class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors disabled:opacity-50"
+                title="Delete"
               >
-                <Trash2 class="h-3.5 w-3.5 mr-1.5" />
-                Delete
+                <Trash2 class="h-3.5 w-3.5 mr-1" />
+                Del
               </button>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <ResultModal
+        :modelValue="isResultModalOpen"
+        :link="selectedLink"
+        @update:modelValue="closeResultModal"
+      />
+    </Teleport>
   </div>
 </template>
-
-<script setup>
-import { onMounted, computed, ref } from "vue";
-import { useAuthStore } from "@/stores/useAuthStore";
-import Swal from "sweetalert2";
-import {
-  Loader2,
-  Link2,
-  Calendar,
-  Plus,
-  RefreshCw,
-  Search,
-  Copy,
-  BarChart2,
-  Trash2,
-  Clock,
-  Pencil,
-} from "lucide-vue-next";
-
-const authStore = useAuthStore();
-const isRenewing = ref(false);
-const isDeleting = ref(false);
-const isRefreshing = ref(false);
-const searchQuery = ref("");
-
-// Computed Classes
-const refreshIconClasses = computed(() => ({
-  "animate-spin": isRefreshing.value || authStore.isLoadingLinks,
-}));
-const renewIconClasses = computed(() => ({ "animate-spin": isRenewing.value }));
-
-// Search Logic
-const filteredLinks = computed(() => {
-  if (!searchQuery.value) return authStore.myLinks;
-  const query = searchQuery.value.toLowerCase();
-  return authStore.myLinks.filter(
-    (link) =>
-      link.targetUrl.toLowerCase().includes(query) ||
-      link.shortUrl.toLowerCase().includes(query) ||
-      link.slug.toLowerCase().includes(query)
-  );
-});
-
-// Helpers
-const getFaviconUrl = (url) => {
-  try {
-    const domain = new URL(url).hostname;
-    return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-  } catch (e) {
-    return "https://www.svgrepo.com/show/508699/landscape-placeholder.svg";
-  }
-};
-
-const getDomain = (url) => {
-  try {
-    return new URL(url).hostname.replace("www.", "");
-  } catch (e) {
-    return url;
-  }
-};
-
-const isExpired = (dateString) => new Date(dateString) < new Date();
-
-const formatShortDate = (dateString) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "2-digit", // 24
-  });
-};
-
-// Actions
-const copyToClipboard = (text) => {
-  navigator.clipboard.writeText(text).then(() => {
-    Swal.fire({
-      toast: true,
-      position: "top-end",
-      icon: "success",
-      title: "Copied!",
-      showConfirmButton: false,
-      timer: 1500,
-    });
-  });
-};
-
-const handleRefresh = async () => {
-  isRefreshing.value = true;
-  try {
-    await authStore.fetchMyLinks();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  } catch (error) {
-    console.error("Refresh failed:", error);
-  } finally {
-    isRefreshing.value = false;
-  }
-};
-
-const handleRenew = async (linkId) => {
-  isRenewing.value = true;
-  try {
-    await authStore.renewLink(linkId);
-  } catch (error) {
-    console.error("Error renewing link:", error);
-  } finally {
-    isRenewing.value = false;
-  }
-};
-
-const handleDelete = async (linkId) => {
-  isDeleting.value = true;
-  try {
-    await authStore.deleteLink(linkId);
-  } catch (error) {
-    console.error("Error deleting link:", error);
-  } finally {
-    isDeleting.value = false;
-  }
-};
-
-const handleEdit = async (link) => {
-  const { value: newUrl } = await Swal.fire({
-    title: "Edit Target URL",
-    input: "url",
-    inputLabel: "Enter the new destination URL",
-    inputValue: link.targetUrl,
-    showCancelButton: true,
-    confirmButtonText: "Update",
-    confirmButtonColor: "#4F46E5",
-    inputValidator: (value) => {
-      if (!value) {
-        return "You need to write something!";
-      }
-    },
-  });
-
-  if (newUrl && newUrl !== link.targetUrl) {
-    try {
-      // เรียก API Update (ใช้ endpoint เดิม /links/:id แต่ส่ง targetUrl ไปด้วย)
-      const response = await api.patch(`/links/${link.id}`, {
-        targetUrl: newUrl,
-      });
-
-      // Update local state
-      const index = authStore.myLinks.findIndex((l) => l.id === link.id);
-      if (index !== -1) {
-        authStore.myLinks[index] = {
-          ...authStore.myLinks[index],
-          ...response.data,
-        };
-      }
-
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        icon: "success",
-        title: "Link updated!",
-        showConfirmButton: false,
-        timer: 1500,
-      });
-    } catch (error) {
-      Swal.fire(
-        "Error",
-        error.response?.data?.message || "Update failed",
-        "error"
-      );
-    }
-  }
-};
-
-onMounted(() => {
-  authStore.fetchMyLinks();
-});
-</script>
