@@ -5,31 +5,38 @@ const {
 } = require("../utils/validationSchemas");
 const logger = require("../utils/logger");
 
-// 1. Create Shortlink
+// -------------------------------------------------------------------
+// Create Shortlink (สร้างลิงก์ย่อ)
+// -------------------------------------------------------------------
 const createLink = async (req, res, next) => {
   try {
-    // Validate input
+    // Validate Input: ตรวจสอบ URL และ Slug ที่ส่งมา
     const { targetUrl, slug } = createLinkSchema.parse(req.body);
 
-    // Check for self-redirect
+    // Self-Redirect Check: ป้องกันไม่ให้สร้างลิงก์ที่ชี้กลับมาหาตัวเอง
+    // เช่น ย่อลิงก์ http://mysite.com/r/abc ให้เป็น http://mysite.com/r/xyz (มันจะวนลูป)
     if (targetUrl.includes(process.env.BASE_URL)) {
       return res
         .status(400)
         .json({ message: "Cannot create a shortlink that points to itself." });
     }
 
-    // Get ownerId (null if not logged in)
+    // หา ownerId:
+    // ถ้า Login อยู่ -> ใช้ User ID
+    // ถ้าไม่ได้ Login -> เป็น null (Anonymous Link)
     const ownerId = req.user ? req.user.id : null;
 
+    // เรียก Service สร้างลิงก์
     if (slug && !ownerId) {
       return res
         .status(403)
         .json({ message: "Custom slugs are for logged-in users only." });
     }
 
+    // เรียก Service สร้างลิงก์
     const link = await linkService.createLink(targetUrl, ownerId, slug);
 
-    // Add base URL to slug
+    // ประกอบร่าง URL เต็มๆ ส่งกลับไปให้ Frontend
     const shortUrl = `${process.env.BASE_URL}/r/${link.slug}`;
 
     res.status(201).json({ ...link, shortUrl });
@@ -38,12 +45,16 @@ const createLink = async (req, res, next) => {
   }
 };
 
-// 2. Get My Links
+// -------------------------------------------------------------------
+// Get My Links (ดึงลิงก์ของฉัน)
+// -------------------------------------------------------------------
 const getMyLinks = async (req, res, next) => {
   try {
+    // ดึงเฉพาะลิงก์ที่เป็นของ User คนนี้
     const ownerId = req.user.id;
     const links = await linkService.findLinksByOwner(ownerId);
 
+    // วนลูปเติม shortUrl ให้ครบทุกอัน
     const linksWithUrl = links.map((link) => ({
       ...link,
       shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
@@ -55,7 +66,9 @@ const getMyLinks = async (req, res, next) => {
   }
 };
 
-// 3. Update Link (e.g., Renew)
+// -------------------------------------------------------------------
+// Update Link (แก้ไข/ต่ออายุลิงก์)
+// -------------------------------------------------------------------
 const updateLink = async (req, res, next) => {
   try {
     const linkId = parseInt(req.params.id);
@@ -64,8 +77,10 @@ const updateLink = async (req, res, next) => {
     }
 
     const ownerId = req.user.id;
+    // Validate ข้อมูลที่จะแก้ไข (เช่น renew: true, qrOptions: {...})
     const updateData = updateLinkSchema.parse(req.body);
 
+    // เรียก Service (Service จะเช็คว่าเป็นเจ้าของลิงก์จริงไหม)
     const updatedLink = await linkService.updateLink(
       linkId,
       ownerId,
@@ -77,6 +92,7 @@ const updateLink = async (req, res, next) => {
       shortUrl: `${process.env.BASE_URL}/r/${updatedLink.slug}`,
     });
   } catch (error) {
+    // ดักจับ Error กรณีพยายามแก้ลิงก์คนอื่น หรือหาลิงก์ไม่เจอ
     if (error.message.includes("not found or user does not have permission")) {
       return res.status(404).json({ message: error.message });
     }
@@ -84,7 +100,9 @@ const updateLink = async (req, res, next) => {
   }
 };
 
-// 4. Delete Link
+// -------------------------------------------------------------------
+// Delete Link (ลบลิงก์)
+// -------------------------------------------------------------------
 const deleteLink = async (req, res, next) => {
   try {
     const linkId = parseInt(req.params.id);
@@ -94,6 +112,7 @@ const deleteLink = async (req, res, next) => {
 
     const ownerId = req.user.id;
 
+    // เรียก Service เพื่อลบ (Service จะเช็คว่าเป็นเจ้าของลิงก์จริงไหม)
     const result = await linkService.deleteLink(linkId, ownerId);
     res.json(result);
   } catch (error) {

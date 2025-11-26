@@ -8,14 +8,20 @@ const {
 const authService = require("../services/authService");
 const logger = require("../utils/logger");
 
-// 1. Get CSRF Token
+// -------------------------------------------------------------------
+// CSRF Token Endpoint
+// -------------------------------------------------------------------
+// Frontend ต้องยิงมาที่นี่ก่อนเป็นอันดับแรก เพื่อขอ Token ไปแปะใน Header (x-csrf-token)
+// สำหรับ Request ถัดไป (Login, Register, Post ต่างๆ)
 const getCsrfToken = (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 };
 
-// 2. Local Login
+// -------------------------------------------------------------------
+// Local Login (Email + Password)
+// -------------------------------------------------------------------
 const loginLocal = (req, res, next) => {
-  // Validate input
+  // ตรวจสอบความถูกต้องของข้อมูลที่ส่งมา (Validate Input)
   try {
     loginSchema.parse(req.body);
   } catch (error) {
@@ -24,51 +30,63 @@ const loginLocal = (req, res, next) => {
       .json({ message: "Validation failed.", errors: error.errors });
   }
 
+  // เรียกใช้ Passport Strategy ชื่อ 'local' (ที่เรา config ไว้ใน passport.js)'
   passport.authenticate("local", (err, user, info) => {
     if (err) {
-      return next(err);
+      return next(err); // Error จากระบบ (เช่น DB ล่ม)
     }
     if (!user) {
+      // Login ไม่ผ่าน (เช่น รหัสผิด, ไม่พบ User)
       return res.status(401).json({ message: info.message || "Login failed." });
     }
+    // Login สำเร็จ -> สร้าง Session (Serialize User)
     req.logIn(user, (err) => {
       if (err) {
         return next(err);
       }
-      // Send back safe user object (no hash)
+      // ส่งข้อมูล User ที่ปลอดภัย (ไม่มี Password) กลับไป
       res.json(authService.getSafeUser(user));
     });
   })(req, res, next);
 };
 
-// 3. Logout
+// -------------------------------------------------------------------
+// Logout
+// -------------------------------------------------------------------
 const logout = (req, res, next) => {
+  // ลบข้อมูล User ออกจาก req
   req.logout((err) => {
     if (err) {
       return next(err);
     }
+    // ทำลาย Session ใน Database
     req.session.destroy((err) => {
       if (err) {
         logger.error("Failed to destroy session:", err);
       }
+      // ลบ Cookie ที่ฝั่ง Client
       res.clearCookie("connect.sid", { path: "/" });
       res.status(200).json({ message: "Logged out successfully." });
     });
   });
 };
 
-// 4. Change Password (Local users only)
+// -------------------------------------------------------------------
+// Change Password
+// -------------------------------------------------------------------
 const changePassword = async (req, res, next) => {
   try {
-    // Validate input
+    // Validate Input (เช็คว่ารหัสใหม่ตรงกับยืนยันรหัสผ่านไหม ฯลฯ)
     const { oldPassword, newPassword } = changePasswordSchema.parse(req.body);
 
+    // ป้องกัน User ที่ Login ผ่าน Google มาเปลี่ยนรหัส (เพราะเขาไม่มีรหัสในระบบเรา)
     if (req.user.provider !== "LOCAL") {
       return res
         .status(400)
         .json({ message: "Cannot change password for OAuth users." });
     }
 
+    // เรียก Service เพื่อเปลี่ยนรหัส
     const result = await authService.changePassword(
       req.user.id,
       oldPassword,
@@ -76,6 +94,7 @@ const changePassword = async (req, res, next) => {
     );
     res.json(result);
   } catch (error) {
+    // จัดการ Error เฉพาะเจาะจง
     if (error.message === "Incorrect old password.") {
       return res.status(400).json({ message: error.message });
     }
@@ -83,45 +102,58 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-// 5. Get Current User (/me)
+// -------------------------------------------------------------------
+// Get Current User (/me)
+// -------------------------------------------------------------------
+// ใช้สำหรับเช็คสถานะ Login เมื่อ User รีเฟรชหน้าเว็บ
 const getMe = (req, res) => {
-  // req.user is populated by passport.deserializeUser
+  // req.user มีค่าเสมอ ถ้าผ่าน middleware isAuthenticated มาแล้ว
   res.json(authService.getSafeUser(req.user));
 };
 
-// 6. Google Auth (Start)
+// -------------------------------------------------------------------
+// Google Auth (Start)
+// -------------------------------------------------------------------
+// เริ่มต้นกระบวนการ OAuth -> Redirect User ไปหน้า Google
 const googleAuth = passport.authenticate("google", {
-  scope: ["profile", "email"],
+  scope: ["profile", "email"], // ขอสิทธิ์เข้าถึง Profile และ Email
 });
 
-// 7. Google Auth (Callback)
+// -------------------------------------------------------------------
+// Google Auth (Callback)
+// -------------------------------------------------------------------
+// Google ส่ง User กลับมาที่นี่ พร้อม Code
 const googleCallback = (req, res, next) => {
   passport.authenticate("google", (err, user, info) => {
     if (err) {
       return next(err);
     }
     if (!user) {
-      // Failed login (e.g., email already used locally)
-      // Redirect to frontend error page
+      // กรณี Login ไม่ผ่าน (เช่น อีเมลนี้เคยสมัครแบบ Local ไว้แล้ว)
       logger.warn("Google Auth Failed:", info);
       const errorMsg = encodeURIComponent(
         info.message || "Google login failed."
       );
+      // Redirect กลับไปหน้า Login ของ Frontend พร้อม Error Message
       return res.redirect(`${process.env.CORS_ORIGIN}/login?error=${errorMsg}`);
     }
+
+    // Login สำเร็จ -> สร้าง Session
     req.logIn(user, (err) => {
       if (err) {
         return next(err);
       }
-      // Successful login, redirect to frontend dashboard
+      // Redirect เข้าสู่หน้า Dashboard
       res.redirect(`${process.env.CORS_ORIGIN}/dashboard`);
     });
   })(req, res, next);
 };
 
-// 8. Local Registration
+// -------------------------------------------------------------------
+// Local Registration
+// -------------------------------------------------------------------
 const register = async (req, res, next) => {
-  // 1. Validate input
+  // Validate Input
   let validatedData;
   try {
     validatedData = registerSchema.parse(req.body);
@@ -134,19 +166,19 @@ const register = async (req, res, next) => {
   const { email, password } = validatedData;
 
   try {
-    // 2. Call service to create user
+    // เรียก Service เพื่อสร้าง User ใหม่
     const newUser = await authService.registerUser(email, password);
 
-    // 3. (สำคัญ) Auto-login the new user (same as loginLocal)
+    // *UX Feature* สมัครเสร็จแล้ว Login ให้เลยทันที
     req.logIn(newUser, (err) => {
       if (err) {
-        return next(err); // Passport error
+        return next(err); // ถ้า Login ไม่ผ่าน (แปลกมาก) ให้ส่ง Error
       }
-      // Send 201 Created status and safe user object
+      // ส่ง 201 Created กลับไป
       res.status(201).json(authService.getSafeUser(newUser));
     });
   } catch (error) {
-    // Handle specific "Email already in use" error
+    // จัดการ Error กรณีอีเมลซ้ำ
     if (error.message.includes("Email address is already in use")) {
       return res.status(409).json({ message: error.message }); // 409 Conflict
     }
@@ -163,5 +195,5 @@ module.exports = {
   getMe,
   googleAuth,
   googleCallback,
-  register, // (เพิ่มใหม่)
+  register,
 };

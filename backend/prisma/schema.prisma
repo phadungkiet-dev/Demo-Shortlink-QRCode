@@ -1,62 +1,75 @@
+// ตัวสร้าง Client สำหรับใช้ใน Node.js
 generator client {
   provider = "prisma-client-js"
   // output   = "../generated/prisma"
 }
 
+// กำหนด Database เป็น PostgreSQL
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// --- ตารางผู้ใช้งาน (Users) ---
 model User {
-  id           Int     @id @default(autoincrement())
-  provider     String // 'LOCAL' | 'GOOGLE'
-  providerId   String? @unique // Google's profile.id
+  id           Int     @id @default(autoincrement()) // Primary Key รันเลขเอง
+  provider     String // provider: ระบุว่าสมัครผ่านอะไร 'LOCAL' (Email/Pass) หรือ 'GOOGLE'
+  providerId   String? @unique // providerId: เก็บ ID จาก Google (ถ้า Login ผ่าน Google)
   email        String  @unique
-  passwordHash String?
-  role         String  @default("USER") // 'ADMIN' | 'USER'
+  passwordHash String? // เก็บ Password ที่ Hash แล้ว (ถ้า Login ผ่าน Google จะเป็น null)
+  role         String  @default("USER") // 'ADMIN' หรือ 'USER'
 
-  isBlocked Boolean @default(false)
+  isBlocked Boolean @default(false) // สถานะโดนแบนหรือไม่
 
-  links     Link[]
+  links     Link[] // ความสัมพันธ์: User 1 คน มีได้หลาย Link
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+// --- ตารางลิงก์ (Links) ---
 model Link {
   id        Int      @id @default(autoincrement())
-  slug      String   @unique
-  targetUrl String
-  ownerId   Int?
-  owner     User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  slug      String   @unique // รหัสต่อท้าย URL (เช่น /r/xyz123) ห้ามซ้ำ
+  targetUrl String // ลิงก์ปลายทาง
+  ownerId   Int? // ownerId: ใครเป็นเจ้าของ? (ถ้าเป็น null คือ Anonymous)
+  owner     User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade) // ความสัมพันธ์: ผูกกับ User, ถ้า User ถูกลบ ลิงก์นี้จะหายไปด้วย (Cascade)
   isPublic  Boolean  @default(false)
-  expiredAt DateTime
-  disabled  Boolean  @default(false)
-  clicks    Click[]
+  expiredAt DateTime // วันหมดอายุ
+  disabled  Boolean  @default(false) // ปิดใช้งานชั่วคราวโดยเจ้าของหรือ Admin
+  clicks    Click[] // ความสัมพันธ์: Link 1 อัน มี Log การคลิกได้หลายครั้ง
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // เก็บการตั้งค่า QR Code (สี, โลโก้, รูปทรง) เป็น JSON 
+  // ข้อดี: ยืดหยุ่นมาก ไม่ต้องแก้ Schema บ่อยๆ
   qrOptions Json?
 
+  // ทำ Index ที่ ownerId เพื่อให้ค้นหา "ลิงก์ของฉัน" ได้เร็วขึ้น
   @@index([ownerId])
 }
 
+// --- ตารางสถิติการคลิก (Clicks) ---
 model Click {
   id        Int      @id @default(autoincrement())
   linkId    Int
-  link      Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
-  ip        String
-  userAgent String?
-  referrer  String?
-  createdAt DateTime @default(now())
+  link      Link     @relation(fields: [linkId], references: [id], onDelete: Cascade) // ความสัมพันธ์: ผูกกับ Link, ถ้า Link ถูกลบ Log นี้จะหายไปด้วย (Cascade)
+  ip        String // IP ของคนที่คลิก (ใช้ทำ Unique Visitor ได้คร่าวๆ)
+  userAgent String? // ข้อมูล Browser/Device
+  referrer  String? // มาจากเว็บไหน
+  createdAt DateTime @default(now()) // เวลาที่คลิก
 
+  // ทำ Index ที่ linkId เพื่อให้ดึง "สถิติของลิงก์นี้" ได้เร็ว
   @@index([linkId])
 }
 
+// --- ตาราง Session (สำหรับ express-session) ---
+// ใช้เก็บ Session การ Login ของ User ลง DB แทนที่จะเก็บใน RAM
 model Session {
-  sid     String   @id
-  sess    Json
-  expire  DateTime @db.Timestamp(6)
+  sid    String   @id // Session ID
+  sess   Json // ข้อมูล Session (User ID, Cookie info)
+  expire DateTime @db.Timestamp(6) // เวลาหมดอายุ
+
+  // Map ชื่อตารางจริงใน DB ให้เป็น "user_sessions" (ตาม convention ของ connect-pg-simple)
   @@index([expire], map: "IDX_session_expire")
-  @@map("user_sessions")
+  @@map("user_sessions") // Index ช่วยให้ลบ Session หมดอายุได้เร็ว
 }

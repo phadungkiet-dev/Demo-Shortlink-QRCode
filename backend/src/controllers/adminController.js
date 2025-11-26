@@ -1,12 +1,13 @@
 const adminService = require("../services/adminService");
 const logger = require("../utils/logger");
 
-/**
- * Controller to get all users
- */
+// -------------------------------------------------------------------
+// Get All Users (ดึงรายชื่อ User ทั้งหมด)
+// -------------------------------------------------------------------
 const getAllUsers = async (req, res, next) => {
   try {
-    // (req.user.id มาจาก Passport + isAdmin middleware)
+    // ดึง ID ของ Admin คนที่เรียก API นี้ (จาก Session)
+    // เพื่อส่งให้ Service กรองตัวเองออกจากผลลัพธ์ (จะได้ไม่เห็นตัวเองในลิสต์ที่จะแบน)
     const adminId = req.user.id;
 
     const users = await adminService.getAllUsers(adminId);
@@ -16,70 +17,75 @@ const getAllUsers = async (req, res, next) => {
   }
 };
 
-/**
- * (เพิ่มใหม่) Controller to update a user's status (Block/Unblock)
- */
+// -------------------------------------------------------------------
+// Update User Status (Block/Unblock)
+// -------------------------------------------------------------------
 const updateUserStatus = async (req, res, next) => {
   try {
     const adminId = req.user.id;
     const userIdToUpdate = parseInt(req.params.id);
-    
-    // 1. Validate ID
+
+    // Validate ID: ต้องเป็นตัวเลขเท่านั้น
     if (isNaN(userIdToUpdate)) {
       return res.status(400).json({ message: "Invalid User ID." });
     }
 
-    // 2. Validate Body (รับ 'isBlocked' (true/false) จาก Frontend)
+    // Validate Body: ต้องส่งค่า isBlocked เป็น true หรือ false เท่านั้น
     const { isBlocked } = req.body;
-    if (typeof isBlocked !== 'boolean') {
-      return res.status(400).json({ message: "Invalid request body. 'isBlocked' (boolean) is required." });
+    if (typeof isBlocked !== "boolean") {
+      return res.status(400).json({
+        message: "Invalid request body. 'isBlocked' (boolean) is required.",
+      });
     }
 
-    // 3. Call Service
+    // เรียก Service เพื่ออัปเดตสถานะ
     const updatedUser = await adminService.updateUserStatus(
       userIdToUpdate,
       adminId,
       isBlocked // (ส่งสถานะใหม่ (true/false) เข้าไป)
     );
-    
-    // 4. ส่ง User ที่อัปเดตแล้ว กลับไปให้ Frontend
-    res.json(updatedUser);
 
+    // ส่งข้อมูล User ล่าสุดกลับไปเพื่อให้ Frontend อัปเดต UI ทันที
+    res.json(updatedUser);
   } catch (error) {
-    // 5. (สำคัญ) จับ Error ที่ Service โยนมา
+    // (สำคัญ) แปลง Error จาก Service ให้เป็น HTTP Status Code ที่มีความหมาย
+
+    // กรณีพยายามแบนตัวเอง -> 400 (Bad Request)
     if (error.message.includes("Admins cannot change their own status")) {
       return res.status(400).json({ message: error.message });
     }
+    // กรณีหา User ไม่เจอ -> 404 (Not Found)
     if (error.message.includes("User not found")) {
       return res.status(404).json({ message: error.message });
     }
+    // กรณีพยายามแบน Admin คนอื่น -> 403 (Forbidden - ห้ามทำ)
     if (error.message.includes("Cannot change status of another Admin")) {
       return res.status(403).json({ message: error.message }); // 403 Forbidden
     }
-    
-    // Error ทั่วไป
+
+    // Error อื่นๆ (เช่น DB ล่ม) ส่งต่อให้ Global Error Handler
     next(error);
   }
 };
 
-/**
- * Controller to delete a user
- */
+// -------------------------------------------------------------------
+// Delete User (ลบ User ถาวร)
+// -------------------------------------------------------------------
 const deleteUser = async (req, res, next) => {
   try {
     const adminId = req.user.id;
     const userIdToDelete = parseInt(req.params.id);
 
-    // 1. Validate ID
+    // Validate ID
     if (isNaN(userIdToDelete)) {
       return res.status(400).json({ message: "Invalid User ID." });
     }
 
-    // 2. Call Service (Service จะจัดการ Safety Checks ทั้งหมด)
+    // เรียก Service (Service จะมี Logic เช็คความปลอดภัยซ้ำอีกที)
     const result = await adminService.deleteUser(userIdToDelete, adminId);
     res.json(result);
   } catch (error) {
-    // 3. (สำคัญ) จับ Error ที่ Service โยนมา
+    // จัดการ Error เฉพาะทางเหมือนกับ updateStatus
 
     if (error.message.includes("Admins cannot delete their own account")) {
       return res.status(400).json({ message: error.message });

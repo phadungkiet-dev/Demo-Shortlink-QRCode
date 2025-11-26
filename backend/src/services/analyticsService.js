@@ -1,14 +1,8 @@
 const { prisma } = require("../config/prisma");
 const logger = require("../utils/logger");
 
-/**
- * Gets aggregated stats for a specific link, checking ownership.
- * @param {number} linkId
- * @param {number} ownerId
- * @returns {Promise<object>}
- */
 const getStatsForLink = async (linkId, ownerId) => {
-  // 1. Verify ownership and get link info
+  // ตรวจสอบความเป็นเจ้าของก่อน (Security First)
   const link = await prisma.link.findFirst({
     where: {
       id: linkId,
@@ -20,13 +14,12 @@ const getStatsForLink = async (linkId, ownerId) => {
     throw new Error("Link not found or user does not have permission.");
   }
 
-  // 2. Get total clicks
+  // นับยอดคลิกรวม
   const totalClicks = await prisma.click.count({
     where: { linkId: linkId },
   });
 
-  // 3. Get clicks over time (e.g., last 7 days)
-  // This is a simplified example. A real app might use complex GROUP BY date_trunc
+  // เตรียมข้อมูลกราฟเส้น (ยอดคลิกย้อนหลัง 7 วัน)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -46,8 +39,7 @@ const getStatsForLink = async (linkId, ownerId) => {
     },
   });
 
-  // A better way for clicks over time (requires raw query or view)
-  // For simplicity, we'll just group by day (in code, not ideal)
+  // ดึง Log ทั้งหมดใน 7 วันมา (เลือกเฉพาะ field วันที่เพื่อความเบา)
   const clicksByDay = await prisma.click.findMany({
     where: {
       linkId: linkId,
@@ -60,14 +52,14 @@ const getStatsForLink = async (linkId, ownerId) => {
     },
   });
 
-  // Process in JS (simpler than complex SQL/Prisma groupBy date_trunc)
+  // Group ข้อมูลตามวัน (YYYY-MM-DD) ด้วย JavaScript
   const dailyCounts = {};
   clicksByDay.forEach((click) => {
     const day = click.createdAt.toISOString().split("T")[0];
     dailyCounts[day] = (dailyCounts[day] || 0) + 1;
   });
 
-  // 4. Get top referrers
+  // หา Top 10 Referrers (มาจากเว็บไหนบ้าง?)
   const topReferrers = await prisma.click.groupBy({
     by: ["referrer"],
     where: {
@@ -87,7 +79,7 @@ const getStatsForLink = async (linkId, ownerId) => {
     take: 10,
   });
 
-  // 5. Get top User Agents (simplified)
+  // หา Top 5 User Agents (ใช้อุปกรณ์อะไร?)
   const topUserAgents = await prisma.click.groupBy({
     by: ["userAgent"],
     where: {

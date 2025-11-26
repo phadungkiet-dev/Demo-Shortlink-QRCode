@@ -3,25 +3,33 @@ const router = express.Router();
 const adminController = require("../controllers/adminController");
 const { isAuthenticated, isAdmin } = require("../middlewares/authGuard");
 
-// (สำคัญมาก)
-// เราใช้ .use() เพื่อบอกว่า "ทุกๆ Route (เส้นทาง) ในไฟล์นี้"
-// "ต้อง" ผ่าน 'ยาม' (Guard) 2 คนนี้ก่อนเสมอ
-// 1. isAuthenticated (เช็คว่า login หรือไม่... เพื่อให้มี req.user)
-// 2. isAdmin (เช็คว่า req.user.role === 'ADMIN')
+// -------------------------------------------------------------------
+// Security Gate (ด่านตรวจความปลอดภัย)
+// -------------------------------------------------------------------
+// สำคัญมาก! บรรทัดนี้จะ "บังคับ" ให้ทุก Route ด้านล่าง
+// ต้องผ่านการตรวจสอบ 2 ชั้นเสมอ:
+//  1. isAuthenticated: ต้อง Login แล้วเท่านั้น (ถ้าไม่ -> 401)
+//  2. isAdmin: ต้องมี Role เป็น 'ADMIN' เท่านั้น (ถ้าไม่ -> 403)
 router.use(isAuthenticated, isAdmin);
 
+// -------------------------------------------------------------------
+// Admin Routes
+// -------------------------------------------------------------------
+
 // GET /api/admin/users
-// (Path จริงจะเป็น /api/admin/users เพราะไฟล์แม่ (index.js) จะ prefix /admin ให้)
+// ดึงรายชื่อ User ทั้งหมด (เพื่อแสดงในตารางจัดการ)
 router.get("/users", adminController.getAllUsers);
 
-// +++ (เพิ่มใหม่) PATCH /api/admin/users/:id/status (Block/Unblock) +++
+// PATCH /api/admin/users/:id/status
+// เปลี่ยนสถานะ User (Block/Unblock)
+// ใช้ PATCH เพราะเราแก้แค่ field เดียว (isBlocked) ไม่ได้แก้ทั้งหมด
 router.patch("/users/:id/status", adminController.updateUserStatus);
 
 // DELETE /api/admin/users/:id
+// ลบ User ถาวร (ระวัง! ข้อมูล Links ของเขาจะหายไปด้วยเพราะ Cascade Delete)
 router.delete("/users/:id", adminController.deleteUser);
 
-// (อนาคต เราสามารถเพิ่ม Route สำหรับ Admin ที่นี่ได้อีก)
-// POST /api/admin/users/:id/role
+// (Future Idea: เพิ่ม Route เปลี่ยน Role จาก User -> Admin ได้ที่นี่)
 // router.post("/users/:id/role", adminController.changeUserRole);
 
 module.exports = router;

@@ -1,11 +1,12 @@
-// Set default timezone in app.js
-// process.env.TZ = 'Asia/Bangkok';
+// หมายเหตุ: เราตั้ง process.env.TZ = 'Asia/Bangkok' ไว้ที่ app.js แล้ว
+// ดังนั้น Date object จะอ้างอิงตาม Timezone ของ Server/Container
 
 /**
- * Adds a specified number of days to a date.
- * @param {Date} date The starting date.
- * @param {number} days The number of days to add.
- * @returns {Date} The new date.
+ * บวกจำนวนวันเพิ่มเข้าไปในวันที่กำหนด
+ * ใช้สำหรับคำนวณวันหมดอายุ (ExpiredAt)
+ * @param {Date} date วันที่ตั้งต้น
+ * @param {number} days จำนวนวันที่ต้องการบวกเพิ่ม
+ * @returns {Date} วันที่ใหม่
  */
 const addDays = (date, days) => {
   const result = new Date(date);
@@ -13,6 +14,7 @@ const addDays = (date, days) => {
   return result;
 };
 
+// ฟังก์ชันดึงเวลาปัจจุบัน (เผื่ออนาคตอยากเปลี่ยนวิธีดึงเวลา)
 const getNow = () => {
   return new Date();
 };

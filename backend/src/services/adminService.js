@@ -1,17 +1,15 @@
 const { prisma } = require("../config/prisma");
 const logger = require("../utils/logger");
 
-/**
- * Get all users (except the admin him/herself)
- * (We only select safe fields, excluding passwordHash)
- */
+// ดึงรายชื่อ User ทั้งหมด (ยกเว้นตัวคนเรียกเอง)
 const getAllUsers = async (adminId) => {
   try {
     const users = await prisma.user.findMany({
       where: {
-        id: { not: adminId }, // (สำคัญ) Admin จะไม่เห็นตัวเองใน List
+        id: { not: adminId }, // ซ่อนตัวเองจาก List
       },
       select: {
+        // เลือกเฉพาะข้อมูลที่จำเป็น (ไม่เอา Password)
         id: true,
         email: true,
         provider: true,
@@ -31,17 +29,15 @@ const getAllUsers = async (adminId) => {
   }
 };
 
-/**
- * (เพิ่มใหม่) 2. Admin blocks/unblocks a user
- */
+// เปลี่ยนสถานะ Block/Unblock
 const updateUserStatus = async (userIdToUpdate, adminId, newStatus) => {
-  // (Safety Check 1) Admin cannot block themselves
+  // Safety 1: ห้ามแก้ตัวเอง
   if (userIdToUpdate === adminId) {
     throw new Error("Admins cannot change their own status.");
   }
 
   try {
-    // (Safety Check 2) Find the user first to check their role
+    // Safety 2: หา User เป้าหมายก่อน
     const userToUpdate = await prisma.user.findUnique({
       where: { id: userIdToUpdate },
     });
@@ -50,12 +46,12 @@ const updateUserStatus = async (userIdToUpdate, adminId, newStatus) => {
       throw new Error("User not found.");
     }
 
-    // (Safety Check 3) Prevent an Admin from blocking another Admin
+    // Safety 3: ห้ามแก้ Admin คนอื่น
     if (userToUpdate.role === "ADMIN") {
       throw new Error("Cannot change status of another Admin account.");
     }
 
-    // All checks passed, proceed with update
+    // ผ่านทุกด่าน -> อัปเดตได้
     const updatedUser = await prisma.user.update({
       where: { id: userIdToUpdate },
       data: {
@@ -83,9 +79,7 @@ const updateUserStatus = async (userIdToUpdate, adminId, newStatus) => {
   }
 };
 
-/**
- * Admin deletes a user
- */
+// ลบ User ถาวร
 const deleteUser = async (userIdToDelete, adminId) => {
   // (Safety Check 1) Admin cannot delete themselves
   if (userIdToDelete === adminId) {
@@ -108,14 +102,7 @@ const deleteUser = async (userIdToDelete, adminId) => {
       throw new Error("Cannot delete another Admin account.");
     }
 
-    // All checks passed, proceed with deletion
-    // (Prisma จะจัดการลบ 'Links' และ 'Clicks' ที่เกี่ยวข้อง
-    // โดยอัตโนมัติ เพราะเราตั้ง 'onDelete: Cascade' ไว้ใน schema.prisma ...
-    // ... อ๊ะ! เรายังไม่ได้ตั้ง 'onDelete: Cascade'!)
-
-    // (หมายเหตุ: เราต้องไปอัปเดต 'schema.prisma' ในภายหลัง
-    // แต่ตอนนี้... เราจะลบแค่ User ก่อน)
-
+    // Prisma จะลบ Links และ Clicks ของ User นี้ให้อัตโนมัติ (Cascade Delete)
     await prisma.user.delete({
       where: { id: userIdToDelete },
     });
