@@ -1,127 +1,78 @@
-<template>
-  <div class="relative" ref="dropdownRoot">
-    <!-- 1. Avatar Button (ปุ่มวงกลม) -->
-    <button
-      @click="isOpen = !isOpen"
-      type="button"
-      class="flex items-center justify-center h-9 w-9 rounded-full bg-indigo-600 text-white text-sm font-bold uppercase focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-    >
-      {{ initials }}
-    </button>
-
-    <!-- 2. Dropdown Panel (ที่ซ่อนไว้) -->
-    <transition
-      enter-active-class="transition ease-out duration-100"
-      enter-from-class="transform opacity-0 scale-95"
-      enter-to-class="transform opacity-100 scale-100"
-      leave-active-class="transition ease-in duration-75"
-      leave-from-class="transform opacity-100 scale-100"
-      leave-to-class="transform opacity-0 scale-95"
-    >
-      <div
-        v-if="isOpen"
-        class="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-30"
-      >
-        <div class="py-1" role="menu" aria-orientation="vertical">
-          <!-- Header (Email) -->
-          <div class="px-4 py-3 border-b border-gray-200">
-            <p class="text-sm text-gray-900">Signed in as</p>
-            <p class="truncate text-sm font-medium text-gray-700">
-              {{ authStore.user.email }}
-            </p>
-          </div>
-
-          <!-- Menu Items (อนาคต) -->
-          <div class="py-1" role="none">
-            <!-- (แก้ไข) 1. เปลี่ยนเป็น router-link และลบ class ปิด (opacity-50) -->
-            <router-link
-              to="/profile"
-              @click="isOpen = false"
-              class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              role="menuitem"
-            >
-              My Profile
-            </router-link>
-
-            <a
-              href="#"
-              class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 opacity-50 cursor-not-allowed"
-              role="menuitem"
-            >
-              (Settings - soon)
-            </a>
-          </div>
-
-          <!-- Logout Button -->
-          <div class="py-1 border-t border-gray-200" role="none">
-            <button
-              @click="handleLogoutClick"
-              class="block w-full px-4 py-2 text-left text-sm text-red-700 hover:bg-red-50"
-              role="menuitem"
-            >
-              <LogOut class="h-4 w-4 inline mr-2" />
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-    </transition>
-  </div>
-</template>
-
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { LogOut } from "lucide-vue-next";
+import {
+  LogOut,
+  User,
+  Settings,
+  Shield,
+  LayoutDashboard, // เพิ่มไอคอน Dashboard
+} from "lucide-vue-next";
 import Swal from "sweetalert2";
-import { RouterLink } from "vue-router"; // (เพิ่ม) Import RouterLink
+
+// รับ Props เพื่อกำหนดโหมดแสดงผล
+const props = defineProps({
+  mode: {
+    type: String,
+    default: "desktop", // 'desktop' | 'mobile'
+  },
+});
+
+// Event เพื่อบอกแม่ (AppHeader) ให้ปิดเมนูเมื่อมีการกดเลือก
+const emit = defineEmits(["close-menu"]);
 
 const authStore = useAuthStore();
 const isOpen = ref(false);
 const dropdownRoot = ref(null);
 
-// (สำคัญ) 1. Logic สร้าง "ตัวย่อ" (Initials)
+// 1. Logic Initials
 const initials = computed(() => {
-  if (!authStore.user || !authStore.user.email) {
-    return "?";
-  }
-
+  if (!authStore.user || !authStore.user.email) return "?";
   const email = authStore.user.email;
   const parts = email.split("@")[0].split(".");
-
   if (parts.length > 1 && parts[0].length > 0 && parts[1].length > 0) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
-
   return email.substring(0, 2).toUpperCase();
 });
 
-// (สำคัญ) 2. Logic "Click Outside"
+// 2. Click Outside (ใช้เฉพาะ Desktop)
 const handleClickOutside = (event) => {
-  if (dropdownRoot.value && !dropdownRoot.value.contains(event.target)) {
+  if (
+    props.mode === "desktop" &&
+    dropdownRoot.value &&
+    !dropdownRoot.value.contains(event.target)
+  ) {
     isOpen.value = false;
   }
 };
 
 onMounted(() => {
-  document.addEventListener("mousedown", handleClickOutside);
+  if (props.mode === "desktop") {
+    document.addEventListener("mousedown", handleClickOutside);
+  }
 });
 onUnmounted(() => {
   document.removeEventListener("mousedown", handleClickOutside);
 });
 
-// (สำคัญ) 3. Logic "Logout"
-const handleLogoutClick = () => {
-  isOpen.value = false;
+// Helper: สั่งปิดเมนู (ใช้ทั้ง Mobile/Desktop)
+const handleItemClick = () => {
+  isOpen.value = false; // ปิด Dropdown (Desktop)
+  emit("close-menu"); // บอก AppHeader ให้ปิด Drawer (Mobile)
+};
 
+// 3. Logout
+const handleLogoutClick = () => {
+  handleItemClick();
   Swal.fire({
     title: "Are you sure?",
-    text: "You will be logged out of your account.",
+    text: "You will be logged out.",
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#4F46E5",
-    cancelButtonColor: "#D33",
-    confirmButtonText: "Yes, log me out!",
+    cancelButtonColor: "#d33",
+    confirmButtonText: "Yes, log out",
   }).then((result) => {
     if (result.isConfirmed) {
       authStore.logout();
@@ -129,3 +80,186 @@ const handleLogoutClick = () => {
   });
 };
 </script>
+
+<template>
+  <div
+    ref="dropdownRoot"
+    :class="[
+      'relative', // Desktop ต้อง relative เพื่อให้ popup ลอยถูกที่
+      mode === 'mobile' ? 'w-full' : '', // Mobile ต้องเต็มจอ
+    ]"
+  >
+    <button
+      v-if="mode === 'desktop'"
+      @click="isOpen = !isOpen"
+      type="button"
+      class="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+    >
+      {{ initials }}
+    </button>
+
+    <transition
+      :enter-active-class="
+        mode === 'desktop' ? 'transition ease-out duration-200' : ''
+      "
+      :enter-from-class="
+        mode === 'desktop' ? 'transform opacity-0 scale-95 -translate-y-2' : ''
+      "
+      :enter-to-class="
+        mode === 'desktop'
+          ? 'transform opacity-100 scale-100 translate-y-0'
+          : ''
+      "
+      :leave-active-class="
+        mode === 'desktop' ? 'transition ease-in duration-150' : ''
+      "
+      :leave-from-class="
+        mode === 'desktop'
+          ? 'transform opacity-100 scale-100 translate-y-0'
+          : ''
+      "
+      :leave-to-class="
+        mode === 'desktop' ? 'transform opacity-0 scale-95 -translate-y-2' : ''
+      "
+    >
+      <div
+        v-if="isOpen || mode === 'mobile'"
+        :class="[
+          // Styles สำหรับ Desktop (Popup)
+          mode === 'desktop'
+            ? 'absolute right-0 mt-3 w-64 origin-top-right rounded-xl bg-white shadow-2xl ring-1 ring-black/5 focus:outline-none z-50 overflow-hidden'
+            : '',
+          // Styles สำหรับ Mobile (Embedded List)
+          mode === 'mobile' ? 'w-full space-y-2' : '',
+        ]"
+      >
+        <div
+          v-if="mode === 'mobile'"
+          class="flex items-center gap-3 px-2 py-3 bg-gray-50 rounded-xl mb-2"
+        >
+          <div
+            class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-200"
+          >
+            {{ initials }}
+          </div>
+          <div class="overflow-hidden">
+            <p class="text-sm font-semibold text-gray-900 truncate">
+              {{ authStore.user.email }}
+            </p>
+            <p class="text-xs text-gray-500 capitalize">
+              {{ authStore.user.role }} Account
+            </p>
+          </div>
+        </div>
+
+        <div v-else class="px-4 py-4 bg-gray-50 border-b border-gray-100">
+          <p
+            class="text-xs text-gray-500 uppercase font-semibold tracking-wider mb-1"
+          >
+            Signed in as
+          </p>
+          <p class="truncate text-sm font-bold text-gray-900">
+            {{ authStore.user.email }}
+          </p>
+          <span
+            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 mt-2"
+          >
+            {{ authStore.user.role }}
+          </span>
+        </div>
+
+        <div :class="mode === 'desktop' ? 'py-2' : 'space-y-1'">
+          <router-link
+            v-if="mode === 'mobile'"
+            to="/dashboard"
+            @click="handleItemClick"
+            class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+          >
+            <LayoutDashboard
+              class="h-4 w-4"
+              :class="mode === 'mobile' ? 'h-5 w-5' : ''"
+            />
+            Dashboard
+          </router-link>
+
+          <router-link
+            v-if="authStore.user?.role === 'ADMIN'"
+            to="/admin/users"
+            @click="handleItemClick"
+            :class="[
+              'group flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors',
+              mode === 'mobile' ? 'rounded-lg font-medium' : '',
+            ]"
+          >
+            <Shield
+              :class="[
+                'mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500',
+                mode === 'mobile' ? 'h-5 w-5' : '',
+              ]"
+            />
+            <span v-if="mode === 'mobile'">Manage Users</span>
+            <span v-else>Admin Panel</span>
+          </router-link>
+
+          <router-link
+            to="/profile"
+            @click="handleItemClick"
+            :class="[
+              'group flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors',
+              mode === 'mobile' ? 'rounded-lg font-medium' : '',
+            ]"
+          >
+            <User
+              :class="[
+                'mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500',
+                mode === 'mobile' ? 'h-5 w-5' : '',
+              ]"
+            />
+            My Profile
+          </router-link>
+
+          <a
+            href="#"
+            :class="[
+              'group flex items-center px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed hover:bg-gray-50',
+              mode === 'mobile' ? 'rounded-lg font-medium' : '',
+            ]"
+          >
+            <Settings
+              :class="[
+                'mr-3 h-4 w-4 text-gray-300',
+                mode === 'mobile' ? 'h-5 w-5' : '',
+              ]"
+            />
+            Settings
+            <span class="ml-auto text-xs bg-gray-100 px-1.5 py-0.5 rounded"
+              >Soon</span
+            >
+          </a>
+        </div>
+
+        <div
+          :class="[
+            mode === 'desktop'
+              ? 'border-t border-gray-100 bg-gray-50 p-2'
+              : 'border-t border-gray-100 pt-2 mt-2',
+          ]"
+        >
+          <button
+            @click="handleLogoutClick"
+            :class="[
+              'flex w-full items-center gap-2 px-4 py-2 text-sm font-medium transition-all',
+              mode === 'desktop'
+                ? 'justify-center text-red-600 bg-white border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-700'
+                : 'text-red-600 hover:bg-red-50 rounded-lg justify-start',
+            ]"
+          >
+            <LogOut :class="mode === 'desktop' ? 'h-4 w-4' : 'h-5 w-5'" />
+            Sign out
+          </button>
+        </div>
+      </div>
+    </transition>
+  </div>
+</template>
+

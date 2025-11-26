@@ -7,13 +7,16 @@ import {
   Check,
   Download,
   ChevronDown,
-  Image,
-  Save, // +++ เพิ่มไอคอน Save +++
+  Image as ImageIcon,
+  Save,
+  Palette,
+  Settings2,
+  Share2,
 } from "lucide-vue-next";
 import QrCodeStyling from "qr-code-styling";
 import Swal from "sweetalert2";
-import api from "@/services/api"; // +++ Import API +++
-import { useAuthStore } from "@/stores/useAuthStore"; // +++ Import Store +++
+import api from "@/services/api";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -23,28 +26,19 @@ const emit = defineEmits(["update:modelValue"]);
 const authStore = useAuthStore();
 
 // (State: UI)
-const isDesignOpen = ref(true);
-const isLogoOpen = ref(false);
-
-const designChevronClasses = computed(() => {
-  return { "rotate-180": isDesignOpen.value };
-});
-
-const logoChevronClasses = computed(() => {
-  return { "rotate-180": isLogoOpen.value };
-});
+const activeTab = ref("design"); // 'design' | 'logo'
 
 // (State: QR Config)
 const qrSize = ref(300);
-const mainColor = ref("#4267b2");
+const mainColor = ref("#4f46e5"); // Default Indigo
 const backgroundColor = ref("#ffffff");
 const isTransparent = ref(false);
 const dotsOptionsType = ref("rounded");
-const cornersSquareOptionsType = ref(null);
+const cornersSquareOptionsType = ref("extra-rounded");
 const cornersDotOptionsType = ref(null);
 const logoImage = ref(null);
 const downloadExtension = ref("png");
-const isSaving = ref(false); // +++ สถานะการ Save +++
+const isSaving = ref(false);
 
 const closeModal = () => {
   emit("update:modelValue", false);
@@ -52,11 +46,12 @@ const closeModal = () => {
     logoImage.value = null;
     dragOver.value = false;
     qrCodeInstance.value = null;
-  }, 200);
+    activeTab.value = "design";
+  }, 300);
 };
 
 // ============================================================
-// [REFACTOR] Helper function สร้าง Options กลาง
+// Helper function สร้าง Options
 // ============================================================
 const getQrOptions = (width, height) => {
   return {
@@ -87,12 +82,11 @@ const getQrOptions = (width, height) => {
   };
 };
 
-// +++ Function: Save QR Style +++
+// Save QR Style Logic
 const saveQrStyle = async () => {
   if (!props.link) return;
   isSaving.value = true;
 
-  // 1. รวบรวม Config
   const currentConfig = {
     mainColor: mainColor.value,
     backgroundColor: backgroundColor.value,
@@ -100,14 +94,12 @@ const saveQrStyle = async () => {
     dotsOptionsType: dotsOptionsType.value,
     cornersSquareOptionsType: cornersSquareOptionsType.value,
     cornersDotOptionsType: cornersDotOptionsType.value,
-    // logoImage: logoImage.value // (Optional: ถ้าอยากเก็บรูปด้วย)
+    image: logoImage.value,
   };
 
   try {
-    // 2. ส่งไป Backend
     await api.patch(`/links/${props.link.id}`, { qrOptions: currentConfig });
 
-    // 3. อัปเดต Store Local
     const index = authStore.myLinks.findIndex((l) => l.id === props.link.id);
     if (index !== -1) {
       authStore.myLinks[index].qrOptions = currentConfig;
@@ -122,32 +114,28 @@ const saveQrStyle = async () => {
       timer: 1500,
     });
   } catch (error) {
-    console.error("Save failed:", error);
     Swal.fire("Error", "Could not save style.", "error");
   } finally {
     isSaving.value = false;
   }
 };
 
-// (Logic: Render QR)
+// Render QR Logic
 const qrCodeRef = ref(null);
 const qrCodeInstance = ref(null);
 
 watch(
   () => props.modelValue,
   (isOpen) => {
-    if (!isOpen) {
-      qrCodeInstance.value = null;
-    }
+    if (!isOpen) qrCodeInstance.value = null;
   }
 );
 
-// +++ Watcher: Load Config เมื่อเปิดลิงก์ใหม่ +++
+// Load Config
 watch(
   () => props.link,
   (newLink) => {
     if (newLink && newLink.qrOptions) {
-      // โหลดค่าจาก DB/File
       const opts = newLink.qrOptions;
       if (opts.mainColor) mainColor.value = opts.mainColor;
       if (opts.backgroundColor) backgroundColor.value = opts.backgroundColor;
@@ -158,13 +146,13 @@ watch(
         cornersSquareOptionsType.value = opts.cornersSquareOptionsType;
       if (opts.cornersDotOptionsType)
         cornersDotOptionsType.value = opts.cornersDotOptionsType;
+      if (opts.image) logoImage.value = opts.image;
     } else {
-      // Reset ค่า Default
-      mainColor.value = "#4267b2";
+      mainColor.value = "#4f46e5";
       backgroundColor.value = "#ffffff";
       isTransparent.value = false;
       dotsOptionsType.value = "rounded";
-      cornersSquareOptionsType.value = null;
+      cornersSquareOptionsType.value = "extra-rounded";
       cornersDotOptionsType.value = null;
       logoImage.value = null;
     }
@@ -176,17 +164,14 @@ watchEffect(() => {
   if (props.link && props.link.shortUrl && qrCodeRef.value) {
     if (!qrCodeInstance.value) {
       qrCodeInstance.value = new QrCodeStyling(getQrOptions(300, 300));
+      qrCodeInstance.value.append(qrCodeRef.value);
+    } else {
+      qrCodeInstance.value.update(getQrOptions(300, 300));
     }
-    qrCodeRef.value.innerHTML = "";
-    qrCodeInstance.value.append(qrCodeRef.value);
-    qrCodeInstance.value.update(getQrOptions(300, 300));
-  } else if (qrCodeRef.value) {
-    qrCodeRef.value.innerHTML = "";
-    qrCodeInstance.value = null;
   }
 });
 
-// (Logic: Helpers)
+// Helpers
 watch(isTransparent, (newValue) => {
   if (newValue && downloadExtension.value === "jpeg") {
     downloadExtension.value = "png";
@@ -197,7 +182,6 @@ const downloadQR = () => {
   const downloadInstance = new QrCodeStyling(
     getQrOptions(qrSize.value, qrSize.value)
   );
-
   downloadInstance.download({
     name: `qrcode-${props.link.slug}`,
     extension: downloadExtension.value,
@@ -208,38 +192,23 @@ const dragOver = ref(false);
 const handleDrop = (e) => {
   dragOver.value = false;
   const file = e.dataTransfer?.files[0];
-  if (file) {
-    processFile(file);
-  }
+  if (file) processFile(file);
 };
 
 const handleFileSelect = (e) => {
   const file = e.target?.files[0];
-  if (file) {
-    processFile(file);
-  }
+  if (file) processFile(file);
 };
 
 const processFile = (file) => {
   if (!file.type.startsWith("image/")) {
-    Swal.fire({
-      icon: "error",
-      title: "Invalid File Type",
-      text: "Please upload an image file (PNG, JPG).",
-      confirmButtonColor: "#4F46E5",
-    });
+    Swal.fire("Invalid File", "Please upload an image.", "error");
     return;
   }
   if (file.size > 1024 * 1024) {
-    Swal.fire({
-      icon: "warning",
-      title: "File too large",
-      text: "Image size must be less than 1MB.",
-      confirmButtonColor: "#4F46E5",
-    });
+    Swal.fire("File too large", "Max size 1MB.", "warning");
     return;
   }
-
   const reader = new FileReader();
   reader.onload = (e) => {
     logoImage.value = e.target?.result;
@@ -257,341 +226,363 @@ const copyToClipboard = (text) => {
   });
 };
 
-const saveIconClasses = computed(() => {
-  return {
-    "animate-bounce": isSaving.value,
-  };
-});
+const saveIconClasses = computed(() => ({ "animate-bounce": isSaving.value }));
 </script>
 
 <template>
-  <div>
+  <div
+    v-if="modelValue"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+  >
     <div
-      v-show="modelValue"
-      class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
+      class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm transition-opacity"
       @click="closeModal"
     ></div>
 
     <transition
       enter-active-class="transition ease-out duration-300"
-      enter-from-class="transform opacity-0 scale-95"
-      enter-to-class="transform opacity-100 scale-100"
+      enter-from-class="opacity-0 scale-95 translate-y-4"
+      enter-to-class="opacity-100 scale-100 translate-y-0"
       leave-active-class="transition ease-in duration-200"
-      leave-from-class="transform opacity-100 scale-100"
-      leave-to-class="transform opacity-0 scale-95"
+      leave-from-class="opacity-100 scale-100 translate-y-0"
+      leave-to-class="opacity-0 scale-95 translate-y-4"
     >
       <div
-        v-if="modelValue && link"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         @click.stop
       >
         <div
-          class="relative w-full max-w-4xl bg-white p-6 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto"
+          class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-white z-10 shrink-0"
         >
+          <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <Settings2 class="w-5 h-5 text-indigo-600" />
+            Customize QR Code
+          </h2>
           <button
             @click="closeModal"
-            class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
+            class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <X class="h-6 w-6" />
+            <X class="w-6 h-6" />
           </button>
+        </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div class="lg:col-span-3 space-y-4 lg:border-r lg:pr-6">
-              <h2 class="text-2xl font-bold text-gray-900">🛠️ Customize QR</h2>
-              <div>
-                <label class="block text-sm font-medium text-gray-700"
-                  >Short Link</label
+        <div class="flex-1 overflow-y-auto p-6 bg-gray-50">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+            <div class="lg:col-span-7 space-y-6">
+              <div
+                class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200"
+              >
+                <label
+                  class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2"
                 >
-                <div class="mt-1 flex rounded-md shadow-sm">
-                  <input
-                    :value="link.shortUrl"
-                    readonly
-                    class="flex-1 block w-full rounded-none rounded-l-md px-3 py-2 border border-gray-300 bg-gray-50 focus:outline-none"
-                  />
-                  <button
-                    @click="copyToClipboard(link.shortUrl)"
-                    class="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  Your Short Link
+                </label>
+                <div class="flex gap-2">
+                  <div
+                    class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-700 font-mono text-sm truncate select-all"
                   >
-                    <component :is="copyIcon" class="h-5 w-5" />
+                    {{ link?.shortUrl }}
+                  </div>
+                  <button
+                    @click="copyToClipboard(link?.shortUrl)"
+                    class="px-4 bg-white border border-gray-200 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 rounded-xl transition-all shadow-sm active:scale-95"
+                    title="Copy to clipboard"
+                  >
+                    <component :is="copyIcon" class="w-5 h-5" />
                   </button>
                 </div>
               </div>
-
-              <details class="border rounded-lg" :open="isDesignOpen">
-                <summary
-                  class="p-3 font-medium cursor-pointer flex justify-between items-center"
-                  @click.prevent="isDesignOpen = !isDesignOpen"
-                >
-                  Design & Colors
-                  <ChevronDown
-                    class="h-5 w-5 transition-transform duration-200"
-                    :class="designChevronClasses"
-                  />
-                </summary>
-                <div class="p-4 border-t space-y-4 bg-gray-50">
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700"
-                      >Color (Dots & Corners)</label
-                    >
-                    <div class="mt-1 flex rounded-md shadow-sm">
-                      <label
-                        :style="{ backgroundColor: mainColor }"
-                        class="w-12 h-auto border border-r-0 border-gray-300 rounded-l-md cursor-pointer hover:opacity-90"
-                      >
-                        <input
-                          type="color"
-                          v-model="mainColor"
-                          class="opacity-0 w-0 h-0 absolute"
-                        />
-                      </label>
-                      <input
-                        type="text"
-                        v-model="mainColor"
-                        class="flex-1 block w-full rounded-none rounded-r-md px-3 py-2 border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div
-                    :class="{ 'opacity-50 pointer-events-none': isTransparent }"
-                  >
-                    <label class="block text-sm font-medium text-gray-700"
-                      >Background Color</label
-                    >
-                    <div class="mt-1 flex rounded-md shadow-sm">
-                      <label
-                        :style="{ backgroundColor: backgroundColor }"
-                        class="w-12 h-auto border border-r-0 border-gray-300 rounded-l-md cursor-pointer hover:opacity-90 transition-colors"
-                      >
-                        <input
-                          type="color"
-                          v-model="backgroundColor"
-                          :disabled="isTransparent"
-                          class="opacity-0 w-0 h-0 absolute"
-                        />
-                      </label>
-                      <input
-                        type="text"
-                        v-model="backgroundColor"
-                        :disabled="isTransparent"
-                        class="flex-1 block w-full rounded-none rounded-r-md px-3 py-2 border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
-                      />
-                    </div>
-                  </div>
-
-                  <div class="flex items-center justify-between">
-                    <label class="text-sm font-medium text-gray-700"
-                      >Transparent Background</label
-                    >
-                    <button
-                      @click="isTransparent = !isTransparent"
-                      :class="isTransparent ? 'bg-indigo-600' : 'bg-gray-200'"
-                      class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                      role="switch"
-                    >
-                      <span
-                        :class="
-                          isTransparent ? 'translate-x-5' : 'translate-x-0'
-                        "
-                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                      ></span>
-                    </button>
-                  </div>
-
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700"
-                      >Dots Style</label
-                    >
-                    <select
-                      v-model="dotsOptionsType"
-                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option value="rounded">Rounded</option>
-                      <option value="dots">Dots</option>
-                      <option value="square">Square</option>
-                      <option value="extra-rounded">Extra Rounded</option>
-                      <option value="classy">Classy</option>
-                      <option value="classy-rounded">Classy Rounded</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700"
-                      >Corners Square Style</label
-                    >
-                    <select
-                      v-model="cornersSquareOptionsType"
-                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option :value="null">None</option>
-                      <option value="square">Square</option>
-                      <option value="dot">Dot</option>
-                      <option value="extra-rounded">Extra Rounded</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-sm font-medium text-gray-700"
-                      >Corners Dot Style</label
-                    >
-                    <select
-                      v-model="cornersDotOptionsType"
-                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option :value="null">None</option>
-                      <option value="dot">Dot</option>
-                      <option value="square">Square</option>
-                    </select>
-                  </div>
-                </div>
-              </details>
-
-              <details class="border rounded-lg" :open="isLogoOpen">
-                <summary
-                  class="p-3 font-medium cursor-pointer flex justify-between items-center"
-                  @click.prevent="isLogoOpen = !isLogoOpen"
-                >
-                  Logo
-                  <ChevronDown
-                    class="h-5 w-5 transition-transform duration-200"
-                    :class="logoChevronClasses"
-                  />
-                </summary>
-                <div class="p-4 border-t space-y-4 bg-gray-50">
-                  <label
-                    for="logo-upload"
-                    @dragover.prevent="dragOver = true"
-                    @dragleave.prevent="dragOver = false"
-                    @drop.prevent="handleDrop"
-                    :class="[
-                      dragOver
-                        ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
-                        : 'border-gray-300 bg-white hover:bg-gray-50 hover:border-indigo-400',
-                      'mt-1 flex flex-col justify-center items-center rounded-xl border-2 border-dashed px-6 pt-8 pb-8 cursor-pointer transition-all duration-200 ease-in-out group',
-                    ]"
-                  >
-                    <div class="space-y-2 text-center">
-                      <div
-                        class="mx-auto h-12 w-12 text-gray-400 group-hover:text-indigo-500 group-hover:scale-110 transition-transform duration-200"
-                      >
-                        <Image class="h-full w-full" />
-                      </div>
-
-                      <div class="text-sm text-gray-600">
-                        <span
-                          class="font-semibold text-indigo-600 hover:text-indigo-500"
-                          >Click to upload</span
-                        >
-                        <span class="mx-1">or drag and drop</span>
-                      </div>
-                      <p class="text-xs text-gray-400">PNG, JPG up to 1MB</p>
-                    </div>
-
-                    <input
-                      id="logo-upload"
-                      @change="handleFileSelect"
-                      type="file"
-                      accept="image/png, image/jpeg"
-                      class="sr-only"
-                    />
-                  </label>
-
-                  <div
-                    v-if="logoImage"
-                    class="flex items-center justify-between"
-                  >
-                    <div class="flex items-center gap-2">
-                      <img
-                        :src="logoImage"
-                        alt="Logo Preview"
-                        class="h-10 w-10 object-contain rounded"
-                      />
-                      <span class="text-sm text-gray-600">Logo selected.</span>
-                    </div>
-                    <button
-                      @click="logoImage = null"
-                      class="text-sm font-medium text-red-600 hover:text-red-500"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              </details>
-            </div>
-
-            <div class="lg:col-span-2 space-y-4">
-              <h2 class="text-2xl font-bold text-gray-900 invisible">
-                Preview
-              </h2>
 
               <div
-                class="flex items-center justify-center p-4 border rounded-lg transition-colors duration-300"
-                :class="
-                  isTransparent
-                    ? 'bg-checkerboard border-indigo-200'
-                    : 'bg-gray-50 border-gray-200'
-                "
+                class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
               >
-                <div ref="qrCodeRef" style="width: 300px; height: 300px"></div>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700"
-                  >Size (px)</label
-                >
-                <select
-                  v-model="qrSize"
-                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option :value="300">300 x 300</option>
-                  <option :value="500">500 x 500</option>
-                  <option :value="800">800 x 800</option>
-                  <option :value="1000">1000 x 1000</option>
-                  <option :value="1200">1200 x 1200</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-gray-700"
-                  >Actions</label
-                >
-                <div class="mt-1 flex gap-3">
-                  <select
-                    v-model="downloadExtension"
-                    class="flex-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                  >
-                    <option value="png">PNG</option>
-                    <option value="svg">SVG</option>
-                    <option value="jpeg">JPEG</option>
-                  </select>
-
+                <div class="flex border-b border-gray-100">
                   <button
-                    v-if="authStore.user"
-                    @click="saveQrStyle"
-                    :disabled="isSaving"
-                    class="px-3 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-md shadow-sm hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
-                    title="Save Current Style"
+                    @click="activeTab = 'design'"
+                    class="flex-1 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                    :class="
+                      activeTab === 'design'
+                        ? 'text-indigo-600 bg-indigo-50/50 border-b-2 border-indigo-600'
+                        : 'text-gray-500 hover:bg-gray-50'
+                    "
                   >
-                    <Save class="h-4 w-4" :class="saveIconClasses" />
-                    {{ isSaving ? "Saving..." : "Save" }}
+                    <Palette class="w-4 h-4" /> Colors & Shapes
                   </button>
+                  <button
+                    @click="activeTab = 'logo'"
+                    class="flex-1 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                    :class="
+                      activeTab === 'logo'
+                        ? 'text-indigo-600 bg-indigo-50/50 border-b-2 border-indigo-600'
+                        : 'text-gray-500 hover:bg-gray-50'
+                    "
+                  >
+                    <ImageIcon class="w-4 h-4" /> Add Logo
+                  </button>
+                </div>
+
+                <div class="p-6 space-y-6">
+                  <div v-show="activeTab === 'design'" class="space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label
+                          class="block text-sm font-medium text-gray-700 mb-2"
+                          >Main Color</label
+                        >
+                        <div
+                          class="flex items-center gap-3 p-2 border border-gray-200 rounded-xl hover:border-indigo-300 transition-colors bg-white"
+                        >
+                          <input
+                            type="color"
+                            v-model="mainColor"
+                            class="h-8 w-8 rounded-lg cursor-pointer border-0 p-0 bg-transparent"
+                          />
+                          <input
+                            type="text"
+                            v-model="mainColor"
+                            class="flex-1 border-none focus:ring-0 text-sm font-mono text-gray-600 p-0"
+                          />
+                        </div>
+                      </div>
+                      <div
+                        :class="{
+                          'opacity-50 pointer-events-none': isTransparent,
+                        }"
+                      >
+                        <label
+                          class="block text-sm font-medium text-gray-700 mb-2"
+                          >Background</label
+                        >
+                        <div
+                          class="flex items-center gap-3 p-2 border border-gray-200 rounded-xl hover:border-indigo-300 transition-colors bg-white"
+                        >
+                          <input
+                            type="color"
+                            v-model="backgroundColor"
+                            class="h-8 w-8 rounded-lg cursor-pointer border-0 p-0 bg-transparent"
+                            :disabled="isTransparent"
+                          />
+                          <input
+                            type="text"
+                            v-model="backgroundColor"
+                            class="flex-1 border-none focus:ring-0 text-sm font-mono text-gray-600 p-0"
+                            :disabled="isTransparent"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      class="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-100"
+                    >
+                      <div class="flex items-center gap-2">
+                        <div
+                          class="w-8 h-8 bg-checkerboard rounded-lg border border-gray-200"
+                        ></div>
+                        <span class="text-sm font-medium text-gray-700"
+                          >Transparent Background</span
+                        >
+                      </div>
+                      <button
+                        @click="isTransparent = !isTransparent"
+                        :class="isTransparent ? 'bg-indigo-600' : 'bg-gray-200'"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                      >
+                        <span
+                          :class="
+                            isTransparent ? 'translate-x-6' : 'translate-x-1'
+                          "
+                          class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm"
+                        />
+                      </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label
+                          class="block text-sm font-medium text-gray-700 mb-2"
+                          >Dots Style</label
+                        >
+                        <select
+                          v-model="dotsOptionsType"
+                          class="block w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        >
+                          <option value="rounded">Rounded</option>
+                          <option value="dots">Dots</option>
+                          <option value="classy">Classy</option>
+                          <option value="classy-rounded">Classy Rnd</option>
+                          <option value="square">Square</option>
+                          <option value="extra-rounded">Extra Rnd</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label
+                          class="block text-sm font-medium text-gray-700 mb-2"
+                          >Corner Frame</label
+                        >
+                        <select
+                          v-model="cornersSquareOptionsType"
+                          class="block w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        >
+                          <option :value="null">Default</option>
+                          <option value="extra-rounded">Extra Rnd</option>
+                          <option value="dot">Dot</option>
+                          <option value="square">Square</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label
+                          class="block text-sm font-medium text-gray-700 mb-2"
+                          >Corner Dot</label
+                        >
+                        <select
+                          v-model="cornersDotOptionsType"
+                          class="block w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        >
+                          <option :value="null">Default</option>
+                          <option value="dot">Dot</option>
+                          <option value="square">Square</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-show="activeTab === 'logo'" class="space-y-4">
+                    <label
+                      for="logo-upload"
+                      @dragover.prevent="dragOver = true"
+                      @dragleave.prevent="dragOver = false"
+                      @drop.prevent="handleDrop"
+                      :class="[
+                        dragOver
+                          ? 'border-indigo-500 bg-indigo-50 ring-4 ring-indigo-100'
+                          : 'border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-indigo-300',
+                        'relative flex flex-col justify-center items-center rounded-2xl border-2 border-dashed h-48 cursor-pointer transition-all duration-200 group',
+                      ]"
+                    >
+                      <div class="space-y-2 text-center">
+                        <div
+                          class="mx-auto w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300"
+                        >
+                          <ImageIcon class="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div class="text-sm text-gray-600 font-medium">
+                          Click to upload or drag & drop
+                        </div>
+                        <p class="text-xs text-gray-400">PNG, JPG up to 1MB</p>
+                      </div>
+                      <input
+                        id="logo-upload"
+                        @change="handleFileSelect"
+                        type="file"
+                        accept="image/png, image/jpeg"
+                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </label>
+
+                    <div
+                      v-if="logoImage"
+                      class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-xl shadow-sm"
+                    >
+                      <div class="flex items-center gap-3">
+                        <div
+                          class="w-10 h-10 rounded-lg border border-gray-100 p-1 bg-white"
+                        >
+                          <img
+                            :src="logoImage"
+                            alt="Logo"
+                            class="w-full h-full object-contain"
+                          />
+                        </div>
+                        <span class="text-sm font-medium text-gray-700"
+                          >Logo selected</span
+                        >
+                      </div>
+                      <button
+                        @click="logoImage = null"
+                        class="text-xs font-bold text-red-500 hover:text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lg:col-span-5 flex flex-col h-full space-y-6">
+              <div
+                class="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 flex-1 flex flex-col items-center justify-center min-h-[320px] relative overflow-hidden"
+              >
+                <div
+                  class="absolute inset-0 bg-checkerboard opacity-50 pointer-events-none"
+                ></div>
+
+                <div
+                  class="relative z-10 p-4 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg ring-1 ring-black/5"
+                >
+                  <div ref="qrCodeRef" class="qr-canvas-wrapper"></div>
+                </div>
+              </div>
+
+              <div
+                class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-4"
+              >
+                <div>
+                  <label
+                    class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2"
+                    >Export Size</label
+                  >
+                  <select
+                    v-model="qrSize"
+                    class="block w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  >
+                    <option :value="300">300 x 300 px (Small)</option>
+                    <option :value="800">800 x 800 px (Medium)</option>
+                    <option :value="1200">1200 x 1200 px (High Quality)</option>
+                  </select>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                  <div class="w-24">
+                    <select
+                      v-model="downloadExtension"
+                      class="block w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 font-medium text-center focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    >
+                      <option value="png">PNG</option>
+                      <option value="svg">SVG</option>
+                      <option value="jpeg">JPG</option>
+                    </select>
+                  </div>
 
                   <button
                     @click="downloadQR"
                     :disabled="isTransparent && downloadExtension === 'jpeg'"
-                    class="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md shadow-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Download class="h-4 w-4" />
+                    <Download class="w-5 h-5" />
                     Download
                   </button>
                 </div>
+
                 <p
                   v-if="isTransparent && downloadExtension === 'jpeg'"
-                  class="mt-2 text-xs text-red-600"
+                  class="text-xs text-red-500 text-center mt-2"
                 >
-                  Cannot download JPEG with transparent background. Please
-                  select PNG or SVG.
+                  JPEG does not support transparency. Please choose PNG.
                 </p>
+
+                <button
+                  v-if="authStore.user"
+                  @click="saveQrStyle"
+                  :disabled="isSaving"
+                  class="w-full py-2.5 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  <Save class="w-4 h-4" :class="saveIconClasses" />
+                  {{ isSaving ? "Saving..." : "Save this style for future" }}
+                </button>
               </div>
             </div>
           </div>
@@ -602,26 +593,31 @@ const saveIconClasses = computed(() => {
 </template>
 
 <style scoped>
+/* Custom color input style */
 input[type="color"] {
   -webkit-appearance: none;
-  appearance: none;
-  width: 0;
-  height: 0;
   border: none;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  opacity: 0;
+  overflow: hidden;
+  background: none;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 8px;
 }
 
-details[open] summary .rotate-180 {
-  transform: rotate(180deg);
-}
-
+/* Checkerboard background for transparent preview */
 .bg-checkerboard {
   background-color: #ffffff;
-  background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
-    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
-    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+  background-image: linear-gradient(45deg, #f3f4f6 25%, transparent 25%),
+    linear-gradient(-45deg, #f3f4f6 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f3f4f6 75%),
+    linear-gradient(-45deg, transparent 75%, #f3f4f6 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }

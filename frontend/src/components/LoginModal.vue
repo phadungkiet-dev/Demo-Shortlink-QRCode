@@ -1,37 +1,78 @@
+<script setup>
+import { ref } from "vue";
+import LoginForm from "./LoginForm.vue";
+import RegisterForm from "./RegisterForm.vue";
+import { X } from "lucide-vue-next";
+
+const viewMode = ref("login");
+
+defineProps({
+  modelValue: {
+    type: Boolean,
+    default: false,
+  },
+});
+
+const emit = defineEmits(["update:modelValue"]);
+
+const closeModal = () => {
+  emit("update:modelValue", false);
+  setTimeout(() => {
+    viewMode.value = "login";
+  }, 200);
+};
+</script>
+
 <template>
   <div
     v-show="modelValue"
-    class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity"
-    @click="closeModal"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
   >
+    <div
+      class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+      @click="closeModal"
+    ></div>
+
     <transition
       enter-active-class="transition ease-out duration-300"
-      enter-from-class="transform opacity-0 scale-95"
-      enter-to-class="transform opacity-100 scale-100"
+      enter-from-class="opacity-0 scale-95 translate-y-4"
+      enter-to-class="opacity-100 scale-100 translate-y-0"
       leave-active-class="transition ease-in duration-200"
-      leave-from-class="transform opacity-100 scale-100"
-      leave-to-class="transform opacity-0 scale-95"
+      leave-from-class="opacity-100 scale-100 translate-y-0"
+      leave-to-class="opacity-0 scale-95 translate-y-4"
     >
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/50"
         @click.stop
       >
-        <div class="relative w-full max-w-md bg-white p-8 rounded-lg shadow-lg">
-          <button
-            @click="closeModal"
-            class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-          >
-            <X class="h-6 w-6" />
-          </button>
+        <div
+          class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
+        ></div>
 
-          <!-- (แก้ไข) 1. เปลี่ยน Title ให้เป็นแบบ Dynamic -->
-          <h2 class="text-2xl font-bold text-center text-gray-900">
-            <span v-if="viewMode === 'login'">Login to your account</span>
-            <span v-else>Create a new account</span>
-          </h2>
+        <button
+          @click="closeModal"
+          class="absolute top-5 right-5 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors focus:outline-none"
+        >
+          <X class="h-5 w-5" />
+        </button>
 
-          <!-- (แก้ไข) 2. สลับฟอร์มตาม viewMode -->
+        <div class="p-8 pt-10">
+          <div class="text-center mb-8">
+            <h2
+              class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight"
+            >
+              <span v-if="viewMode === 'login'">Welcome back</span>
+              <span v-else>Create account</span>
+            </h2>
+            <p class="text-sm text-gray-500 mt-2">
+              <span v-if="viewMode === 'login'"
+                >Please enter your details to sign in.</span
+              >
+              <span v-else>Start sharing your links with the world.</span>
+            </p>
+          </div>
+
           <div class="mt-6">
             <LoginForm
               v-if="viewMode === 'login'"
@@ -40,24 +81,16 @@
             <RegisterForm v-else @register-success="closeModal" />
           </div>
 
-          <!-- (เพิ่มใหม่) 3. ลิงก์สำหรับสลับโหมด -->
-          <div class="mt-6 text-center text-sm">
-            <p v-if="viewMode === 'login'" class="text-gray-600">
-              Don't have an account?
+          <div class="mt-8 pt-6 border-t border-gray-100 text-center">
+            <p class="text-sm text-gray-600">
+              <span v-if="viewMode === 'login'">Don't have an account? </span>
+              <span v-else>Already have an account? </span>
+
               <button
-                @click="viewMode = 'register'"
-                class="font-medium text-indigo-600 hover:text-indigo-500"
+                @click="viewMode = viewMode === 'login' ? 'register' : 'login'"
+                class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
               >
-                Register
-              </button>
-            </p>
-            <p v-else class="text-gray-600">
-              Already have an account?
-              <button
-                @click="viewMode = 'login'"
-                class="font-medium text-indigo-600 hover:text-indigo-500"
-              >
-                Login
+                {{ viewMode === "login" ? "Sign up" : "Log in" }}
               </button>
             </p>
           </div>
@@ -66,33 +99,3 @@
     </transition>
   </div>
 </template>
-
-<script setup>
-import { ref } from "vue"; // (เพิ่ม 'ref')
-import LoginForm from "./LoginForm.vue";
-import RegisterForm from "./RegisterForm.vue";
-import { X } from "lucide-vue-next";
-
-// (เพิ่มใหม่) 1. สร้าง State สำหรับสลับฟอร์ม
-const viewMode = ref("login"); // 'login' | 'register'
-
-// เราใช้ v-model (modelValue) เพื่อรับคำสั่ง "เปิด/ปิด" จากไฟล์แม่ (AppHeader)
-defineProps({
-  modelValue: {
-    type: Boolean,
-    default: false,
-  },
-});
-
-// ส่งสัญญาณกลับไปหาไฟล์แม่ (AppHeader) เมื่อมีการคลิกปิด
-const emit = defineEmits(["update:modelValue"]);
-const closeModal = () => {
-  emit("update:modelValue", false);
-
-  // (UX) เมื่อปิด Modal, Reset กลับไปหน้า Login เสมอ
-  // (รอให้ animation ปิดจบก่อน ค่อย reset)
-  setTimeout(() => {
-    viewMode.value = "login";
-  }, 200); // 200ms = duration-200 (leave-active-class)
-};
-</script>

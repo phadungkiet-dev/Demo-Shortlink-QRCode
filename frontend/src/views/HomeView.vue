@@ -66,7 +66,7 @@ const handleSubmit = async () => {
   }
 };
 
-// Computed prop เช็คว่ามี Link ใหม่ที่สร้างเสร็จหรือยัง
+// Computed: ถ้ามี generatedLink แปลว่าต้องเปิด Modal ผลลัพธ์
 const isResultModalOpen = computed(() => !!generatedLink.value);
 
 // Reset Form เมื่อปิด Modal ผลลัพธ์
@@ -81,8 +81,8 @@ const closeResultModal = () => {
   <div
     class="min-h-[calc(100vh-64px)] bg-gradient-to-b from-white via-indigo-50/30 to-white"
   >
-    <div class="container mx-auto px-4 lg:px-8 pt-12 lg:pt-16 pb-24">
-      <div class="max-w-4xl mx-auto text-center space-y-8">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 pt-12 lg:pt-20 pb-24">
+      <div class="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8">
         <div
           class="inline-flex items-center justify-center p-1 pr-3 rounded-full bg-white border border-gray-200 shadow-sm mb-4 animate-fade-in-down"
         >
@@ -90,15 +90,15 @@ const closeResultModal = () => {
             class="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide mr-2"
             >New</span
           >
-          <span class="text-sm text-gray-600 font-medium"
+          <span class="text-xs sm:text-sm text-gray-600 font-medium"
             >Create custom QR codes instantly</span
           >
         </div>
 
         <h1
-          class="text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight leading-tight"
+          class="text-4xl sm:text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight leading-tight"
         >
-          Shorten links. <br class="hidden md:block" />
+          Shorten links. <br class="hidden sm:block" />
           <span
             class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600"
           >
@@ -106,15 +106,17 @@ const closeResultModal = () => {
           </span>
         </h1>
 
-        <p class="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+        <p
+          class="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed px-4 sm:px-0"
+        >
           The open-source link management tool for modern creators. Create short
           links, track analytics, and share them easily.
         </p>
       </div>
 
-      <div class="max-w-3xl mx-auto mt-12 relative z-10">
+      <div class="max-w-3xl mx-auto mt-10 sm:mt-12 relative z-10">
         <div
-          class="bg-white p-4 rounded-2xl shadow-xl border border-gray-100 transform transition-all hover:shadow-2xl"
+          class="bg-white p-4 sm:p-6 rounded-2xl shadow-xl border border-gray-100 transform transition-all hover:shadow-2xl"
         >
           <form @submit.prevent="handleSubmit" class="flex flex-col gap-4">
             <div class="relative">
@@ -127,9 +129,9 @@ const closeResultModal = () => {
                 type="url"
                 id="targetUrl"
                 v-model="targetUrl"
-                placeholder="Paste your long link here (e.g., https://super-long-url.com/...)"
+                placeholder="Paste your long link here..."
                 required
-                class="block w-full pl-11 pr-4 py-4 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-lg transition-all duration-200 ease-in-out"
+                class="block w-full pl-11 pr-4 py-3.5 sm:py-4 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 text-base sm:text-lg transition-all duration-200 ease-in-out"
                 :disabled="isSubmitting"
               />
             </div>
@@ -144,16 +146,16 @@ const closeResultModal = () => {
                 type="text"
                 v-model="customSlug"
                 placeholder="Custom alias (optional)"
-                class="block w-full pl-8 pr-4 py-4 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 sm:text-lg transition-all duration-200"
+                class="block w-full pl-8 pr-4 py-3.5 sm:py-4 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-500 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 text-base sm:text-lg transition-all duration-200"
                 :disabled="isSubmitting"
               />
             </div>
 
             <div
               v-else
-              class="text-center py-2 bg-gray-50 rounded-xl border border-dashed border-gray-200"
+              class="text-center py-3 bg-gray-50 rounded-xl border border-dashed border-gray-200"
             >
-              <p class="text-sm text-gray-500">
+              <p class="text-xs sm:text-sm text-gray-500">
                 Want to customize your link?
                 <button
                   type="button"
@@ -168,7 +170,7 @@ const closeResultModal = () => {
 
             <button
               type="submit"
-              class="w-full px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg hover:shadow-indigo-500/30 transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
+              class="w-full px-8 py-3.5 sm:py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg hover:shadow-indigo-500/30 transition-all duration-200 transform active:scale-[0.98] sm:hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
               :disabled="isSubmitting"
             >
               <Loader2 v-if="isSubmitting" class="h-5 w-5 animate-spin mr-2" />
@@ -187,50 +189,54 @@ const closeResultModal = () => {
       </div>
 
       <div
-        class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto"
+        class="mt-16 sm:mt-20 grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 max-w-6xl mx-auto"
       >
         <div
-          class="group p-8 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
+          class="group p-6 sm:p-8 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
         >
           <div
-            class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-blue-100 transition-colors"
+            class="w-12 h-12 sm:w-14 sm:h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-5 sm:mb-6 group-hover:bg-blue-100 transition-colors"
           >
-            <Zap class="h-7 w-7 text-blue-600" />
+            <Zap class="h-6 w-6 sm:h-7 sm:w-7 text-blue-600" />
           </div>
-          <h3 class="text-xl font-bold text-gray-900 mb-3">Lightning Fast</h3>
-          <p class="text-gray-500 leading-relaxed">
+          <h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">
+            Lightning Fast
+          </h3>
+          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">
             Create anonymous links instantly without an account. Logged-in users
             get links that last 30 days.
           </p>
         </div>
 
         <div
-          class="group p-8 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
+          class="group p-6 sm:p-8 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
         >
           <div
-            class="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-purple-100 transition-colors"
+            class="w-12 h-12 sm:w-14 sm:h-14 bg-purple-50 rounded-2xl flex items-center justify-center mb-5 sm:mb-6 group-hover:bg-purple-100 transition-colors"
           >
-            <QrCode class="h-7 w-7 text-purple-600" />
+            <QrCode class="h-6 w-6 sm:h-7 sm:w-7 text-purple-600" />
           </div>
-          <h3 class="text-xl font-bold text-gray-900 mb-3">Smart QR Codes</h3>
-          <p class="text-gray-500 leading-relaxed">
+          <h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">
+            Smart QR Codes
+          </h3>
+          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">
             Generate fully customizable QR codes with colors, logos, and
             different styles for your brand.
           </p>
         </div>
 
         <div
-          class="group p-8 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
+          class="group p-6 sm:p-8 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
         >
           <div
-            class="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-indigo-100 transition-colors"
+            class="w-12 h-12 sm:w-14 sm:h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mb-5 sm:mb-6 group-hover:bg-indigo-100 transition-colors"
           >
-            <BarChart3 class="h-7 w-7 text-indigo-600" />
+            <BarChart3 class="h-6 w-6 sm:h-7 sm:w-7 text-indigo-600" />
           </div>
-          <h3 class="text-xl font-bold text-gray-900 mb-3">
+          <h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3">
             Analytics Tracking
           </h3>
-          <p class="text-gray-500 leading-relaxed">
+          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">
             Monitor your link performance. Track clicks, referrers, and devices
             to optimize your reach.
           </p>
