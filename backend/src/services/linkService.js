@@ -153,12 +153,34 @@ const getAndRecordClick = async (slug, ip, uaString, referrer) => {
 };
 
 // Finds links by owner ID.
-const findLinksByOwner = async (ownerId) => {
-  return prisma.link.findMany({
-    where: { ownerId },
-    orderBy: { createdAt: "desc" },
-    include: { _count: { select: { clicks: true } } },
-  });
+const findLinksByOwner = async (ownerId, page = 1, limit = 9) => {
+  const skip = (page - 1) * limit; // คำนวณจุดเริ่มต้น (Offset)
+
+  // ใช้ $transaction เพื่อทำ 2 คำสั่งพร้อมกัน (ดึงของ + นับจำนวน)
+  const [total, links] = await prisma.$transaction([
+    // 1. นับจำนวนลิงก์ทั้งหมดของ User นี้
+    prisma.link.count({ where: { ownerId } }),
+
+    // 2. ดึงข้อมูลลิงก์ตามจำนวนที่ขอ (Pagination)
+    prisma.link.findMany({
+      where: { ownerId },
+      orderBy: { createdAt: "desc" },
+      skip: skip, // ข้ามไปกี่อัน
+      take: limit, // เอามาปี่อัน
+      include: { _count: { select: { clicks: true } } },
+    }),
+  ]);
+
+  // ส่งกลับเป็น Object ที่มีทั้งข้อมูลและ Metadata
+  return {
+    links,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 };
 
 // อัปเดตลิงก์ (เปลี่ยน URL, ต่ออายุ, แก้ QR)

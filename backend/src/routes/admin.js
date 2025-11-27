@@ -29,7 +29,7 @@ router.patch("/users/:id/status", adminController.updateUserStatus);
 // ลบ User ถาวร (ระวัง! ข้อมูล Links ของเขาจะหายไปด้วยเพราะ Cascade Delete)
 router.delete("/users/:id", adminController.deleteUser);
 
-// (Future Idea: เพิ่ม Route เปลี่ยน Role จาก User -> Admin ได้ที่นี่)
-// router.post("/users/:id/role", adminController.changeUserRole);
+// PATCH /api/admin/users/:id/role
+router.patch("/users/:id/role", adminController.changeUserRole);
 
 module.exports = router;

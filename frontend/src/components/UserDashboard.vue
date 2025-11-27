@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   AlertCircle,
   LayoutDashboard,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-vue-next";
 import ResultModal from "@/components/ResultModal.vue";
 import EditLinkModal from "@/components/EditLinkModal.vue"; // Import Modal ใหม่
@@ -187,6 +189,13 @@ const handleDelete = async (linkId) => {
   } finally {
     isDeleting.value = false;
   }
+};
+
+const changePage = (newPage) => {
+  if (newPage < 1 || newPage > (authStore.pagination?.totalPages || 1)) return;
+  authStore.fetchMyLinks(newPage); // เรียก Store ให้ดึงข้อมูลหน้านั้นๆ
+  // เลื่อนหน้าจอขึ้นไปด้านบนสุดของรายการ
+  window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 onMounted(() => {
@@ -445,6 +454,36 @@ onMounted(() => {
             </button>
           </div>
         </div>
+      </div>
+      
+      <div
+        v-if="authStore.pagination && authStore.pagination.totalPages > 1"
+        class="mt-10 flex justify-center items-center gap-4"
+      >
+        <button
+          @click="changePage(authStore.pagination.page - 1)"
+          :disabled="authStore.pagination.page <= 1"
+          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <ChevronLeft class="h-5 w-5" />
+        </button>
+
+        <span
+          class="text-sm font-medium text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm"
+        >
+          Page {{ authStore.pagination.page }} of
+          {{ authStore.pagination.totalPages }}
+        </span>
+
+        <button
+          @click="changePage(authStore.pagination.page + 1)"
+          :disabled="
+            authStore.pagination.page >= authStore.pagination.totalPages
+          "
+          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <ChevronRight class="h-5 w-5" />
+        </button>
       </div>
     </div>
 

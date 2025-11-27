@@ -102,8 +102,34 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
+const changeUserRole = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    const userIdToUpdate = parseInt(req.params.id);
+    const { role } = req.body; // รับค่า "ADMIN" หรือ "USER"
+
+    if (isNaN(userIdToUpdate)) {
+      return res.status(400).json({ message: "Invalid User ID." });
+    }
+
+    const updatedUser = await adminService.changeUserRole(
+      userIdToUpdate,
+      adminId,
+      role
+    );
+
+    res.json(updatedUser);
+  } catch (error) {
+    if (error.message.includes("Admins cannot change their own role")) {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   getAllUsers,
   updateUserStatus,
   deleteUser,
+  changeUserRole,
 };

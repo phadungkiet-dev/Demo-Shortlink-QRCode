@@ -118,8 +118,28 @@ const deleteUser = async (userIdToDelete, adminId) => {
   }
 };
 
+const changeUserRole = async (userIdToUpdate, adminId, newRole) => {
+  // Safety 1: ห้ามเปลี่ยน Role ตัวเอง
+  if (userIdToUpdate === adminId) {
+    throw new Error("Admins cannot change their own role.");
+  }
+
+  // Safety 2: Role ต้องถูกต้อง
+  if (!["ADMIN", "USER"].includes(newRole)) {
+    throw new Error("Invalid role.");
+  }
+
+  // อัปเดต Role
+  return await prisma.user.update({
+    where: { id: userIdToUpdate },
+    data: { role: newRole },
+    select: { id: true, email: true, role: true },
+  });
+};
+
 module.exports = {
   getAllUsers,
   updateUserStatus,
   deleteUser,
+  changeUserRole,
 };

@@ -12,6 +12,7 @@ import {
   Ban,
   Mail,
   Calendar,
+  Crown,
 } from "lucide-vue-next";
 import api from "@/services/api";
 import Swal from "sweetalert2";
@@ -142,6 +143,54 @@ const formatDate = (dateString) => {
 const getUserInitials = (email) => {
   if (!email) return "U";
   return email.substring(0, 2).toUpperCase();
+};
+
+const handleChangeRole = async (user) => {
+  const newRole = user.role === "ADMIN" ? "USER" : "ADMIN";
+  const actionText =
+    newRole === "ADMIN" ? "Promote to Admin" : "Demote to User";
+  const color = newRole === "ADMIN" ? "#4F46E5" : "#6B7280";
+
+  const result = await Swal.fire({
+    title: `Change Role?`,
+    text: `Do you want to ${actionText.toLowerCase()}?`,
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonColor: color,
+    confirmButtonText: `Yes, ${actionText}`,
+  });
+
+  if (!result.isConfirmed) return;
+
+  isUpdating.value.push(user.id);
+  try {
+    const response = await api.patch(`/admin/users/${user.id}/role`, {
+      role: newRole,
+    });
+
+    // Update UI
+    const index = users.value.findIndex((u) => u.id === user.id);
+    if (index !== -1) {
+      users.value[index].role = response.data.role;
+    }
+
+    Swal.fire({
+      toast: true,
+      position: "top-end",
+      icon: "success",
+      title: "Role updated",
+      showConfirmButton: false,
+      timer: 1500,
+    });
+  } catch (error) {
+    Swal.fire(
+      "Error",
+      error.response?.data?.message || "Failed to change role",
+      "error"
+    );
+  } finally {
+    isUpdating.value = isUpdating.value.filter((id) => id !== user.id);
+  }
 };
 </script>
 
@@ -322,6 +371,24 @@ const getUserInitials = (email) => {
                     class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
                   >
                     <div class="flex items-center justify-end gap-2">
+                      <button
+                        @click="handleChangeRole(user)"
+                        :disabled="isUpdating.includes(user.id)"
+                        class="p-2 rounded-lg transition-colors border"
+                        :class="
+                          user.role === 'ADMIN'
+                            ? 'text-purple-600 border-purple-200 bg-purple-50'
+                            : 'text-gray-400 border-gray-200 hover:bg-gray-50'
+                        "
+                        :title="
+                          user.role === 'ADMIN'
+                            ? 'Demote to User'
+                            : 'Promote to Admin'
+                        "
+                      >
+                        <Crown class="w-4 h-4" />
+                      </button>
+
                       <button
                         @click="handleUpdateStatus(user, !user.isBlocked)"
                         :disabled="isUpdating.includes(user.id)"

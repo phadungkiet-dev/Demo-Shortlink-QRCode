@@ -121,12 +121,24 @@ export const useAuthStore = defineStore("auth", {
     // -------------------------------------------------------------------
     // Link Management (Dashboard Features)
     // -------------------------------------------------------------------
-    async fetchMyLinks() {
+    async fetchMyLinks(page = 1, limit = 9) {
       if (!this.user) return;
       this.isLoadingLinks = true;
       try {
-        const response = await api.get("/links/me");
-        this.myLinks = response.data;
+        const response = await api.get("/links/me", {
+          params: { page, limit },
+        });
+
+        // เช็คว่า response.data เป็น Array หรือไม่ (เผื่อ Backend ยังเป็นตัวเก่า)
+        if (Array.isArray(response.data)) {
+          // กรณี Backend แบบเก่า (ส่งมาแค่ Array)
+          this.myLinks = response.data;
+          this.pagination = null;
+        } else {
+          // กรณี Backend แบบใหม่ (มี Pagination: { data, meta })
+          this.myLinks = response.data.data || []; // ดึงไส้ในที่เป็น Array ออกมา
+          this.pagination = response.data.meta;
+        }
       } catch (error) {
         console.error("Failed to fetch links:", error);
         Swal.fire("Error", "Could not fetch your links.", "error");
