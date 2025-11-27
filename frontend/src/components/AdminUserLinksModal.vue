@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from "vue";
+import { ref, watch } from "vue";
 import {
   X,
   ExternalLink,
@@ -13,42 +13,36 @@ import api from "@/services/api";
 
 const props = defineProps({
   modelValue: Boolean,
-  user: Object, // User ที่ถูกเลือก
+  user: Object,
 });
 
 const emit = defineEmits(["update:modelValue"]);
-
 const links = ref([]);
 const pagination = ref({ page: 1, totalPages: 1 });
 const isLoading = ref(false);
 const searchQuery = ref("");
 let searchTimeout = null;
 
-// เมื่อเปิด Modal หรือเปลี่ยน User ให้โหลดข้อมูลใหม่
-watch(
-  () => props.user,
-  (newUser) => {
-    if (newUser && props.modelValue) {
-      fetchLinks(1);
-    }
-  }
-);
-
-// Watch Search
-watch(searchQuery, (newVal) => {
-  if (searchTimeout) clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
+// [Modified] Watch ทั้ง User และ สถานะเปิด/ปิด Modal
+watch([() => props.user, () => props.modelValue], ([newUser, isOpen]) => {
+  // ถ้า Modal เปิดอยู่ และมี User ให้โหลดข้อมูลทันที
+  if (isOpen && newUser) {
     fetchLinks(1);
-  }, 500);
+  }
+});
+
+// Watch Search แยกต่างหาก (Debounce)
+watch(searchQuery, () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => fetchLinks(1), 500);
 });
 
 const fetchLinks = async (page = 1) => {
   if (!props.user) return;
-
   isLoading.value = true;
   try {
     const response = await api.get(`/admin/users/${props.user.id}/links`, {
-      params: { page, limit: 5, search: searchQuery.value }, // โชว์ทีละ 5 พอ
+      params: { page, limit: 5, search: searchQuery.value },
     });
     links.value = response.data.data;
     pagination.value = response.data.meta;
@@ -61,11 +55,14 @@ const fetchLinks = async (page = 1) => {
 
 const closeModal = () => {
   emit("update:modelValue", false);
-  links.value = [];
-  searchQuery.value = "";
+  // รอให้ Animation ปิดจบก่อนค่อยเคลียร์ข้อมูล (UX จะเนียนกว่า)
+  setTimeout(() => {
+    links.value = [];
+    searchQuery.value = "";
+  }, 300);
 };
 
-const formatDate = (date) => new Date(date).toLocaleDateString();
+const formatDate = (date) => new Date(date).toLocaleDateString("en-GB");
 </script>
 
 <template>
@@ -77,7 +74,6 @@ const formatDate = (date) => new Date(date).toLocaleDateString();
       class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
       @click="closeModal"
     ></div>
-
     <div
       class="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
     >
@@ -118,14 +114,12 @@ const formatDate = (date) => new Date(date).toLocaleDateString();
           <Loader2 class="h-8 w-8 text-indigo-600 animate-spin mb-2" />
           Loading...
         </div>
-
         <div
           v-else-if="links.length === 0"
           class="py-10 text-center text-gray-400"
         >
           No links found.
         </div>
-
         <div v-else class="space-y-3">
           <div
             v-for="link in links"
@@ -148,9 +142,8 @@ const formatDate = (date) => new Date(date).toLocaleDateString();
               <div class="text-right shrink-0">
                 <span
                   class="text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg"
+                  >{{ link._count?.clicks || 0 }} clicks</span
                 >
-                  {{ link._count?.clicks || 0 }} clicks
-                </span>
               </div>
             </div>
             <div class="flex items-center gap-2 text-[10px] text-gray-400">

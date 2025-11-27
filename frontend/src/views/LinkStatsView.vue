@@ -9,6 +9,7 @@ import {
   MousePointer2,
   Globe,
   Calendar,
+  ExternalLink,
 } from "lucide-vue-next";
 import {
   Chart as ChartJS,
@@ -20,11 +21,10 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler, // เพิ่ม Filler เพื่อทำ Area Chart สวยๆ
+  Filler,
 } from "chart.js";
 import { Line, Bar } from "vue-chartjs";
 
-// ลงทะเบียน Components ของ Chart.js
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -45,9 +45,15 @@ const stats = ref(null);
 const isLoading = ref(true);
 const errorMsg = ref(null);
 
-onMounted(() => {
-  fetchStats();
-});
+// [Modified] ฟังก์ชันแปลงวันที่เป็น ค.ศ. (DD MMM YYYY)
+const formatDate = (dateString) => {
+  if (!dateString) return "-";
+  return new Date(dateString).toLocaleDateString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
 
 const fetchStats = async () => {
   isLoading.value = true;
@@ -57,49 +63,93 @@ const fetchStats = async () => {
     stats.value = response.data;
   } catch (error) {
     console.error("Failed to fetch stats:", error);
-    errorMsg.value =
-      error.response?.data?.message || "Could not load statistics.";
+    errorMsg.value = error.message || "Could not load statistics.";
   } finally {
     isLoading.value = false;
   }
 };
 
-// --- Chart Configuration ---
-const chartOptions = {
+onMounted(fetchStats);
+
+// --- Chart Config ---
+const commonOptions = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: { display: false }, // ซ่อน Legend เพื่อความคลีน
+    legend: { display: false },
     tooltip: {
       backgroundColor: "#1e293b",
       padding: 12,
-      cornerRadius: 8,
+      cornerRadius: 12,
+      titleFont: { size: 13, family: "Inter" },
+      bodyFont: { size: 13, family: "Inter" },
       displayColors: false,
+      callbacks: {
+        title: (items) => {
+          // แปลงวันที่ใน Tooltip เป็น ค.ศ. ด้วย
+          return new Date(items[0].label).toLocaleDateString("en-GB", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+        },
+      },
     },
   },
   scales: {
-    y: {
-      beginAtZero: true,
-      grid: { color: "#f1f5f9" },
-      ticks: { font: { size: 11 } },
-    },
     x: {
       grid: { display: false },
-      ticks: { font: { size: 11 } },
+      ticks: {
+        font: { family: "Inter" },
+        maxTicksLimit: 7, // โชว์วันที่ไม่เกิน 7 ป้ายกันรก
+        callback: function (value, index, values) {
+          // แปลง Label แกน X เป็นแบบย่อ (เช่น 27 Nov)
+          const date = new Date(this.getLabelForValue(value));
+          return date.toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+          });
+        },
+      },
+    },
+    y: {
+      border: { dash: [4, 4] },
+      grid: { color: "#f3f4f6", tickLength: 0 },
+      beginAtZero: true,
+      ticks: { font: { family: "Inter" }, precision: 0 },
     },
   },
   elements: {
-    line: { tension: 0.4 }, // กราฟเส้นโค้งมน
-    point: { radius: 4, hitRadius: 10, hoverRadius: 6 },
+    line: { tension: 0.4 },
+    // [Modified] ปรับ radius เป็น 4 เพื่อให้เห็นจุด แม้จะมีข้อมูลแค่วันเดียว
+    point: {
+      radius: 4,
+      hitRadius: 20,
+      hoverRadius: 6,
+      backgroundColor: "#ffffff",
+      borderWidth: 2,
+    },
   },
 };
 
-// 1. กราฟเส้น: Clicks per Day
+// [Modified] Logic สร้างกราฟ 7 วันย้อนหลัง (เติม 0 ให้เต็ม)
 const dailyChartData = computed(() => {
-  if (!stats.value?.dailyCounts) return { labels: [], datasets: [] };
+  if (!stats.value) return { labels: [], datasets: [] };
 
-  const labels = Object.keys(stats.value.dailyCounts);
-  const data = Object.values(stats.value.dailyCounts);
+  const labels = [];
+  const data = [];
+  const rawData = stats.value.dailyCounts || {};
+
+  // วนลูปย้อนหลัง 6 วันจนถึงวันนี้ (รวม 7 วัน)
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD (UTC base)
+
+    labels.push(dateStr);
+    // ถ้าวันนั้นมีข้อมูลให้ใส่ค่า ถ้าไม่มีใส่ 0
+    data.push(rawData[dateStr] || 0);
+  }
 
   return {
     labels,
@@ -109,23 +159,21 @@ const dailyChartData = computed(() => {
         backgroundColor: (context) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-          gradient.addColorStop(0, "rgba(79, 70, 229, 0.4)"); // สีม่วงจางๆ
-          gradient.addColorStop(1, "rgba(79, 70, 229, 0.0)");
+          gradient.addColorStop(0, "rgba(79, 70, 229, 0.2)");
+          gradient.addColorStop(1, "rgba(79, 70, 229, 0)");
           return gradient;
         },
         borderColor: "#4F46E5",
         borderWidth: 3,
-        fill: true, // ถมสีใต้กราฟ
+        fill: true,
         data,
       },
     ],
   };
 });
 
-// 2. กราฟแท่ง: Top Referrers
 const referrerChartData = computed(() => {
   if (!stats.value?.topReferrers) return { labels: [], datasets: [] };
-
   const labels = stats.value.topReferrers.map(
     (r) => r.referrer || "Direct / Unknown"
   );
@@ -137,7 +185,7 @@ const referrerChartData = computed(() => {
       {
         label: "Visits",
         backgroundColor: "#818cf8",
-        borderRadius: 6,
+        borderRadius: 8,
         data,
       },
     ],
@@ -146,165 +194,175 @@ const referrerChartData = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 py-10">
+  <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 py-8 lg:py-12">
     <div class="container mx-auto px-4 lg:px-8">
       <div
         v-if="isLoading"
-        class="py-32 text-center flex flex-col items-center"
+        class="flex flex-col items-center justify-center py-32"
       >
-        <Loader2 class="h-12 w-12 text-indigo-600 animate-spin mb-4" />
+        <div class="bg-white p-4 rounded-full shadow-sm mb-4">
+          <Loader2 class="h-8 w-8 text-indigo-600 animate-spin" />
+        </div>
         <p class="text-gray-500 font-medium">Crunching the numbers...</p>
       </div>
 
-      <div v-else-if="errorMsg" class="max-w-lg mx-auto text-center py-20">
+      <div v-else-if="errorMsg" class="max-w-md mx-auto text-center py-20">
         <div
-          class="bg-white p-8 rounded-3xl shadow-lg shadow-red-50 border border-red-100"
+          class="bg-red-50 p-6 rounded-[2rem] border border-red-100 inline-block mb-6"
         >
-          <AlertCircle class="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h3 class="text-lg font-bold text-gray-900">
-            Oops! Something went wrong
-          </h3>
-          <p class="text-gray-500 mt-2 mb-6">{{ errorMsg }}</p>
-          <router-link
-            to="/dashboard"
-            class="inline-flex items-center px-5 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors"
-          >
-            <ArrowLeft class="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </router-link>
+          <AlertCircle class="h-12 w-12 text-red-500" />
         </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">
+          Oops! Access Denied
+        </h3>
+        <p class="text-gray-500 mb-8">{{ errorMsg }}</p>
+        <router-link
+          to="/dashboard"
+          class="inline-flex items-center px-6 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+        >
+          <ArrowLeft class="h-5 w-5 mr-2" />
+          Back to Dashboard
+        </router-link>
       </div>
 
       <div v-else class="max-w-6xl mx-auto space-y-8 animate-fade-in-up">
         <div
-          class="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          class="flex flex-col md:flex-row md:items-center justify-between gap-6"
         >
           <div class="flex items-center gap-4">
             <router-link
               to="/dashboard"
-              class="p-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm"
+              class="p-3 bg-white border border-gray-200 rounded-xl text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
             >
               <ArrowLeft class="h-5 w-5" />
             </router-link>
             <div>
-              <h1
-                class="text-2xl font-bold text-gray-900 flex items-center gap-2"
-              >
-                Analytics
+              <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-gray-900">Analytics</h1>
                 <span
-                  class="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs rounded-md border border-indigo-100 font-mono"
+                  class="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100 font-mono"
                 >
                   /{{ stats.link.slug }}
                 </span>
-              </h1>
+              </div>
               <a
                 :href="stats.link.targetUrl"
                 target="_blank"
-                class="text-sm text-gray-500 hover:text-indigo-500 hover:underline truncate max-w-md block mt-1"
+                class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 mt-1 transition-colors group"
               >
                 {{ stats.link.targetUrl }}
+                <ExternalLink
+                  class="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                />
               </a>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div
-            class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-5 relative overflow-hidden"
+            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5 relative overflow-hidden group hover:shadow-md transition-shadow"
           >
             <div
-              class="absolute -right-6 -top-6 w-24 h-24 bg-indigo-50 rounded-full blur-2xl"
+              class="absolute -right-6 -top-6 w-32 h-32 bg-indigo-50/50 rounded-full blur-3xl group-hover:bg-indigo-100/50 transition-colors"
             ></div>
-            <div class="p-3 bg-indigo-50 text-indigo-600 rounded-2xl z-10">
+            <div
+              class="p-4 bg-indigo-50 text-indigo-600 rounded-2xl relative z-10"
+            >
               <MousePointer2 class="h-8 w-8" />
             </div>
-            <div class="z-10">
+            <div class="relative z-10">
               <p
-                class="text-sm text-gray-500 font-medium uppercase tracking-wider"
+                class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1"
               >
                 Total Clicks
               </p>
-              <p class="text-4xl font-extrabold text-gray-900 mt-1">
+              <p class="text-4xl font-extrabold text-gray-900">
                 {{ stats.totalClicks }}
               </p>
             </div>
           </div>
 
           <div
-            class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-5"
+            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5 group hover:shadow-md transition-shadow"
           >
-            <div class="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+            <div class="p-4 bg-emerald-50 text-emerald-600 rounded-2xl">
               <Calendar class="h-8 w-8" />
             </div>
             <div>
               <p
-                class="text-sm text-gray-500 font-medium uppercase tracking-wider"
+                class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1"
               >
                 Created On
               </p>
-              <p class="text-xl font-bold text-gray-900 mt-1">
-                {{ new Date(stats.link.createdAt).toLocaleDateString() }}
+              <p class="text-xl font-bold text-gray-900">
+                {{ formatDate(stats.link.createdAt) }}
               </p>
             </div>
           </div>
 
           <div
-            class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-5"
+            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5 group hover:shadow-md transition-shadow"
           >
-            <div class="p-3 bg-purple-50 text-purple-600 rounded-2xl">
+            <div class="p-4 bg-purple-50 text-purple-600 rounded-2xl">
               <BarChart3 class="h-8 w-8" />
             </div>
             <div>
               <p
-                class="text-sm text-gray-500 font-medium uppercase tracking-wider"
+                class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1"
               >
-                Engagement
+                Status
               </p>
-              <p class="text-xl font-bold text-gray-900 mt-1">
-                {{ stats.totalClicks > 0 ? "Active" : "No Data" }}
-              </p>
+              <span
+                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold"
+                :class="
+                  stats.link.disabled
+                    ? 'bg-red-50 text-red-600'
+                    : 'bg-emerald-50 text-emerald-600'
+                "
+              >
+                {{ stats.link.disabled ? "Disabled" : "Active" }}
+              </span>
             </div>
           </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div
-            class="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm"
+            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col"
           >
             <div class="flex items-center justify-between mb-6">
               <h3
                 class="text-lg font-bold text-gray-900 flex items-center gap-2"
               >
-                <BarChart3 class="h-5 w-5 text-gray-400" />
-                Traffic Overview
+                <BarChart3 class="h-5 w-5 text-gray-400" /> Traffic Trend
               </h3>
               <span
-                class="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded-lg"
+                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
                 >Last 7 Days</span
               >
             </div>
-            <div class="h-[300px] w-full">
-              <Line :data="dailyChartData" :options="chartOptions" />
+            <div class="flex-1 min-h-0 w-full">
+              <Line :data="dailyChartData" :options="commonOptions" />
             </div>
           </div>
 
           <div
-            class="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm"
+            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col"
           >
             <div class="flex items-center justify-between mb-6">
               <h3
                 class="text-lg font-bold text-gray-900 flex items-center gap-2"
               >
-                <Globe class="h-5 w-5 text-gray-400" />
-                Top Referrers
+                <Globe class="h-5 w-5 text-gray-400" /> Top Referrers
               </h3>
               <span
-                class="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded-lg"
-                >Top 10</span
+                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
+                >Top Sources</span
               >
             </div>
-            <div class="h-[300px] w-full">
-              <Bar :data="referrerChartData" :options="chartOptions" />
+            <div class="flex-1 min-h-0 w-full">
+              <Bar :data="referrerChartData" :options="commonOptions" />
             </div>
           </div>
         </div>

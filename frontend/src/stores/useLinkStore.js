@@ -5,8 +5,7 @@ import Swal from "sweetalert2";
 export const useLinkStore = defineStore("links", {
   state: () => ({
     myLinks: [],
-    pagination: null,
-    // +++ เพิ่ม state stats +++
+    pagination: { page: 1, totalPages: 1, total: 0 }, // กำหนดค่าเริ่มต้นกัน Error
     stats: {
       total: 0,
       active: 0,
@@ -16,6 +15,9 @@ export const useLinkStore = defineStore("links", {
   }),
 
   actions: {
+    // ----------------------------------------------------------------
+    // Fetch Links (ดึงข้อมูลลิงก์ + Search + Pagination)
+    // ----------------------------------------------------------------
     async fetchMyLinks(page = 1, limit = 9, search = "") {
       this.isLoading = true;
       try {
@@ -23,35 +25,44 @@ export const useLinkStore = defineStore("links", {
           params: { page, limit, search },
         });
 
-        // รับค่าจาก Backend โครงสร้างใหม่
+        // รองรับโครงสร้าง Response ใหม่ { data, meta, stats }
         if (response.data.data) {
           this.myLinks = response.data.data;
           this.pagination = response.data.meta;
-          // +++ รับค่า stats จาก Backend +++
+
+          // อัปเดตสถิติภาพรวม (ถ้ามีส่งมา)
           if (response.data.stats) {
             this.stats = response.data.stats;
           }
         } else {
-          // Fallback กรณี Backend เก่า
+          // Fallback กรณี Backend ส่งมาแบบเก่า
           this.myLinks = response.data;
         }
       } catch (error) {
         console.error("Failed to fetch links:", error);
-        Swal.fire("Error", "Could not fetch links.", "error");
+        // ไม่ต้อง Alert ทุกครั้งถ้าแค่โหลดไม่ขึ้น (อาจจะเน็ตหลุด)
+        // แต่ถ้าอยากแจ้งเตือน ให้ใช้ error.message ที่เราทำไว้
+        Swal.fire({
+          icon: "error",
+          title: "Oops...",
+          text: error.message || "Could not load links.",
+        });
         this.myLinks = [];
       } finally {
         this.isLoading = false;
       }
     },
-
+    // ----------------------------------------------------------------
+    // Delete Link
+    // ----------------------------------------------------------------
     async deleteLink(linkId) {
       const result = await Swal.fire({
-        title: "Are you sure?",
+        title: "Delete this link?",
         text: "You won't be able to revert this!",
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#4F46E5",
-        cancelButtonColor: "#D33",
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
         confirmButtonText: "Yes, delete it!",
       });
 
@@ -60,12 +71,12 @@ export const useLinkStore = defineStore("links", {
       try {
         await api.delete(`/links/${linkId}`);
 
-        // ลบออกจาก list หน้าปัจจุบันทันที (Optimistic)
+        // Update UI ทันที (Optimistic Update)
         this.myLinks = this.myLinks.filter((link) => link.id !== linkId);
 
-        // อัปเดต Stats แบบ manual (เพื่อให้ตัวเลขลดลงทันทีโดยไม่ต้องโหลดใหม่)
-        this.stats.total--;
-        // (ถ้าจะให้แม่นยำเป๊ะๆ อาจจะต้อง fetchMyLinks ใหม่ แต่แค่นี้ก็พอถูไถ)
+        // ลดจำนวนใน Stats ด้วย เพื่อความสมจริง
+        if (this.stats.total > 0) this.stats.total--;
+        // (หมายเหตุ: Active/Inactive อาจจะไม่เป๊ะ ต้องโหลดใหม่ถึงจะชัวร์ แต่แบบนี้ UX ดีกว่า)
 
         Swal.fire({
           toast: true,
@@ -76,19 +87,24 @@ export const useLinkStore = defineStore("links", {
           timer: 1500,
         });
       } catch (error) {
-        Swal.fire("Error", "Could not delete link.", "error");
+        Swal.fire("Error", error.message || "Could not delete link.", "error");
       }
     },
-
+    // ----------------------------------------------------------------
+    // Renew Link
+    // ----------------------------------------------------------------
     async renewLink(linkId) {
       try {
         const response = await api.patch(`/links/${linkId}`, { renew: true });
+
+        // อัปเดตข้อมูลใน List (เช่น วันหมดอายุ, สถานะ Disabled)
         const index = this.myLinks.findIndex((link) => link.id === linkId);
         if (index !== -1) {
-          this.myLinks[index] = response.data;
+          this.myLinks[index] = { ...this.myLinks[index], ...response.data };
         }
 
-        // รีเฟรชข้อมูลเพื่อให้ Active count อัปเดต (หรือจะคำนวณมือก็ได้)
+        // รีเฟรชข้อมูลใหม่เพื่อให้ Stats (Active/Inactive) อัปเดตถูกต้อง
+        // (เพราะการ Renew อาจเปลี่ยนจาก Inactive -> Active)
         this.fetchMyLinks(this.pagination?.page || 1);
 
         Swal.fire({
@@ -100,11 +116,15 @@ export const useLinkStore = defineStore("links", {
           timer: 1500,
         });
       } catch (error) {
-        Swal.fire("Error", "Renew failed.", "error");
+        Swal.fire("Error", error.message || "Renew failed.", "error");
       }
     },
 
-    // Action สำหรับอัปเดต Link ใน Store (ใช้โดย Component อื่น)
+    // ----------------------------------------------------------------
+    // Update Link in Store (Helper)
+    // ----------------------------------------------------------------
+    // ใช้โดย Component อื่น (เช่น EditLinkModal) เมื่อแก้ไขเสร็จ
+    // เพื่อให้หน้า Dashboard อัปเดตทันทีโดยไม่ต้องโหลดใหม่
     updateLinkInStore(updatedLink) {
       const index = this.myLinks.findIndex((l) => l.id === updatedLink.id);
       if (index !== -1) {

@@ -1,9 +1,6 @@
 <script setup>
 import { onMounted, computed, ref, watch } from "vue";
-import { useAuthStore } from "@/stores/useAuthStore";
-import { useLinkStore } from "@/stores/useLinkStore"; // +++ เรียก Store ใหม่ +++
-import api from "@/services/api";
-import Swal from "sweetalert2";
+import { useLinkStore } from "@/stores/useLinkStore";
 import {
   Loader2,
   Link2,
@@ -24,35 +21,39 @@ import {
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
 } from "lucide-vue-next";
 import ResultModal from "@/components/ResultModal.vue";
 import EditLinkModal from "@/components/EditLinkModal.vue";
+import Swal from "sweetalert2";
+import api from "@/services/api";
 
-const authStore = useAuthStore();
-const linkStore = useLinkStore(); // +++ ใช้ linkStore +++
+const linkStore = useLinkStore();
 
-const isRenewing = ref(false);
-const isDeleting = ref(false);
-const isToggling = ref(false);
+// UI States
 const isRefreshing = ref(false);
 const searchQuery = ref("");
 let searchTimeout = null;
 
+// Modal States
 const isResultModalOpen = ref(false);
 const isEditModalOpen = ref(false);
 const selectedLink = ref(null);
 
-// --- 1. Stats (ดึงจาก Store โดยตรง ไม่ต้องคำนวณเองแล้ว) ---
+// Stats
 const totalLinks = computed(() => linkStore.stats.total);
 const activeLinks = computed(() => linkStore.stats.active);
 const inactiveLinks = computed(() => linkStore.stats.inactive);
 
-// --- Helpers ---
 const refreshIconClasses = computed(() => ({
-  "animate-spin": isRefreshing.value || linkStore.isLoading,
+  "animate-spin": isRefreshing.value,
 }));
-const renewIconClasses = computed(() => ({ "animate-spin": isRenewing.value }));
 
+// Base Class สำหรับปุ่ม Action
+const actionBtnClass =
+  "flex items-center justify-center p-2 rounded-xl transition-colors active:scale-90";
+
+// Helpers
 const getFaviconUrl = (url) => {
   try {
     const domain = new URL(url).hostname;
@@ -72,134 +73,143 @@ const getDomain = (url) => {
 
 const isExpired = (dateString) => new Date(dateString) < new Date();
 
-const formatShortDate = (dateString) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString("en-GB", {
     day: "numeric",
+    month: "short",
     year: "2-digit",
   });
 };
 
-// --- Search Logic ---
+// Search Logic
 watch(searchQuery, (newVal) => {
   if (searchTimeout) clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    linkStore.fetchMyLinks(1, 9, newVal); // เรียกผ่าน linkStore
+    linkStore.fetchMyLinks(1, 9, newVal);
   }, 500);
 });
 
-// --- Actions ---
-
-const handleShowQr = (link) => {
-  selectedLink.value = link;
-  isResultModalOpen.value = true;
-};
-
-const handleEdit = (link) => {
-  selectedLink.value = link;
-  isEditModalOpen.value = true;
-};
-
-const closeResultModal = () => {
-  isResultModalOpen.value = false;
-  setTimeout(() => {
-    selectedLink.value = null;
-  }, 200);
-};
-
-const handleToggleDisable = async (link) => {
-  isToggling.value = true;
-  const newState = !link.disabled;
-
-  try {
-    const response = await api.patch(`/links/${link.id}`, {
-      disabled: newState,
-    });
-
-    // Update Store
-    linkStore.updateLinkInStore(response.data);
-
-    // Refresh Stats เพื่อให้ตัวเลข Active/Inactive เปลี่ยนทันที
-    linkStore.fetchMyLinks(
-      linkStore.pagination?.page || 1,
-      9,
-      searchQuery.value
-    );
-
-    Swal.fire({
-      toast: true,
-      position: "top-end",
-      icon: "success",
-      title: newState ? "Link Disabled" : "Link Enabled",
-      showConfirmButton: false,
-      timer: 1000,
-    });
-  } catch (error) {
-    Swal.fire("Error", "Could not update status", "error");
-  } finally {
-    isToggling.value = false;
-  }
-};
-
-const copyToClipboard = (text) => {
-  navigator.clipboard.writeText(text).then(() => {
-    Swal.fire({
-      toast: true,
-      position: "top-end",
-      icon: "success",
-      title: "Copied!",
-      showConfirmButton: false,
-      timer: 1000,
-    });
-  });
-};
-
+// Actions
 const handleRefresh = async () => {
   isRefreshing.value = true;
-  searchQuery.value = "";
-  try {
-    await linkStore.fetchMyLinks();
-  } finally {
-    isRefreshing.value = false;
-  }
-};
-
-const handleRenew = async (linkId) => {
-  isRenewing.value = true;
-  try {
-    await linkStore.renewLink(linkId);
-  } finally {
-    isRenewing.value = false;
-  }
-};
-
-const handleDelete = async (linkId) => {
-  isDeleting.value = true;
-  try {
-    await linkStore.deleteLink(linkId);
-  } finally {
-    isDeleting.value = false;
-  }
+  await linkStore.fetchMyLinks(linkStore.pagination.page, 9, searchQuery.value);
+  isRefreshing.value = false;
 };
 
 const changePage = (newPage) => {
-  if (newPage < 1 || newPage > (linkStore.pagination?.totalPages || 1)) return;
+  if (newPage < 1 || newPage > linkStore.pagination.totalPages) return;
   linkStore.fetchMyLinks(newPage, 9, searchQuery.value);
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
-onMounted(() => {
-  linkStore.fetchMyLinks();
-});
+const handleToggleDisable = async (link) => {
+  try {
+    const response = await api.patch(`/links/${link.id}`, {
+      disabled: !link.disabled,
+    });
+    linkStore.updateLinkInStore(response.data);
+
+    // Update Stats
+    if (response.data.disabled) {
+      linkStore.stats.active--;
+      linkStore.stats.inactive++;
+    } else {
+      linkStore.stats.active++;
+      linkStore.stats.inactive--;
+    }
+
+    Swal.fire({
+      toast: true,
+      position: "top-end",
+      icon: "success",
+      title: response.data.disabled ? "Link Disabled" : "Link Enabled",
+      showConfirmButton: false,
+      timer: 1000,
+    });
+  } catch (error) {
+    /* handled by api */
+  }
+};
+
+const copyToClipboard = (text) => {
+  navigator.clipboard.writeText(text);
+  Swal.fire({
+    toast: true,
+    position: "top-end",
+    icon: "success",
+    title: "Copied!",
+    showConfirmButton: false,
+    timer: 1000,
+  });
+};
+
+// Modals
+const handleShowQr = (link) => {
+  selectedLink.value = link;
+  isResultModalOpen.value = true;
+};
+const handleEdit = (link) => {
+  selectedLink.value = link;
+  isEditModalOpen.value = true;
+};
+const closeResultModal = () => {
+  isResultModalOpen.value = false;
+  setTimeout(() => (selectedLink.value = null), 300);
+};
+
+onMounted(() => linkStore.fetchMyLinks());
 </script>
 
 <template>
   <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 pb-24">
     <div class="container mx-auto px-4 lg:px-8 py-10">
+      <div
+        class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8"
+      >
+        <div>
+          <h1
+            class="text-3xl font-bold text-gray-900 flex items-center gap-3 tracking-tight"
+          >
+            <LayoutDashboard class="h-8 w-8 text-indigo-600" /> Dashboard
+          </h1>
+          <p class="text-gray-500 mt-1">
+            Manage your links and view analytics.
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <div class="relative group w-full md:w-64">
+            <Search
+              class="absolute left-3 top-2.5 h-4 w-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors"
+            />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search links..."
+              class="block w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm"
+            />
+          </div>
+          <div class="flex gap-2">
+            <button
+              @click="handleRefresh"
+              :disabled="isRefreshing"
+              class="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-600 hover:text-indigo-600 hover:border-indigo-200 shadow-sm active:scale-95 transition-all"
+            >
+              <RefreshCw class="h-5 w-5" :class="refreshIconClasses" />
+            </button>
+            <router-link
+              to="/"
+              class="flex-1 sm:flex-none px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
+            >
+              <Plus class="h-4 w-4" /> <span>New Link</span>
+            </router-link>
+          </div>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div
-          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4"
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
         >
           <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
             <Link2 class="h-6 w-6" />
@@ -210,7 +220,7 @@ onMounted(() => {
           </div>
         </div>
         <div
-          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4"
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
         >
           <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
             <CheckCircle2 class="h-6 w-6" />
@@ -221,7 +231,7 @@ onMounted(() => {
           </div>
         </div>
         <div
-          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4"
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
         >
           <div class="p-3 bg-orange-50 text-orange-600 rounded-xl">
             <AlertCircle class="h-6 w-6" />
@@ -234,74 +244,23 @@ onMounted(() => {
       </div>
 
       <div
-        class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8"
-      >
-        <div>
-          <h1
-            class="text-3xl font-bold text-gray-900 flex items-center gap-3 tracking-tight"
-          >
-            <LayoutDashboard class="h-8 w-8 text-indigo-600" />
-            Dashboard
-          </h1>
-          <p class="text-gray-500 mt-2">
-            Manage your links and view analytics.
-          </p>
-        </div>
-
-        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          <div class="relative group w-full md:w-64">
-            <div
-              class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
-            >
-              <Search
-                class="h-4 w-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors"
-              />
-            </div>
-            <input
-              type="text"
-              v-model="searchQuery"
-              placeholder="Search..."
-              class="block w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
-            />
-          </div>
-
-          <div class="flex gap-2 shrink-0">
-            <button
-              @click="handleRefresh"
-              :disabled="isRefreshing || linkStore.isLoading"
-              class="p-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
-            >
-              <RefreshCw class="h-5 w-5" :class="refreshIconClasses" />
-            </button>
-            <router-link
-              to="/"
-              class="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
-            >
-              <Plus class="h-4 w-4" />
-              <span>New</span>
-            </router-link>
-          </div>
-        </div>
-      </div>
-
-      <div
         v-if="linkStore.isLoading && !isRefreshing"
         class="py-20 flex flex-col items-center"
       >
-        <Loader2 class="h-8 w-8 text-indigo-600 animate-spin mb-3" />
-        <p class="text-gray-500 text-sm">Loading links...</p>
+        <Loader2 class="h-10 w-10 text-indigo-600 animate-spin mb-3" />
+        <p class="text-gray-500">Loading links...</p>
       </div>
 
       <div
-        v-else-if="!linkStore.myLinks || linkStore.myLinks.length === 0"
+        v-else-if="!linkStore.myLinks.length"
         class="py-16 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
       >
-        <Link2 class="h-10 w-10 text-gray-300 mx-auto mb-3" />
+        <Link2 class="h-12 w-12 text-gray-300 mx-auto mb-3" />
         <p class="text-gray-500">No links found.</p>
         <button
           v-if="searchQuery"
           @click="searchQuery = ''"
-          class="mt-4 text-indigo-600 font-medium hover:underline"
+          class="mt-4 text-indigo-600 hover:underline"
         >
           Clear search
         </button>
@@ -357,17 +316,22 @@ onMounted(() => {
           </div>
 
           <div
-            class="bg-gray-50/80 border border-gray-100 rounded-2xl p-3 flex items-center justify-between gap-2 mb-4"
+            class="bg-gray-50/80 border border-gray-100 rounded-2xl p-3 flex items-center justify-between gap-2 mb-4 group-hover:border-indigo-100 transition-colors"
           >
             <a
               :href="link.shortUrl"
               target="_blank"
-              class="text-lg font-bold text-indigo-600 truncate hover:underline"
-              >/{{ link.slug }}</a
+              class="text-lg font-bold text-indigo-600 truncate hover:underline flex items-center gap-1"
             >
+              /{{ link.slug }}
+              <ExternalLink
+                class="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+            </a>
             <button
               @click="copyToClipboard(link.shortUrl)"
-              class="p-2 text-gray-400 hover:text-indigo-600 bg-white rounded-xl shadow-sm active:scale-95"
+              class="p-2 text-gray-400 hover:text-indigo-600 bg-white rounded-xl shadow-sm active:scale-95 transition-all"
+              title="Copy"
             >
               <Copy class="h-4 w-4" />
             </button>
@@ -375,19 +339,23 @@ onMounted(() => {
 
           <div class="flex items-center gap-4 text-xs text-gray-400 px-1 mb-5">
             <div class="flex items-center gap-1">
-              <Clock class="h-3 w-3" />
-              <span>{{ formatShortDate(link.createdAt) }}</span>
+              <Clock class="h-3 w-3" /> {{ formatDate(link.createdAt) }}
             </div>
             <div
               class="flex items-center gap-1"
               :class="{ 'text-red-500': isExpired(link.expiredAt) }"
             >
               <Calendar class="h-3 w-3" />
-              <span>{{
+              {{
                 isExpired(link.expiredAt)
                   ? "Expired"
-                  : formatShortDate(link.expiredAt)
-              }}</span>
+                  : formatDate(link.expiredAt)
+              }}
+            </div>
+            <div
+              class="ml-auto font-medium bg-gray-100 px-2 py-0.5 rounded text-gray-500"
+            >
+              {{ link._count?.clicks || 0 }} clicks
             </div>
           </div>
 
@@ -396,49 +364,64 @@ onMounted(() => {
           >
             <router-link
               :to="`/dashboard/link/${link.id}/stats`"
-              class="action-btn hover:text-indigo-600 hover:bg-indigo-50"
-              title="Stats"
+              :class="[
+                actionBtnClass,
+                'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50',
+              ]"
+              title="Analytics"
               ><BarChart2 class="h-4 w-4"
             /></router-link>
             <button
               @click="handleEdit(link)"
-              class="action-btn hover:text-blue-600 hover:bg-blue-50"
+              :class="[
+                actionBtnClass,
+                'text-gray-400 hover:text-blue-600 hover:bg-blue-50',
+              ]"
               title="Edit"
             >
               <Pencil class="h-4 w-4" />
             </button>
             <button
               @click="handleShowQr(link)"
-              class="action-btn hover:text-purple-600 hover:bg-purple-50"
-              title="QR"
+              :class="[
+                actionBtnClass,
+                'text-gray-400 hover:text-purple-600 hover:bg-purple-50',
+              ]"
+              title="QR Code"
             >
               <QrCode class="h-4 w-4" />
             </button>
             <button
-              @click="handleRenew(link.id)"
-              class="action-btn hover:text-emerald-600 hover:bg-emerald-50"
+              @click="linkStore.renewLink(link.id)"
+              :class="[
+                actionBtnClass,
+                'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50',
+              ]"
               title="Renew"
             >
-              <RefreshCw class="h-4 w-4" :class="renewIconClasses" />
+              <RefreshCw class="h-4 w-4" />
             </button>
+
             <button
               @click="handleToggleDisable(link)"
-              class="action-btn hover:bg-orange-50"
-              :class="
+              :class="[
+                actionBtnClass,
+                'hover:bg-orange-50',
                 link.disabled
                   ? 'text-gray-400 hover:text-emerald-600'
-                  : 'text-orange-500 hover:text-orange-600'
-              "
-              :title="link.disabled ? 'Enable Link' : 'Disable Link'"
+                  : 'text-gray-400 hover:text-orange-600',
+              ]"
+              :title="link.disabled ? 'Enable' : 'Disable'"
             >
-              <EyeOff v-if="link.disabled" class="h-4 w-4" /><Eye
-                v-else
-                class="h-4 w-4"
-              />
+              <component :is="link.disabled ? EyeOff : Eye" class="h-4 w-4" />
             </button>
+
             <button
-              @click="handleDelete(link.id)"
-              class="action-btn hover:text-red-600 hover:bg-red-50"
+              @click="linkStore.deleteLink(link.id)"
+              :class="[
+                actionBtnClass,
+                'text-gray-400 hover:text-red-600 hover:bg-red-50',
+              ]"
               title="Delete"
             >
               <Trash2 class="h-4 w-4" />
@@ -448,13 +431,13 @@ onMounted(() => {
       </div>
 
       <div
-        v-if="linkStore.pagination && linkStore.pagination.totalPages > 1"
+        v-if="linkStore.pagination.totalPages > 1"
         class="mt-10 flex justify-center items-center gap-4"
       >
         <button
           @click="changePage(linkStore.pagination.page - 1)"
           :disabled="linkStore.pagination.page <= 1"
-          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
         >
           <ChevronLeft class="h-5 w-5" />
         </button>
@@ -468,7 +451,7 @@ onMounted(() => {
           :disabled="
             linkStore.pagination.page >= linkStore.pagination.totalPages
           "
-          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
         >
           <ChevronRight class="h-5 w-5" />
         </button>
@@ -485,9 +468,3 @@ onMounted(() => {
     </Teleport>
   </div>
 </template>
-
-<style scoped>
-.action-btn {
-  @apply flex items-center justify-center p-2 rounded-xl text-gray-400 transition-colors active:scale-90;
-}
-</style>

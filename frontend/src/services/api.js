@@ -1,60 +1,115 @@
 import axios from "axios";
-import { useAuthStore } from "@/stores/useAuthStore"; // เรียก Store มาใช้
+import { useAuthStore } from "@/stores/useAuthStore";
 import Swal from "sweetalert2";
 import router from "@/router";
 
 // สร้าง Axios Instance
 const api = axios.create({
-  // baseURL: '/api' -> จะถูก Vite Proxy ส่งต่อไปยัง http://localhost:3001/api
+  // baseURL: '/api' -> Vite Proxy จะส่งต่อไปที่ http://localhost:3001/api
   baseURL: "/api",
   // สำคัญมาก! อนุญาตให้ส่ง Cookie (Session ID) ไปพร้อมกับ Request
   withCredentials: true,
+  // Timeout 10 วินาที (ป้องกันรอนานเกินไป)
+  timeout: 10000,
 });
 
 // -------------------------------------------------------------------
-// Request Interceptor (ทำก่อนส่งของออกไป)
+// Request Interceptor (ขาออก)
 // -------------------------------------------------------------------
-api.interceptors.request.use((config) => {
-  // ดึง Store มาใช้ (ต้องดึงข้างใน function เพราะ Pinia ต้องรอ init ก่อน)
-  const authStore = useAuthStore();
+api.interceptors.request.use(
+  (config) => {
+    // ต้องเรียก Store ข้างในนี้ เพราะ Pinia ต้องรอ Init ก่อน
+    const authStore = useAuthStore();
 
-  // ถ้ามี CSRF Token -> แนบไปใน Header 'x-csrf-token'
-  if (authStore.csrfToken) {
-    config.headers["x-csrf-token"] = authStore.csrfToken;
+    // แนบ CSRF Token ไปใน Header (ถ้ามี)
+    if (authStore.csrfToken) {
+      config.headers["x-csrf-token"] = authStore.csrfToken;
+    }
+
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
 // -------------------------------------------------------------------
-// Response Interceptor (ทำเมื่อได้รับของกลับมา)
+// Response Interceptor (ขาเข้า)
 // -------------------------------------------------------------------
 api.interceptors.response.use(
-  (response) => response, // ถ้าสำเร็จ ก็ส่งผ่านไปปกติ
+  (response) => response, // ถ้าสำเร็จ (2xx) ส่งผ่านไปเลย
   (error) => {
-    // ถ้าเจอ Error 401 (Unauthorized / Session หมดอายุ)
-    // และ *ไม่ใช่* การพยายาม Login หรือเช็ค Auth (ป้องกัน Loop)
+    const authStore = useAuthStore();
+
+    // ดึง Message จาก Backend (ที่ส่งมาจาก AppError) หรือใช้ Default text
+    let errorMessage = error.response?.data?.message || "Something went wrong.";
+    const status = error.response?.status;
+
+    // --- Case 1: 401 Unauthorized (Session หมดอายุ / ยังไม่ Login) ---
+    // ยกเว้น endpoint /auth/me และ /auth/login เพื่อไม่ให้เกิด Infinite Loop
     if (
-      error.response &&
-      error.response.status === 401 &&
-      !error.config.url.endsWith("/auth/login") &&
-      !error.config.url.endsWith("/auth/me")
+      status === 401 &&
+      !error.config.url.includes("/auth/me") &&
+      !error.config.url.includes("/auth/login")
     ) {
-      console.warn("Session expired or unauthorized. Logging out.");
+      console.warn("Session expired. Logging out...");
 
-      const authStore = useAuthStore();
-      authStore.logoutCleanup(); // ล้างข้อมูล User ในเครื่อง
+      authStore.logoutCleanup(); // ล้าง State หน้าบ้าน
 
-      // ดีดกลับไปหน้าแรก (ซึ่งจะมีปุ่ม Login หรือ Modal ให้กด)
-      router.push({ name: "Home" });
+      // ดีดกลับไปหน้าแรก พร้อมแจ้งเตือน
+      router.push("/?login=true");
 
       Swal.fire({
+        icon: "warning",
         title: "Session Expired",
         text: "Please log in again.",
-        icon: "warning",
         timer: 3000,
+        showConfirmButton: false,
+        toast: true,
+        position: "top-end",
+      });
+
+      // ไม่ต้องส่ง Error ต่อ เพราะเราจัดการแล้ว
+      return Promise.reject(error);
+    }
+
+    // --- Case 2: 403 Forbidden (ไม่มีสิทธิ์ เช่น User จะลบลิงก์คนอื่น) ---
+    if (status === 403) {
+      Swal.fire({
+        icon: "error",
+        title: "Access Denied",
+        text: errorMessage,
       });
     }
-    return Promise.reject(error); // ส่ง Error ต่อให้ Component จัดการ (ถ้าต้องการ)
+
+    // --- Case 3: 429 Too Many Requests (Spam) ---
+    if (status === 429) {
+      errorMessage = "Too many requests. Please slow down.";
+      Swal.fire({
+        icon: "warning",
+        title: "Whoa, slow down!",
+        text: errorMessage,
+        timer: 3000,
+        toast: true,
+        position: "top-end",
+      });
+    }
+
+    // --- Case 4: 500 Server Error (ระบบพัง) ---
+    if (status >= 500) {
+      errorMessage = "Server error. Please try again later.";
+      // (Optional) อาจจะไม่โชว์ Alert ทุกครั้ง ถ้าอยากให้ UX เนียนๆ
+      // แต่ Log ลง Console ไว้ debug
+      console.error("Server Error:", error);
+    }
+
+    // แปลง Error Object ให้ Component ใช้งานง่ายขึ้น
+    // Component จะได้รับ error.message ที่เป็น string ตรงๆ หรือ object เดิม
+    const customError = new Error(errorMessage);
+    customError.originalError = error;
+    customError.status = status;
+
+    return Promise.reject(customError);
   }
 );
 

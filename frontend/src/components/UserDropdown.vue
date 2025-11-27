@@ -6,11 +6,10 @@ import {
   User,
   Settings,
   Shield,
-  LayoutDashboard, // เพิ่มไอคอน Dashboard
+  LayoutDashboard,
 } from "lucide-vue-next";
 import Swal from "sweetalert2";
 
-// รับ Props เพื่อกำหนดโหมดแสดงผล
 const props = defineProps({
   mode: {
     type: String,
@@ -18,7 +17,6 @@ const props = defineProps({
   },
 });
 
-// Event เพื่อบอกแม่ (AppHeader) ให้ปิดเมนูเมื่อมีการกดเลือก
 const emit = defineEmits(["close-menu"]);
 
 const authStore = useAuthStore();
@@ -56,10 +54,10 @@ onUnmounted(() => {
   document.removeEventListener("mousedown", handleClickOutside);
 });
 
-// Helper: สั่งปิดเมนู (ใช้ทั้ง Mobile/Desktop)
+// Helper: สั่งปิดเมนู
 const handleItemClick = () => {
-  isOpen.value = false; // ปิด Dropdown (Desktop)
-  emit("close-menu"); // บอก AppHeader ให้ปิด Drawer (Mobile)
+  isOpen.value = false;
+  emit("close-menu");
 };
 
 // 3. Logout
@@ -79,15 +77,16 @@ const handleLogoutClick = () => {
     }
   });
 };
+
+// [Modified] Class สำหรับเมนูไอเท็ม (ย้ายจาก <style> มาเป็นตัวแปร)
+const menuItemClasses =
+  "group flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors w-full text-left cursor-pointer";
 </script>
 
 <template>
   <div
     ref="dropdownRoot"
-    :class="[
-      'relative', // Desktop ต้อง relative เพื่อให้ popup ลอยถูกที่
-      mode === 'mobile' ? 'w-full' : '', // Mobile ต้องเต็มจอ
-    ]"
+    :class="['relative', mode === 'mobile' ? 'w-full' : '']"
   >
     <button
       v-if="mode === 'desktop'"
@@ -170,13 +169,12 @@ const handleLogoutClick = () => {
 
         <div :class="mode === 'desktop' ? 'py-2' : 'space-y-1'">
           <router-link
-            v-if="mode === 'mobile'"
             to="/dashboard"
             @click="handleItemClick"
-            class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+            :class="[menuItemClasses, mode === 'mobile' ? 'rounded-xl' : '']"
           >
             <LayoutDashboard
-              class="h-4 w-4"
+              class="mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500"
               :class="mode === 'mobile' ? 'h-5 w-5' : ''"
             />
             Dashboard
@@ -186,16 +184,11 @@ const handleLogoutClick = () => {
             v-if="authStore.user?.role === 'ADMIN'"
             to="/admin/users"
             @click="handleItemClick"
-            :class="[
-              'group flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors',
-              mode === 'mobile' ? 'rounded-lg font-medium' : '',
-            ]"
+            :class="[menuItemClasses, mode === 'mobile' ? 'rounded-xl' : '']"
           >
             <Shield
-              :class="[
-                'mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500',
-                mode === 'mobile' ? 'h-5 w-5' : '',
-              ]"
+              class="mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500"
+              :class="mode === 'mobile' ? 'h-5 w-5' : ''"
             />
             <span v-if="mode === 'mobile'">Manage Users</span>
             <span v-else>Admin Panel</span>
@@ -204,16 +197,11 @@ const handleLogoutClick = () => {
           <router-link
             to="/profile"
             @click="handleItemClick"
-            :class="[
-              'group flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors',
-              mode === 'mobile' ? 'rounded-lg font-medium' : '',
-            ]"
+            :class="[menuItemClasses, mode === 'mobile' ? 'rounded-xl' : '']"
           >
             <User
-              :class="[
-                'mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500',
-                mode === 'mobile' ? 'h-5 w-5' : '',
-              ]"
+              class="mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500"
+              :class="mode === 'mobile' ? 'h-5 w-5' : ''"
             />
             My Profile
           </router-link>
@@ -221,16 +209,11 @@ const handleLogoutClick = () => {
           <router-link
             to="/settings"
             @click="handleItemClick"
-            :class="[
-              'group flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors',
-              mode === 'mobile' ? 'rounded-lg font-medium' : '',
-            ]"
+            :class="[menuItemClasses, mode === 'mobile' ? 'rounded-xl' : '']"
           >
             <Settings
-              :class="[
-                'mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500',
-                mode === 'mobile' ? 'h-5 w-5' : '',
-              ]"
+              class="mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500"
+              :class="mode === 'mobile' ? 'h-5 w-5' : ''"
             />
             Settings
           </router-link>
@@ -249,7 +232,7 @@ const handleLogoutClick = () => {
               'flex w-full items-center gap-2 px-4 py-2 text-sm font-medium transition-all',
               mode === 'desktop'
                 ? 'justify-center text-red-600 bg-white border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-700'
-                : 'text-red-600 hover:bg-red-50 rounded-lg justify-start',
+                : 'text-red-600 hover:bg-red-50 rounded-xl justify-start',
             ]"
           >
             <LogOut :class="mode === 'desktop' ? 'h-4 w-4' : 'h-5 w-5'" />
@@ -260,4 +243,3 @@ const handleLogoutClick = () => {
     </transition>
   </div>
 </template>
-

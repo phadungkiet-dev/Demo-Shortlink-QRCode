@@ -1,15 +1,15 @@
 <script setup>
 import { ref } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { Loader2, Eye, EyeOff, LogIn } from "lucide-vue-next";
+import { Loader2, Eye, EyeOff } from "lucide-vue-next";
 
 const emit = defineEmits(["login-success"]);
+const authStore = useAuthStore();
 
 const email = ref("");
 const password = ref("");
 const showPassword = ref(false);
 const isLoading = ref(false);
-const authStore = useAuthStore();
 
 const handleLogin = async () => {
   isLoading.value = true;
@@ -17,7 +17,7 @@ const handleLogin = async () => {
     await authStore.login(email.value, password.value);
     emit("login-success");
   } catch (error) {
-    // Error handled by store
+    // Error ถูกจัดการโดย Store (Swal) แล้ว แค่หยุด Loading พอ
   } finally {
     isLoading.value = false;
   }
@@ -28,7 +28,7 @@ const handleLogin = async () => {
   <div class="space-y-6">
     <a
       href="/api/auth/google"
-      class="flex items-center justify-center gap-3 w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98]"
+      class="flex items-center justify-center gap-3 w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98] shadow-sm"
     >
       <img
         class="h-5 w-5"
@@ -49,42 +49,34 @@ const handleLogin = async () => {
 
     <form @submit.prevent="handleLogin" class="space-y-5">
       <div class="space-y-1.5">
-        <label
-          for="email-login"
-          class="block text-sm font-semibold text-gray-700 ml-1"
+        <label class="block text-sm font-semibold text-gray-700 ml-1"
+          >Email</label
         >
-          Email
-        </label>
         <input
-          id="email-login"
           v-model="email"
           type="email"
           required
-          placeholder="Enter your email"
-          class="block w-full px-4 py-3 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 transition-all duration-200"
+          placeholder="name@example.com"
+          class="block w-full px-4 py-3 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
         />
       </div>
 
       <div class="space-y-1.5">
-        <label
-          for="password-login"
-          class="block text-sm font-semibold text-gray-700 ml-1"
+        <label class="block text-sm font-semibold text-gray-700 ml-1"
+          >Password</label
         >
-          Password
-        </label>
         <div class="relative">
           <input
-            id="password-login"
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
             required
             placeholder="Enter your password"
-            class="block w-full px-4 py-3 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 pr-11 transition-all duration-200"
+            class="block w-full px-4 py-3 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all pr-12"
           />
           <button
             type="button"
             @click="showPassword = !showPassword"
-            class="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600 transition-colors"
+            class="absolute inset-y-0 right-0 px-4 text-gray-400 hover:text-gray-600 transition-colors"
           >
             <component :is="showPassword ? EyeOff : Eye" class="h-5 w-5" />
           </button>
@@ -94,7 +86,7 @@ const handleLogin = async () => {
       <button
         type="submit"
         :disabled="isLoading"
-        class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-indigo-500/40 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform active:scale-[0.98]"
+        class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-indigo-500/30 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform active:scale-[0.98]"
       >
         <Loader2 v-if="isLoading" class="h-5 w-5 animate-spin" />
         <span v-else>Sign in</span>

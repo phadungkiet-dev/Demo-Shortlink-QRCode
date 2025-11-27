@@ -1,20 +1,21 @@
 import { createApp } from "vue";
-import { createPinia } from "pinia"; // State Management
+import { createPinia } from "pinia";
 
 import App from "./App.vue";
-import router from "./router"; // Routing
+import router from "./router";
 
-// Import CSS
-import "./assets/style.css"; // Tailwind & Custom Styles
-import "sweetalert2/dist/sweetalert2.min.css"; // Styles ของ Popup แจ้งเตือน
+// Import Global Styles
+import "./assets/style.css";
+// Import SweetAlert2 Styles (เพื่อให้ Popup สวยงาม)
+import "sweetalert2/dist/sweetalert2.min.css";
 
 const app = createApp(App);
 
-// (สำคัญ) ต้อง use(pinia) ก่อน use(router)
-// เพราะใน router/index.js เราอาจจะมีการเรียกใช้ Store (เช่น เช็คว่า Login หรือยัง)
-// ถ้า Router ทำงานก่อน Pinia อาจจะเกิด Error ได้
-app.use(createPinia());
+// 1. Setup State Management (Pinia)
+const pinia = createPinia();
+app.use(pinia);
+
+// 2. Setup Router (หลังจาก Pinia เพราะ Router อาจเรียกใช้ Store ใน Guards)
 app.use(router);
 
-// สั่งให้ Vue เริ่มทำงานและแสดงผลที่ div id="app"
 app.mount("#app");

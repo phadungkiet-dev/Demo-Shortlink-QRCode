@@ -4,28 +4,26 @@ import LoginForm from "./LoginForm.vue";
 import RegisterForm from "./RegisterForm.vue";
 import { X } from "lucide-vue-next";
 
-const viewMode = ref("login");
+const viewMode = ref("login"); // 'login' | 'register'
 
-defineProps({
-  modelValue: {
-    type: Boolean,
-    default: false,
-  },
+const props = defineProps({
+  modelValue: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["update:modelValue"]);
 
 const closeModal = () => {
   emit("update:modelValue", false);
+  // Reset กลับเป็น login หลังปิด animation จบ
   setTimeout(() => {
     viewMode.value = "login";
-  }, 200);
+  }, 300);
 };
 </script>
 
 <template>
   <div
-    v-show="modelValue"
+    v-if="modelValue"
     class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
   >
     <div
@@ -42,17 +40,16 @@ const closeModal = () => {
       leave-to-class="opacity-0 scale-95 translate-y-4"
     >
       <div
-        v-if="modelValue"
         class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/50"
         @click.stop
       >
         <div
-          class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
+          class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
         ></div>
 
         <button
           @click="closeModal"
-          class="absolute top-5 right-5 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors focus:outline-none"
+          class="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
         >
           <X class="h-5 w-5" />
         </button>
@@ -74,18 +71,19 @@ const closeModal = () => {
           </div>
 
           <div class="mt-6">
-            <LoginForm
-              v-if="viewMode === 'login'"
-              @login-success="closeModal"
-            />
-            <RegisterForm v-else @register-success="closeModal" />
+            <transition name="fade" mode="out-in">
+              <LoginForm
+                v-if="viewMode === 'login'"
+                @login-success="closeModal"
+              />
+              <RegisterForm v-else @register-success="closeModal" />
+            </transition>
           </div>
 
           <div class="mt-8 pt-6 border-t border-gray-100 text-center">
             <p class="text-sm text-gray-600">
               <span v-if="viewMode === 'login'">Don't have an account? </span>
               <span v-else>Already have an account? </span>
-
               <button
                 @click="viewMode = viewMode === 'login' ? 'register' : 'login'"
                 class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
@@ -99,3 +97,14 @@ const closeModal = () => {
     </transition>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

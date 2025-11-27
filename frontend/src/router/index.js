@@ -1,8 +1,4 @@
-import {
-  createRouter,
-  createWebHashHistory,
-  createWebHistory,
-} from "vue-router";
+import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/useAuthStore";
 import HomeView from "@/views/HomeView.vue";
 import NotFoundView from "@/views/NotFoundView.vue";
@@ -16,37 +12,38 @@ const routes = [
   {
     path: "/login",
     name: "Login",
-    redirect: "/", // Redirect ไป Home เพราะเราใช้ Login Modal แทน
+    // Redirect ไปหน้าแรกแทน เพราะเราใช้ Login Modal
+    // (แต่ยังเก็บ Route นี้ไว้เพื่อให้ลิงก์ /login ทำงานได้)
+    redirect: (to) => {
+      return { path: "/", query: { login: "true" } };
+    },
     meta: { requiresGuest: true },
   },
   {
     path: "/dashboard",
     name: "Dashboard",
-    // Lazy loading: โหลดเมื่อ User เข้าหน้านี้เท่านั้น (ประหยัด Bandwidth)
+    // Lazy loading: โหลดเมื่อ User เข้าหน้านี้เท่านั้น (Code Splitting)
     component: () => import("@/views/DashboardView.vue"),
-    meta: { requiresAuth: true }, // Flag บอกว่าต้อง Login
+    meta: { requiresAuth: true }, // ต้อง Login
   },
   {
-    path: "/dashboard/link/:id/stats", // :id คือ Dynamic
+    path: "/dashboard/link/:id/stats",
     name: "LinkStats",
-    // Lazy loading: โหลดเมื่อ User เข้าหน้านี้เท่านั้น (ประหยัด Bandwidth)
     component: () => import("@/views/LinkStatsView.vue"),
-    meta: { requiresAuth: true }, // Flag บอกว่าต้อง Login
-    props: true, // ส่งค่า :id เข้าไปเป็น Props ของ Component โดยตรง
+    meta: { requiresAuth: true },
+    props: true, // ส่ง :id เข้าไปเป็น Props
   },
   {
     path: "/profile",
     name: "Profile",
-    // Lazy loading: โหลดเมื่อ User เข้าหน้านี้เท่านั้น (ประหยัด Bandwidth)
     component: () => import("@/views/ProfileView.vue"),
-    meta: { requiresAuth: true }, // Flag บอกว่าต้อง Login
+    meta: { requiresAuth: true },
   },
   {
     path: "/admin/users",
     name: "AdminUsers",
-    // Lazy loading: โหลดเมื่อ User เข้าหน้านี้เท่านั้น (ประหยัด Bandwidth)
     component: () => import("@/views/AdminUsersView.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true }, // Flag พิเศษ: ต้องเป็น Admin เท่านั้น ,Flag บอกว่าต้อง Login
+    meta: { requiresAuth: true, requiresAdmin: true }, // ต้องเป็น Admin เท่านั้น
   },
   {
     path: "/settings",
@@ -67,38 +64,57 @@ const routes = [
 ];
 
 const router = createRouter({
-  // ใช้ URL แบบสะอาด (ไม่มี #)
-  history: createWebHistory(),
+  history: createWebHistory(), // ใช้ URL แบบสะอาด (ไม่มี #)
   routes,
+  // เมื่อเปลี่ยนหน้า ให้เลื่อน Scroll ขึ้นไปบนสุดเสมอ
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition;
+    } else {
+      return { top: 0 };
+    }
+  },
 });
 
 // -------------------------------------------------------------------
-// Global Navigation Guard (ยามเฝ้าประตู)
+// Global Navigation Guard
 // -------------------------------------------------------------------
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
 
-  // รอเช็คสถานะ Login กับ Backend ให้เสร็จก่อน (สำคัญมาก!)
-  // ถ้าไม่รอ router จะคิดว่า user เป็น null ทั้งที่จริงๆ อาจจะ login ค้างอยู่
+  // รอเช็คสถานะ Login กับ Backend ให้เสร็จก่อนเสมอ (สำคัญมาก!)
+  // ถ้าไม่รอ Router จะคิดว่า User เป็น null ทั้งที่จริงๆ อาจจะ Login ค้างอยู่
   if (!authStore.isAuthReady) {
     await authStore.initAuth();
   }
 
-  const isAuthenticated = !!authStore.user;
-  const isAdmin = authStore.user?.role === "ADMIN";
+  const isAuthenticated = authStore.isAuthenticated;
+  const isAdmin = authStore.isAdmin;
 
   // เช็คสิทธิ์การเข้าถึง (Authorization)
+
+  // กรณี: หน้าที่ต้องการ Login แต่ยังไม่เข้า
   if (to.meta.requiresAuth && !isAuthenticated) {
-    // ถ้าต้อง Login แต่ยังไม่เข้า -> ดีดกลับไปหน้า Home (เพื่อกด Login)
-    next({ name: "Home" });
-  } else if (to.meta.requiresGuest && isAuthenticated) {
-    // ถ้าหน้านี้สำหรับคนทั่วไป (เช่น หน้า Login) แต่เข้าสู่ระบบแล้ว -> ดีดไป Dashboard
+    // ส่งกลับไปหน้าแรก พร้อมเปิด Modal Login และจำ URL เดิมไว้ (redirect)
+    next({
+      name: "Home",
+      query: {
+        login: "true",
+        redirect: to.fullPath,
+      },
+    });
+  }
+  // กรณี: หน้าสำหรับคนทั่วไป (เช่น Login) แต่ Login แล้ว
+  else if (to.meta.requiresGuest && isAuthenticated) {
     next({ name: "Dashboard" });
-  } else if (to.meta.requiresAdmin && !isAdmin) {
-    // ถ้าเป็นหน้า Admin แต่ไม่ใช่ Admin -> ดีดไป Dashboard
+  }
+  // กรณี: หน้า Admin แต่ไม่ใช่ Admin
+  else if (to.meta.requiresAdmin && !isAdmin) {
+    // ส่งกลับ Dashboard (หรือจะไป 403 ก็ได้ แต่ Dashboard ปลอดภัยกว่า)
     next({ name: "Dashboard" });
-  } else {
-    // ผ่านทุกด่าน -> ไปต่อได้
+  }
+  // กรณี: ผ่านทุกเงื่อนไข
+  else {
     next();
   }
 });

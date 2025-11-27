@@ -1,12 +1,30 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  // ระบุไฟล์ที่ Tailwind จะเข้าไป scan หา class เพื่อสร้าง css
   content: ["./index.html", "./src/**/*.{vue,js,ts,jsx,tsx}"],
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["Inter", "sans-serif"], // ใช้ Font Inter เป็นหลัก
+      },
+      // เพิ่ม Animation พิเศษ (Optional) สำหรับ UX ที่ลื่นไหล
+      animation: {
+        "fade-in-up": "fadeInUp 0.5s ease-out",
+        "fade-in-down": "fadeInDown 0.5s ease-out",
+      },
+      keyframes: {
+        fadeInUp: {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        fadeInDown: {
+          "0%": { opacity: "0", transform: "translateY(-10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
     },
   },
-  plugins: [require("@tailwindcss/forms")],
+  plugins: [
+    require("@tailwindcss/forms"), // Plugin จัดการ Form ให้สวยงามอัตโนมัติ
+  ],
 };

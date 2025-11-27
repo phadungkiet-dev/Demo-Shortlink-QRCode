@@ -5,14 +5,12 @@ import { X, Save, Gauge, Loader2 } from "lucide-vue-next";
 const props = defineProps({
   modelValue: Boolean,
   user: Object,
-  isLoading: Boolean, // รับสถานะ Loading จาก Parent
+  isLoading: Boolean,
 });
 
 const emit = defineEmits(["update:modelValue", "save"]);
-
 const limit = ref(10);
 
-// อัปเดตค่าเมื่อเลือก User ใหม่
 watch(
   () => props.user,
   (newUser) => {
@@ -24,11 +22,7 @@ watch(
 );
 
 const closeModal = () => emit("update:modelValue", false);
-
-const handleSave = () => {
-  // ส่งค่ากลับไปให้ Parent (AdminDashboard) จัดการ API
-  emit("save", limit.value);
-};
+const handleSave = () => emit("save", limit.value);
 </script>
 
 <template>
@@ -40,7 +34,6 @@ const handleSave = () => {
       class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
       @click="closeModal"
     ></div>
-
     <div
       class="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/50 transform transition-all scale-100"
     >
@@ -48,8 +41,7 @@ const handleSave = () => {
         class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50"
       >
         <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <Gauge class="w-5 h-5 text-indigo-600" />
-          Set Quota
+          <Gauge class="w-5 h-5 text-indigo-600" /> Set Quota
         </h3>
         <button
           @click="closeModal"
@@ -67,8 +59,10 @@ const handleSave = () => {
             <span class="text-xl font-bold text-indigo-600">{{ limit }}</span>
           </div>
           <p class="text-sm text-gray-500">
-            Adjusting link limit for <br />
-            <span class="font-semibold text-gray-900">{{ user?.email }}</span>
+            Adjusting link limit for <br /><span
+              class="font-semibold text-gray-900"
+              >{{ user?.email }}</span
+            >
           </p>
         </div>
 
@@ -84,14 +78,12 @@ const handleSave = () => {
             >
               -
             </button>
-
             <input
               v-model.number="limit"
               type="number"
               min="0"
-              class="block w-full text-center px-4 py-2.5 bg-gray-50 border-transparent rounded-xl text-gray-900 font-bold text-lg focus:bg-white focus:border-indigo-500 focus:ring-indigo-500 transition-all"
+              class="block w-full text-center px-4 py-2.5 bg-gray-50 border-transparent rounded-xl text-gray-900 font-bold text-lg focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
             />
-
             <button
               @click="limit++"
               class="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 active:scale-95 transition-all font-bold text-gray-600"
@@ -107,8 +99,7 @@ const handleSave = () => {
           class="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-70"
         >
           <Loader2 v-if="isLoading" class="w-5 h-5 animate-spin" />
-          <Save v-else class="w-5 h-5" />
-          <span>Save Changes</span>
+          <Save v-else class="w-5 h-5" /> <span>Save Changes</span>
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
+// ... (Script ส่วนเดิม ไม่ต้องแก้ไข) ...
+import { ref, onMounted, watch, computed } from "vue";
 import {
   ShieldCheck,
   Users,
@@ -13,14 +14,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Gauge,
-  Link as LinkIcon, // เปลี่ยนชื่อไม่ให้ชนกับ RouterLink
+  Link as LinkIcon,
+  UserCheck,
+  UserX,
 } from "lucide-vue-next";
 import api from "@/services/api";
 import Swal from "sweetalert2";
 
 // Import Modals
 import SetLimitModal from "@/components/SetLimitModal.vue";
-import AdminUserLinksModal from "@/components/AdminUserLinksModal.vue"; // (1) Import มาแล้ว
+import AdminUserLinksModal from "@/components/AdminUserLinksModal.vue";
 
 // --- State ---
 const users = ref([]);
@@ -34,12 +37,19 @@ let searchTimeout = null;
 
 // --- Modal States ---
 const isLimitModalOpen = ref(false);
+const isLinksModalOpen = ref(false);
 const selectedUser = ref(null);
 const isSavingLimit = ref(false);
 
-// (2) State สำหรับ Modal ดูลิงก์ (มีแล้ว)
-const isLinksModalOpen = ref(false);
-const selectedUserForLinks = ref(null);
+// [Modified] Computed Stats (คำนวณจากหน้าปัจจุบัน + Total)
+const totalUsers = computed(() => pagination.value.total || 0);
+// หมายเหตุ: Active/Blocked นับจากหน้าปัจจุบันเป็นตัวอย่าง
+const activeUsersCount = computed(
+  () => users.value.filter((u) => !u.isBlocked).length
+);
+const blockedUsersCount = computed(
+  () => users.value.filter((u) => u.isBlocked).length
+);
 
 // --- Lifecycle ---
 onMounted(() => {
@@ -63,9 +73,13 @@ const fetchUsers = async (page = 1, search = searchQuery.value) => {
       params: { page, limit: 10, search },
     });
     users.value = response.data.users || [];
-    pagination.value = response.data.meta || { page: 1, totalPages: 1 };
+    pagination.value = response.data.meta || {
+      page: 1,
+      totalPages: 1,
+      total: 0,
+    };
   } catch (error) {
-    errorMsg.value = error.response?.data?.message || "Could not load users.";
+    errorMsg.value = error.message || "Could not load users.";
   } finally {
     isLoading.value = false;
   }
@@ -83,8 +97,10 @@ const handleUpdateStatus = async (user, newStatus) => {
     const response = await api.patch(`/admin/users/${user.id}/status`, {
       isBlocked: newStatus,
     });
+    // Update local state
     const index = users.value.findIndex((u) => u.id === user.id);
     if (index !== -1) users.value[index] = response.data;
+
     Swal.fire({
       toast: true,
       position: "top-end",
@@ -94,11 +110,7 @@ const handleUpdateStatus = async (user, newStatus) => {
       timer: 1500,
     });
   } catch (error) {
-    Swal.fire(
-      "Error",
-      error.response?.data?.message || "Update failed",
-      "error"
-    );
+    // Error handled by api.js interceptor (show alert)
   } finally {
     isUpdating.value = isUpdating.value.filter((id) => id !== user.id);
   }
@@ -107,43 +119,61 @@ const handleUpdateStatus = async (user, newStatus) => {
 const handleDeleteUser = async (userId, userEmail) => {
   const result = await Swal.fire({
     title: "Delete User?",
-    text: `Permanently delete ${userEmail}?`,
+    text: `Permanently delete ${userEmail}? This will remove all their links.`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#d33",
     cancelButtonColor: "#3085d6",
     confirmButtonText: "Yes, delete",
   });
+
   if (!result.isConfirmed) return;
+
   isDeleting.value.push(userId);
   try {
     await api.delete(`/admin/users/${userId}`);
-    fetchUsers(pagination.value.page);
-    Swal.fire("Deleted!", "User has been deleted.", "success");
+    // Refresh list (ถ้าลบคนสุดท้ายของหน้า ให้ถอยไปหน้าก่อนหน้า)
+    if (users.value.length === 1 && pagination.value.page > 1) {
+      fetchUsers(pagination.value.page - 1);
+    } else {
+      fetchUsers(pagination.value.page);
+    }
+    Swal.fire({
+      toast: true,
+      position: "top-end",
+      icon: "success",
+      title: "User deleted",
+      showConfirmButton: false,
+      timer: 1500,
+    });
   } catch (error) {
-    Swal.fire("Error", "Delete failed", "error");
+    // Error handled by api.js
   } finally {
     isDeleting.value = isDeleting.value.filter((id) => id !== userId);
   }
 };
 
 // --- Modal Handlers ---
-
 const handleEditLimit = (user) => {
   selectedUser.value = user;
   isLimitModalOpen.value = true;
+};
+const handleViewLinks = (user) => {
+  selectedUser.value = user;
+  isLinksModalOpen.value = true;
 };
 
 const onSaveLimit = async (newLimit) => {
   if (!selectedUser.value) return;
   isSavingLimit.value = true;
-  const userId = selectedUser.value.id;
   try {
-    const response = await api.patch(`/admin/users/${userId}/limit`, {
-      limit: parseInt(newLimit),
-    });
-    const index = users.value.findIndex((u) => u.id === userId);
+    const response = await api.patch(
+      `/admin/users/${selectedUser.value.id}/limit`,
+      { limit: parseInt(newLimit) }
+    );
+    const index = users.value.findIndex((u) => u.id === selectedUser.value.id);
     if (index !== -1) users.value[index].linkLimit = response.data.linkLimit;
+
     Swal.fire({
       toast: true,
       position: "top-end",
@@ -154,21 +184,15 @@ const onSaveLimit = async (newLimit) => {
     });
     isLimitModalOpen.value = false;
   } catch (error) {
-    Swal.fire("Error", "Failed to update limit", "error");
+    // Error handled by api.js
   } finally {
     isSavingLimit.value = false;
   }
 };
 
-// (3) ฟังก์ชันเปิด Modal ดูลิงก์ (มีแล้ว)
-const handleViewLinks = (user) => {
-  selectedUserForLinks.value = user;
-  isLinksModalOpen.value = true;
-};
-
 // Helpers
 const formatDate = (dateString) =>
-  new Date(dateString).toLocaleDateString("en-US", {
+  new Date(dateString).toLocaleDateString("en-GB", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -180,7 +204,6 @@ const getUserInitials = (email) =>
 <template>
   <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 pb-24">
     <div class="container mx-auto px-4 lg:px-8 py-10">
-      <!-- Header -->
       <div
         class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8"
       >
@@ -188,8 +211,7 @@ const getUserInitials = (email) =>
           <h1
             class="text-3xl font-bold text-gray-900 flex items-center gap-3 tracking-tight"
           >
-            <ShieldCheck class="h-8 w-8 text-indigo-600" />
-            User Management
+            <ShieldCheck class="h-8 w-8 text-indigo-600" /> User Management
           </h1>
           <p class="text-gray-500 mt-2">
             Control user access and manage accounts.
@@ -204,15 +226,54 @@ const getUserInitials = (email) =>
             />
           </div>
           <input
-            type="text"
             v-model="searchQuery"
+            type="text"
             placeholder="Search users..."
             class="block w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
           />
         </div>
       </div>
 
-      <!-- Loading -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
+        >
+          <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+            <Users class="h-6 w-6" />
+          </div>
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Total Users</p>
+            <p class="text-2xl font-bold text-gray-900">{{ totalUsers }}</p>
+          </div>
+        </div>
+        <div
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
+        >
+          <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+            <UserCheck class="h-6 w-6" />
+          </div>
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Active (Page)</p>
+            <p class="text-2xl font-bold text-gray-900">
+              {{ activeUsersCount }}
+            </p>
+          </div>
+        </div>
+        <div
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
+        >
+          <div class="p-3 bg-red-50 text-red-600 rounded-xl">
+            <UserX class="h-6 w-6" />
+          </div>
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Blocked (Page)</p>
+            <p class="text-2xl font-bold text-gray-900">
+              {{ blockedUsersCount }}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div
         v-if="isLoading"
         class="py-20 flex flex-col items-center justify-center"
@@ -221,9 +282,7 @@ const getUserInitials = (email) =>
         <p class="text-gray-500 font-medium">Loading users...</p>
       </div>
 
-      <!-- Content -->
       <div v-else>
-        <!-- Empty State -->
         <div
           v-if="users.length === 0"
           class="py-16 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
@@ -236,7 +295,6 @@ const getUserInitials = (email) =>
         </div>
 
         <div v-else>
-          <!-- 1. DESKTOP TABLE -->
           <div
             class="hidden md:block bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden"
           >
@@ -281,7 +339,6 @@ const getUserInitials = (email) =>
                   :key="user.id"
                   class="hover:bg-gray-50/50 transition-colors"
                 >
-                  <!-- User Info -->
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div class="flex items-center">
                       <div
@@ -299,8 +356,6 @@ const getUserInitials = (email) =>
                       </div>
                     </div>
                   </td>
-
-                  <!-- Role -->
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span
                       class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border"
@@ -309,12 +364,9 @@ const getUserInitials = (email) =>
                           ? 'bg-purple-50 text-purple-700 border-purple-100'
                           : 'bg-gray-50 text-gray-600 border-gray-200'
                       "
+                      >{{ user.role }}</span
                     >
-                      {{ user.role }}
-                    </span>
                   </td>
-
-                  <!-- Limit -->
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div
                       class="text-sm font-bold text-gray-900 flex items-center gap-1"
@@ -325,8 +377,6 @@ const getUserInitials = (email) =>
                       >
                     </div>
                   </td>
-
-                  <!-- Status -->
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span
                       class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border items-center gap-1.5"
@@ -345,18 +395,13 @@ const getUserInitials = (email) =>
                       {{ user.isBlocked ? "Blocked" : "Active" }}
                     </span>
                   </td>
-
-                  <!-- Joined -->
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {{ formatDate(user.createdAt) }}
                   </td>
-
-                  <!-- Actions -->
                   <td
                     class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
                   >
                     <div class="flex items-center justify-end gap-2">
-                      <!-- [เพิ่ม] ปุ่มดูลิงก์ (Desktop) -->
                       <button
                         @click="handleViewLinks(user)"
                         class="p-2 text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
@@ -364,8 +409,6 @@ const getUserInitials = (email) =>
                       >
                         <LinkIcon class="w-4 h-4" />
                       </button>
-
-                      <!-- ปุ่ม Edit Limit -->
                       <button
                         @click="handleEditLimit(user)"
                         class="p-2 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
@@ -373,8 +416,6 @@ const getUserInitials = (email) =>
                       >
                         <Gauge class="w-4 h-4" />
                       </button>
-
-                      <!-- ปุ่ม Block -->
                       <button
                         @click="handleUpdateStatus(user, !user.isBlocked)"
                         :disabled="isUpdating.includes(user.id)"
@@ -385,11 +426,15 @@ const getUserInitials = (email) =>
                             : 'text-orange-500 border-orange-200 hover:bg-orange-50'
                         "
                       >
-                        <CheckCircle v-if="user.isBlocked" class="w-4 h-4" />
-                        <Ban v-else class="w-4 h-4" />
+                        <Loader2
+                          v-if="isUpdating.includes(user.id)"
+                          class="w-4 h-4 animate-spin"
+                        />
+                        <template v-else>
+                          <CheckCircle v-if="user.isBlocked" class="w-4 h-4" />
+                          <Ban v-else class="w-4 h-4" />
+                        </template>
                       </button>
-
-                      <!-- ปุ่ม Delete -->
                       <button
                         @click="handleDeleteUser(user.id, user.email)"
                         :disabled="isDeleting.includes(user.id)"
@@ -404,7 +449,6 @@ const getUserInitials = (email) =>
             </table>
           </div>
 
-          <!-- 2. MOBILE CARDS -->
           <div class="md:hidden grid grid-cols-1 gap-4">
             <div
               v-for="user in users"
@@ -434,19 +478,17 @@ const getUserInitials = (email) =>
                       ? 'bg-purple-50 text-purple-700 border-purple-100'
                       : 'bg-gray-50 text-gray-600 border-gray-200'
                   "
+                  >{{ user.role }}</span
                 >
-                  {{ user.role }}
-                </span>
               </div>
-
               <div
                 class="flex items-center justify-between text-sm text-gray-500 py-2 border-t border-b border-gray-50"
               >
                 <div class="flex items-center gap-2">
-                  <Gauge class="w-4 h-4 text-gray-400" />
-                  <span class="font-medium text-gray-900">{{
-                    user.linkLimit || 10
-                  }}</span>
+                  <Gauge class="w-4 h-4 text-gray-400" /><span
+                    class="font-medium text-gray-900"
+                    >{{ user.linkLimit || 10 }}</span
+                  >
                   links
                 </div>
                 <div class="flex items-center gap-2">
@@ -460,21 +502,17 @@ const getUserInitials = (email) =>
                         ? 'text-red-600 font-medium'
                         : 'text-emerald-600 font-medium'
                     "
+                    >{{ user.isBlocked ? "Blocked" : "Active" }}</span
                   >
-                    {{ user.isBlocked ? "Blocked" : "Active" }}
-                  </span>
                 </div>
               </div>
-
               <div class="grid grid-cols-4 gap-2">
-                <!-- [เพิ่ม] ปุ่ม View Links (Mobile) -->
                 <button
                   @click="handleViewLinks(user)"
                   class="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 bg-indigo-50 text-sm font-medium active:scale-95 transition-all"
                 >
                   Links
                 </button>
-
                 <button
                   @click="handleEditLimit(user)"
                   class="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-blue-200 text-blue-600 bg-blue-50 text-sm font-medium active:scale-95 transition-all"
@@ -505,7 +543,6 @@ const getUserInitials = (email) =>
           </div>
         </div>
 
-        <!-- Pagination -->
         <div
           v-if="pagination.totalPages > 1"
           class="mt-8 flex justify-center items-center gap-4"
@@ -519,9 +556,8 @@ const getUserInitials = (email) =>
           </button>
           <span
             class="text-sm font-medium text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200"
+            >Page {{ pagination.page }} of {{ pagination.totalPages }}</span
           >
-            Page {{ pagination.page }} of {{ pagination.totalPages }}
-          </span>
           <button
             @click="changePage(pagination.page + 1)"
             :disabled="pagination.page >= pagination.totalPages"
@@ -534,19 +570,13 @@ const getUserInitials = (email) =>
     </div>
 
     <Teleport to="body">
-      <!-- Modal แก้ไข Limit -->
       <SetLimitModal
         v-model="isLimitModalOpen"
         :user="selectedUser"
         :is-loading="isSavingLimit"
         @save="onSaveLimit"
       />
-
-      <!-- (3) Modal ดูลิงก์ของ User (เพิ่มเข้าไปแล้ว) -->
-      <AdminUserLinksModal
-        v-model="isLinksModalOpen"
-        :user="selectedUserForLinks"
-      />
+      <AdminUserLinksModal v-model="isLinksModalOpen" :user="selectedUser" />
     </Teleport>
   </div>
 </template>

@@ -1,6 +1,6 @@
 export default {
   plugins: {
     tailwindcss: {},
-    autoprefixer: {},
+    autoprefixer: {}, // เติม browser prefix อัตโนมัติ (เช่น -webkit-)
   },
-}
+};

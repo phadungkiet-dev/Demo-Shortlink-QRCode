@@ -6,22 +6,25 @@ import path from "path";
 export default defineConfig({
   plugins: [vue()],
   resolve: {
-    // ตั้งชื่อเล่น (Alias) ให้ @ แทนโฟลเดอร์ src
-    // ช่วยให้การ import ไฟล์ดูสะอาดตาและจัดการง่าย
+    // ตั้ง Alias '@' แทนโฟลเดอร์ 'src' เพื่อให้ import ไฟล์ง่าย (เช่น @/components/...)
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
   server: {
-    // รัน Frontend ที่ Port 5173 (ตรงกับ CORS_ORIGIN ที่เราตั้งใน Backend .env)
-    port: 5173,
-
-    // (สำคัญมาก) Proxy API requests ไปยัง Backend เพื่อแก้ปัญหา CORS ในระหว่าง Development
+    port: 5173, // Port ของ Frontend
+    // Proxy API Requests ไปหา Backend
     proxy: {
       "/api": {
-        target: "http://localhost:3001", // ส่งต่อ Request ไปหา Backend
+        target: "http://localhost:3001", // Backend URL
         changeOrigin: true,
-        secure: false, // รองรับ http ธรรมดา (ไม่บังคับ https)
+        secure: false,
+      },
+      // Proxy รูปภาพที่ Upload ไปหา Backend ด้วย
+      "/uploads": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+        secure: false,
       },
     },
   },
