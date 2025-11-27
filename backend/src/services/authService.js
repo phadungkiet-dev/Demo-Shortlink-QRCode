@@ -61,8 +61,16 @@ const registerUser = async (email, password) => {
   return newUser;
 };
 
+const deleteAccount = async (userId) => {
+  // Prisma จะ Cascade Delete ลิงก์และข้อมูลทั้งหมดของ User ให้อัตโนมัติ
+  return await prisma.user.delete({
+    where: { id: userId },
+  });
+};
+
 module.exports = {
   changePassword,
   getSafeUser,
   registerUser,
+  deleteAccount,
 };

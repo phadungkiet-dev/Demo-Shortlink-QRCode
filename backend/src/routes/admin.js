@@ -32,4 +32,8 @@ router.delete("/users/:id", adminController.deleteUser);
 // PATCH /api/admin/users/:id/role
 router.patch("/users/:id/role", adminController.changeUserRole);
 
+router.patch("/users/:id/limit", adminController.updateUserLimit);
+
+router.get("/users/:id/links", adminController.getUserLinks);
+
 module.exports = router;

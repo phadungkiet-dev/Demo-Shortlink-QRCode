@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, watch } from "vue";
 import {
   ShieldCheck,
   Users,
@@ -7,84 +7,96 @@ import {
   AlertCircle,
   Trash2,
   Search,
-  MoreVertical,
   CheckCircle,
   Ban,
-  Mail,
   Calendar,
-  Crown,
+  ChevronLeft,
+  ChevronRight,
+  Gauge,
+  Link as LinkIcon, // เปลี่ยนชื่อไม่ให้ชนกับ RouterLink
 } from "lucide-vue-next";
 import api from "@/services/api";
 import Swal from "sweetalert2";
 
+// Import Modals
+import SetLimitModal from "@/components/SetLimitModal.vue";
+import AdminUserLinksModal from "@/components/AdminUserLinksModal.vue"; // (1) Import มาแล้ว
+
 // --- State ---
 const users = ref([]);
+const pagination = ref({ page: 1, totalPages: 1, total: 0 });
 const isLoading = ref(true);
 const errorMsg = ref(null);
 const isUpdating = ref([]);
 const isDeleting = ref([]);
 const searchQuery = ref("");
+let searchTimeout = null;
 
-// --- Computed ---
-const filteredUsers = computed(() => {
-  if (!users.value) return [];
-  if (!searchQuery.value) return users.value;
+// --- Modal States ---
+const isLimitModalOpen = ref(false);
+const selectedUser = ref(null);
+const isSavingLimit = ref(false);
 
-  const query = searchQuery.value.toLowerCase();
-  return users.value.filter(
-    (user) =>
-      user.email.toLowerCase().includes(query) ||
-      user.role.toLowerCase().includes(query) ||
-      user.provider.toLowerCase().includes(query)
-  );
-});
+// (2) State สำหรับ Modal ดูลิงก์ (มีแล้ว)
+const isLinksModalOpen = ref(false);
+const selectedUserForLinks = ref(null);
 
 // --- Lifecycle ---
 onMounted(() => {
   fetchUsers();
 });
 
+// --- Search Logic ---
+watch(searchQuery, (newVal) => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    fetchUsers(1, newVal);
+  }, 500);
+});
+
 // --- API Methods ---
-const fetchUsers = async () => {
+const fetchUsers = async (page = 1, search = searchQuery.value) => {
   isLoading.value = true;
   errorMsg.value = null;
   try {
-    const response = await api.get("/admin/users");
-    users.value = response.data;
+    const response = await api.get("/admin/users", {
+      params: { page, limit: 10, search },
+    });
+    users.value = response.data.users || [];
+    pagination.value = response.data.meta || { page: 1, totalPages: 1 };
   } catch (error) {
-    console.error("Failed to fetch users:", error);
     errorMsg.value = error.response?.data?.message || "Could not load users.";
   } finally {
     isLoading.value = false;
   }
 };
 
-const handleUpdateStatus = async (user, newStatus) => {
-  const actionText = newStatus ? "Block" : "Unblock";
-  isUpdating.value.push(user.id);
+const changePage = (newPage) => {
+  if (newPage < 1 || newPage > pagination.value.totalPages) return;
+  fetchUsers(newPage);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
 
+const handleUpdateStatus = async (user, newStatus) => {
+  isUpdating.value.push(user.id);
   try {
     const response = await api.patch(`/admin/users/${user.id}/status`, {
       isBlocked: newStatus,
     });
-
     const index = users.value.findIndex((u) => u.id === user.id);
-    if (index !== -1) {
-      users.value[index] = response.data;
-    }
-
+    if (index !== -1) users.value[index] = response.data;
     Swal.fire({
       toast: true,
       position: "top-end",
       icon: "success",
-      title: `User ${actionText}ed`,
+      title: `User ${newStatus ? "Blocked" : "Unblocked"}`,
       showConfirmButton: false,
       timer: 1500,
     });
   } catch (error) {
     Swal.fire(
       "Error",
-      error.response?.data?.message || `Could not ${actionText} user.`,
+      error.response?.data?.message || "Update failed",
       "error"
     );
   } finally {
@@ -95,108 +107,80 @@ const handleUpdateStatus = async (user, newStatus) => {
 const handleDeleteUser = async (userId, userEmail) => {
   const result = await Swal.fire({
     title: "Delete User?",
-    text: `This will permanently delete ${userEmail} and all their links.`,
+    text: `Permanently delete ${userEmail}?`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#d33",
     cancelButtonColor: "#3085d6",
     confirmButtonText: "Yes, delete",
   });
-
   if (!result.isConfirmed) return;
-
   isDeleting.value.push(userId);
-
   try {
     await api.delete(`/admin/users/${userId}`);
-    users.value = users.value.filter((user) => user.id !== userId);
-
-    Swal.fire({
-      toast: true,
-      position: "top-end",
-      icon: "success",
-      title: "User deleted",
-      showConfirmButton: false,
-      timer: 1500,
-    });
+    fetchUsers(pagination.value.page);
+    Swal.fire("Deleted!", "User has been deleted.", "success");
   } catch (error) {
-    Swal.fire(
-      "Error",
-      error.response?.data?.message || "Could not delete user.",
-      "error"
-    );
+    Swal.fire("Error", "Delete failed", "error");
   } finally {
     isDeleting.value = isDeleting.value.filter((id) => id !== userId);
   }
 };
 
-// --- Helpers ---
-const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+// --- Modal Handlers ---
+
+const handleEditLimit = (user) => {
+  selectedUser.value = user;
+  isLimitModalOpen.value = true;
 };
 
-const getUserInitials = (email) => {
-  if (!email) return "U";
-  return email.substring(0, 2).toUpperCase();
-};
-
-const handleChangeRole = async (user) => {
-  const newRole = user.role === "ADMIN" ? "USER" : "ADMIN";
-  const actionText =
-    newRole === "ADMIN" ? "Promote to Admin" : "Demote to User";
-  const color = newRole === "ADMIN" ? "#4F46E5" : "#6B7280";
-
-  const result = await Swal.fire({
-    title: `Change Role?`,
-    text: `Do you want to ${actionText.toLowerCase()}?`,
-    icon: "question",
-    showCancelButton: true,
-    confirmButtonColor: color,
-    confirmButtonText: `Yes, ${actionText}`,
-  });
-
-  if (!result.isConfirmed) return;
-
-  isUpdating.value.push(user.id);
+const onSaveLimit = async (newLimit) => {
+  if (!selectedUser.value) return;
+  isSavingLimit.value = true;
+  const userId = selectedUser.value.id;
   try {
-    const response = await api.patch(`/admin/users/${user.id}/role`, {
-      role: newRole,
+    const response = await api.patch(`/admin/users/${userId}/limit`, {
+      limit: parseInt(newLimit),
     });
-
-    // Update UI
-    const index = users.value.findIndex((u) => u.id === user.id);
-    if (index !== -1) {
-      users.value[index].role = response.data.role;
-    }
-
+    const index = users.value.findIndex((u) => u.id === userId);
+    if (index !== -1) users.value[index].linkLimit = response.data.linkLimit;
     Swal.fire({
       toast: true,
       position: "top-end",
       icon: "success",
-      title: "Role updated",
+      title: "Limit updated",
       showConfirmButton: false,
       timer: 1500,
     });
+    isLimitModalOpen.value = false;
   } catch (error) {
-    Swal.fire(
-      "Error",
-      error.response?.data?.message || "Failed to change role",
-      "error"
-    );
+    Swal.fire("Error", "Failed to update limit", "error");
   } finally {
-    isUpdating.value = isUpdating.value.filter((id) => id !== user.id);
+    isSavingLimit.value = false;
   }
 };
+
+// (3) ฟังก์ชันเปิด Modal ดูลิงก์ (มีแล้ว)
+const handleViewLinks = (user) => {
+  selectedUserForLinks.value = user;
+  isLinksModalOpen.value = true;
+};
+
+// Helpers
+const formatDate = (dateString) =>
+  new Date(dateString).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+const getUserInitials = (email) =>
+  email ? email.substring(0, 2).toUpperCase() : "U";
 </script>
 
 <template>
   <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 pb-24">
     <div class="container mx-auto px-4 lg:px-8 py-10">
+      <!-- Header -->
       <div
         class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8"
       >
@@ -211,7 +195,6 @@ const handleChangeRole = async (user) => {
             Control user access and manage accounts.
           </p>
         </div>
-
         <div class="relative w-full md:w-72">
           <div
             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
@@ -229,6 +212,7 @@ const handleChangeRole = async (user) => {
         </div>
       </div>
 
+      <!-- Loading -->
       <div
         v-if="isLoading"
         class="py-20 flex flex-col items-center justify-center"
@@ -237,39 +221,22 @@ const handleChangeRole = async (user) => {
         <p class="text-gray-500 font-medium">Loading users...</p>
       </div>
 
-      <div
-        v-else-if="errorMsg"
-        class="py-16 text-center bg-white shadow-sm rounded-3xl border border-red-100"
-      >
-        <AlertCircle class="h-12 w-12 text-red-500 mx-auto mb-4" />
-        <h3 class="text-lg font-bold text-red-700">Failed to load users</h3>
-        <p class="text-gray-600 mt-1">{{ errorMsg }}</p>
-      </div>
-
+      <!-- Content -->
       <div v-else>
+        <!-- Empty State -->
         <div
-          v-if="filteredUsers.length === 0"
+          v-if="users.length === 0"
           class="py-16 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
         >
           <Users class="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <h3 class="text-lg font-medium text-gray-900">No users found</h3>
-          <p class="text-gray-500 mt-1">
-            {{
-              searchQuery
-                ? `No results for "${searchQuery}"`
-                : "Database is empty."
-            }}
+          <p class="text-gray-500 mt-1" v-if="searchQuery">
+            No results for "{{ searchQuery }}"
           </p>
-          <button
-            v-if="searchQuery"
-            @click="searchQuery = ''"
-            class="mt-4 text-indigo-600 font-medium hover:underline"
-          >
-            Clear search
-          </button>
         </div>
 
         <div v-else>
+          <!-- 1. DESKTOP TABLE -->
           <div
             class="hidden md:block bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden"
           >
@@ -277,27 +244,32 @@ const handleChangeRole = async (user) => {
               <thead class="bg-gray-50/50">
                 <tr>
                   <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
                   >
                     User
                   </th>
                   <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
                   >
                     Role
                   </th>
                   <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
+                  >
+                    Limit
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
                   >
                     Status
                   </th>
                   <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
                   >
                     Joined
                   </th>
                   <th
-                    class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                    class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase"
                   >
                     Actions
                   </th>
@@ -305,10 +277,11 @@ const handleChangeRole = async (user) => {
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
                 <tr
-                  v-for="user in filteredUsers"
+                  v-for="user in users"
                   :key="user.id"
                   class="hover:bg-gray-50/50 transition-colors"
                 >
+                  <!-- User Info -->
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div class="flex items-center">
                       <div
@@ -320,17 +293,14 @@ const handleChangeRole = async (user) => {
                         <div class="text-sm font-medium text-gray-900">
                           {{ user.email }}
                         </div>
-                        <div
-                          class="text-xs text-gray-500 flex items-center gap-1 mt-0.5"
-                        >
-                          <span class="capitalize">{{
-                            user.provider.toLowerCase()
-                          }}</span>
+                        <div class="text-xs text-gray-500 capitalize">
+                          {{ user.provider.toLowerCase() }}
                         </div>
                       </div>
                     </div>
                   </td>
 
+                  <!-- Role -->
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span
                       class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border"
@@ -344,6 +314,19 @@ const handleChangeRole = async (user) => {
                     </span>
                   </td>
 
+                  <!-- Limit -->
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div
+                      class="text-sm font-bold text-gray-900 flex items-center gap-1"
+                    >
+                      {{ user.linkLimit || 10 }}
+                      <span class="text-xs font-normal text-gray-500"
+                        >links</span
+                      >
+                    </div>
+                  </td>
+
+                  <!-- Status -->
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span
                       class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border items-center gap-1.5"
@@ -363,32 +346,35 @@ const handleChangeRole = async (user) => {
                     </span>
                   </td>
 
+                  <!-- Joined -->
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {{ formatDate(user.createdAt) }}
                   </td>
 
+                  <!-- Actions -->
                   <td
                     class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
                   >
                     <div class="flex items-center justify-end gap-2">
+                      <!-- [เพิ่ม] ปุ่มดูลิงก์ (Desktop) -->
                       <button
-                        @click="handleChangeRole(user)"
-                        :disabled="isUpdating.includes(user.id)"
-                        class="p-2 rounded-lg transition-colors border"
-                        :class="
-                          user.role === 'ADMIN'
-                            ? 'text-purple-600 border-purple-200 bg-purple-50'
-                            : 'text-gray-400 border-gray-200 hover:bg-gray-50'
-                        "
-                        :title="
-                          user.role === 'ADMIN'
-                            ? 'Demote to User'
-                            : 'Promote to Admin'
-                        "
+                        @click="handleViewLinks(user)"
+                        class="p-2 text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                        title="View User Links"
                       >
-                        <Crown class="w-4 h-4" />
+                        <LinkIcon class="w-4 h-4" />
                       </button>
 
+                      <!-- ปุ่ม Edit Limit -->
+                      <button
+                        @click="handleEditLimit(user)"
+                        class="p-2 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                        title="Set Link Limit"
+                      >
+                        <Gauge class="w-4 h-4" />
+                      </button>
+
+                      <!-- ปุ่ม Block -->
                       <button
                         @click="handleUpdateStatus(user, !user.isBlocked)"
                         :disabled="isUpdating.includes(user.id)"
@@ -398,23 +384,18 @@ const handleChangeRole = async (user) => {
                             ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
                             : 'text-orange-500 border-orange-200 hover:bg-orange-50'
                         "
-                        :title="user.isBlocked ? 'Unblock User' : 'Block User'"
                       >
                         <CheckCircle v-if="user.isBlocked" class="w-4 h-4" />
                         <Ban v-else class="w-4 h-4" />
                       </button>
 
+                      <!-- ปุ่ม Delete -->
                       <button
                         @click="handleDeleteUser(user.id, user.email)"
                         :disabled="isDeleting.includes(user.id)"
-                        class="p-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-                        title="Delete User"
+                        class="p-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
                       >
-                        <Loader2
-                          v-if="isDeleting.includes(user.id)"
-                          class="w-4 h-4 animate-spin"
-                        />
-                        <Trash2 v-else class="w-4 h-4" />
+                        <Trash2 class="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -423,9 +404,10 @@ const handleChangeRole = async (user) => {
             </table>
           </div>
 
+          <!-- 2. MOBILE CARDS -->
           <div class="md:hidden grid grid-cols-1 gap-4">
             <div
-              v-for="user in filteredUsers"
+              v-for="user in users"
               :key="user.id"
               class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-4"
             >
@@ -440,9 +422,7 @@ const handleChangeRole = async (user) => {
                     <p class="text-sm font-bold text-gray-900">
                       {{ user.email }}
                     </p>
-                    <p
-                      class="text-xs text-gray-500 capitalize flex items-center gap-1"
-                    >
+                    <p class="text-xs text-gray-500 capitalize">
                       {{ user.provider.toLowerCase() }}
                     </p>
                   </div>
@@ -463,8 +443,11 @@ const handleChangeRole = async (user) => {
                 class="flex items-center justify-between text-sm text-gray-500 py-2 border-t border-b border-gray-50"
               >
                 <div class="flex items-center gap-2">
-                  <Calendar class="w-4 h-4 text-gray-400" />
-                  <span>{{ formatDate(user.createdAt) }}</span>
+                  <Gauge class="w-4 h-4 text-gray-400" />
+                  <span class="font-medium text-gray-900">{{
+                    user.linkLimit || 10
+                  }}</span>
+                  links
                 </div>
                 <div class="flex items-center gap-2">
                   <span
@@ -483,39 +466,87 @@ const handleChangeRole = async (user) => {
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-4 gap-2">
+                <!-- [เพิ่ม] ปุ่ม View Links (Mobile) -->
+                <button
+                  @click="handleViewLinks(user)"
+                  class="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 bg-indigo-50 text-sm font-medium active:scale-95 transition-all"
+                >
+                  Links
+                </button>
+
+                <button
+                  @click="handleEditLimit(user)"
+                  class="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-blue-200 text-blue-600 bg-blue-50 text-sm font-medium active:scale-95 transition-all"
+                >
+                  Limit
+                </button>
                 <button
                   @click="handleUpdateStatus(user, !user.isBlocked)"
                   :disabled="isUpdating.includes(user.id)"
                   class="flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-all active:scale-95"
                   :class="
                     user.isBlocked
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                      : 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-orange-50 text-orange-700 border-orange-200'
                   "
                 >
-                  <CheckCircle v-if="user.isBlocked" class="w-4 h-4" />
-                  <Ban v-else class="w-4 h-4" />
-                  <span>{{ user.isBlocked ? "Unblock" : "Block" }}</span>
+                  {{ user.isBlocked ? "Unblock" : "Block" }}
                 </button>
-
                 <button
                   @click="handleDeleteUser(user.id, user.email)"
                   :disabled="isDeleting.includes(user.id)"
-                  class="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50 font-medium text-sm transition-all active:scale-95 disabled:opacity-50"
+                  class="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 text-red-600 bg-red-50 text-sm font-medium transition-all active:scale-95"
                 >
-                  <Loader2
-                    v-if="isDeleting.includes(user.id)"
-                    class="w-4 h-4 animate-spin"
-                  />
-                  <Trash2 v-else class="w-4 h-4" />
-                  <span>Delete</span>
+                  Delete
                 </button>
               </div>
             </div>
           </div>
         </div>
+
+        <!-- Pagination -->
+        <div
+          v-if="pagination.totalPages > 1"
+          class="mt-8 flex justify-center items-center gap-4"
+        >
+          <button
+            @click="changePage(pagination.page - 1)"
+            :disabled="pagination.page <= 1"
+            class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 disabled:opacity-50"
+          >
+            <ChevronLeft class="h-5 w-5" />
+          </button>
+          <span
+            class="text-sm font-medium text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200"
+          >
+            Page {{ pagination.page }} of {{ pagination.totalPages }}
+          </span>
+          <button
+            @click="changePage(pagination.page + 1)"
+            :disabled="pagination.page >= pagination.totalPages"
+            class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:border-indigo-200 disabled:opacity-50"
+          >
+            <ChevronRight class="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <!-- Modal แก้ไข Limit -->
+      <SetLimitModal
+        v-model="isLimitModalOpen"
+        :user="selectedUser"
+        :is-loading="isSavingLimit"
+        @save="onSaveLimit"
+      />
+
+      <!-- (3) Modal ดูลิงก์ของ User (เพิ่มเข้าไปแล้ว) -->
+      <AdminUserLinksModal
+        v-model="isLinksModalOpen"
+        :user="selectedUserForLinks"
+      />
+    </Teleport>
   </div>
 </template>

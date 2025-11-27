@@ -3,7 +3,6 @@ const router = express.Router();
 const authController = require("../controllers/authController");
 const { isAuthenticated } = require("../middlewares/authGuard");
 
-
 // -------------------------------------------------------------------
 // Public Routes (ไม่ต้อง Login ก็เข้าได้)
 // -------------------------------------------------------------------
@@ -45,5 +44,7 @@ router.post("/change-password", isAuthenticated, authController.changePassword);
 // GET /api/auth/me
 // ดึงข้อมูล User ปัจจุบัน (Frontend ใช้เช็คว่า Login อยู่ไหม)
 router.get("/me", isAuthenticated, authController.getMe);
+
+router.delete("/me", isAuthenticated, authController.deleteAccount);
 
 module.exports = router;

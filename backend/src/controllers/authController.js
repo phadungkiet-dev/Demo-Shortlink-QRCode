@@ -187,6 +187,22 @@ const register = async (req, res, next) => {
   }
 };
 
+const deleteAccount = async (req, res, next) => {
+  try {
+    await authService.deleteAccount(req.user.id);
+
+    // ลบ Session ทิ้งด้วย เพื่อให้ User หลุดจากระบบทันที
+    req.logout((err) => {
+      if (err) return next(err);
+      req.session.destroy();
+      res.clearCookie("connect.sid");
+      res.json({ message: "Account deleted successfully." });
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getCsrfToken,
   loginLocal,
@@ -196,4 +212,5 @@ module.exports = {
   googleAuth,
   googleCallback,
   register,
+  deleteAccount
 };

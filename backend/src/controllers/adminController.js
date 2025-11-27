@@ -1,4 +1,5 @@
 const adminService = require("../services/adminService");
+const linkService = require("../services/linkService");
 const logger = require("../utils/logger");
 
 // -------------------------------------------------------------------
@@ -6,12 +7,15 @@ const logger = require("../utils/logger");
 // -------------------------------------------------------------------
 const getAllUsers = async (req, res, next) => {
   try {
-    // ดึง ID ของ Admin คนที่เรียก API นี้ (จาก Session)
-    // เพื่อส่งให้ Service กรองตัวเองออกจากผลลัพธ์ (จะได้ไม่เห็นตัวเองในลิสต์ที่จะแบน)
     const adminId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10; // Admin ดูทีละ 10 คนกำลังดี
+    const search = req.query.search || "";
 
-    const users = await adminService.getAllUsers(adminId);
-    res.json(users);
+    const result = await adminService.getAllUsers(adminId, page, limit, search);
+
+    // result คือ { users: [...], meta: {...} }
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -127,9 +131,68 @@ const changeUserRole = async (req, res, next) => {
   }
 };
 
+const updateUserLimit = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    const userIdToUpdate = parseInt(req.params.id);
+    const { limit } = req.body; // รับค่าตัวเลข
+
+    if (isNaN(userIdToUpdate) || typeof limit !== "number") {
+      return res.status(400).json({ message: "Invalid input." });
+    }
+
+    const updatedUser = await adminService.updateUserLimit(
+      userIdToUpdate,
+      adminId,
+      limit
+    );
+    res.json(updatedUser);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getUserLinks = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: "Invalid User ID" });
+    }
+
+    // รับ Query Params (Page, Search)
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+
+    // Reuse Logic เดิมของ linkService (มันรับ ownerId ได้อยู่แล้ว)
+    const result = await linkService.findLinksByOwner(
+      userId,
+      page,
+      limit,
+      search
+    );
+
+    // เติม shortUrl ให้สมบูรณ์
+    const linksWithUrl = result.links.map((link) => ({
+      ...link,
+      shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
+    }));
+
+    res.json({
+      data: linksWithUrl,
+      meta: result.meta,
+      stats: result.stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllUsers,
+  getUserLinks,
   updateUserStatus,
   deleteUser,
   changeUserRole,
+  updateUserLimit,
 };

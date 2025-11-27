@@ -50,29 +50,28 @@ const createLink = async (req, res, next) => {
 // -------------------------------------------------------------------
 const getMyLinks = async (req, res, next) => {
   try {
-    // รับค่าจาก URL (เช่น /api/links/me?page=2)
-    // ถ้าไม่ส่งมา ให้ใช้ค่า Default (หน้า 1, 9 รายการต่อหน้า)
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 9;
+    const search = req.query.search || "";
     const ownerId = req.user.id;
 
     // เรียก Service
-    const { links, meta } = await linkService.findLinksByOwner(
+    const { links, meta, stats } = await linkService.findLinksByOwner(
       ownerId,
       page,
-      limit
+      limit,
+      search
     );
 
-    // เติม shortUrl ให้เหมือนเดิม
     const linksWithUrl = links.map((link) => ({
       ...link,
       shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
     }));
 
-    // ส่งกลับไปพร้อม Metadata (Frontend ต้องใช้สร้างปุ่มเปลี่ยนหน้า)
     res.json({
       data: linksWithUrl,
       meta: meta,
+      stats: stats, // +++ ส่ง stats กลับไป +++
     });
   } catch (error) {
     next(error);

@@ -51,6 +51,28 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
   const expiryDays = isAnonymous ? 7 : 30;
   const expiredAt = addDays(now, expiryDays);
 
+  if (!isAnonymous) {
+    // 1. ดึงข้อมูล User เพื่อดู limit ของเขา
+    const user = await prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { linkLimit: true }, // ดึงมาแค่ค่า limit
+    });
+
+    // 2. นับจำนวนลิงก์ที่เขามีตอนนี้
+    const currentLinkCount = await prisma.link.count({
+      where: { ownerId: ownerId },
+    });
+
+    // 3. เปรียบเทียบ (ถ้าหา user ไม่เจอ ให้ใช้ค่า default 10 กันเหนียว)
+    const limit = user?.linkLimit || 10;
+
+    if (currentLinkCount >= limit) {
+      throw new Error(
+        `Limit reached! You have used ${currentLinkCount}/${limit} links. Please contact admin to increase your quota.`
+      );
+    }
+  }
+
   // กรณีตั้งชื่อเอง (Custom Slug)
   if (customSlug) {
     const existing = await prisma.link.findUnique({
@@ -153,32 +175,70 @@ const getAndRecordClick = async (slug, ip, uaString, referrer) => {
 };
 
 // Finds links by owner ID.
-const findLinksByOwner = async (ownerId, page = 1, limit = 9) => {
-  const skip = (page - 1) * limit; // คำนวณจุดเริ่มต้น (Offset)
+const findLinksByOwner = async (ownerId, page = 1, limit = 9, search = "") => {
+  const skip = (page - 1) * limit;
+  const now = getNow();
 
-  // ใช้ $transaction เพื่อทำ 2 คำสั่งพร้อมกัน (ดึงของ + นับจำนวน)
-  const [total, links] = await prisma.$transaction([
-    // 1. นับจำนวนลิงก์ทั้งหมดของ User นี้
-    prisma.link.count({ where: { ownerId } }),
+  // 1. สร้างเงื่อนไขการค้นหา (Base Where Clause)
+  const baseWhere = { ownerId };
 
-    // 2. ดึงข้อมูลลิงก์ตามจำนวนที่ขอ (Pagination)
-    prisma.link.findMany({
-      where: { ownerId },
-      orderBy: { createdAt: "desc" },
-      skip: skip, // ข้ามไปกี่อัน
-      take: limit, // เอามาปี่อัน
-      include: { _count: { select: { clicks: true } } },
-    }),
-  ]);
+  // ถ้ามี search ให้เพิ่มเงื่อนไข OR
+  if (search) {
+    baseWhere.AND = {
+      OR: [
+        { targetUrl: { contains: search, mode: "insensitive" } },
+        { slug: { contains: search, mode: "insensitive" } },
+      ],
+    };
+  }
 
-  // ส่งกลับเป็น Object ที่มีทั้งข้อมูลและ Metadata
+  // 2. ดึงข้อมูล (Transaction)
+  // เราต้องนับแยก:
+  // - totalMatched: จำนวนที่ตรงกับ Search (ใช้ทำ Pagination)
+  // - stats: สถิติภาพรวมของ User (ไม่สน Search) เพื่อโชว์ใน Cards
+  const [totalMatched, links, totalLinks, activeLinks] =
+    await prisma.$transaction([
+      // A. นับจำนวนที่ตรงกับ Search (เพื่อทำ Pagination)
+      prisma.link.count({ where: baseWhere }),
+
+      // B. ดึงข้อมูลลิงก์ (Pagination + Search)
+      prisma.link.findMany({
+        where: baseWhere,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: { _count: { select: { clicks: true } } },
+      }),
+
+      // C. นับลิงก์ทั้งหมดของ User (ไม่สน Search)
+      prisma.link.count({ where: { ownerId } }),
+
+      // D. นับลิงก์ที่ Active (ไม่สน Search)
+      prisma.link.count({
+        where: {
+          ownerId,
+          disabled: false,
+          expiredAt: { gt: now },
+        },
+      }),
+    ]);
+
+  // คำนวณ Inactive
+  const inactiveLinks = totalLinks - activeLinks;
+
   return {
     links,
     meta: {
-      total,
+      total: totalMatched, // ใช้สำหรับคำนวณหน้า (Page 1 of X)
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(totalMatched / limit),
+    },
+    // ส่งสถิติแยกออกมาต่างหาก
+    stats: {
+      total: totalLinks,
+      active: activeLinks,
+      inactive: inactiveLinks,
     },
   };
 };

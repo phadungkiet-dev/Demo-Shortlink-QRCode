@@ -218,24 +218,22 @@ const handleLogoutClick = () => {
             My Profile
           </router-link>
 
-          <a
-            href="#"
+          <router-link
+            to="/settings"
+            @click="handleItemClick"
             :class="[
-              'group flex items-center px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed hover:bg-gray-50',
+              'group flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors',
               mode === 'mobile' ? 'rounded-lg font-medium' : '',
             ]"
           >
             <Settings
               :class="[
-                'mr-3 h-4 w-4 text-gray-300',
+                'mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500',
                 mode === 'mobile' ? 'h-5 w-5' : '',
               ]"
             />
             Settings
-            <span class="ml-auto text-xs bg-gray-100 px-1.5 py-0.5 rounded"
-              >Soon</span
-            >
-          </a>
+          </router-link>
         </div>
 
         <div

@@ -49,6 +49,12 @@ const routes = [
     meta: { requiresAuth: true, requiresAdmin: true }, // Flag พิเศษ: ต้องเป็น Admin เท่านั้น ,Flag บอกว่าต้อง Login
   },
   {
+    path: "/settings",
+    name: "Settings",
+    component: () => import("@/views/SettingsView.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/404",
     name: "NotFound",
     component: NotFoundView,

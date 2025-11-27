@@ -2,14 +2,25 @@ const { prisma } = require("../config/prisma");
 const logger = require("../utils/logger");
 
 // ดึงรายชื่อ User ทั้งหมด (ยกเว้นตัวคนเรียกเอง)
-const getAllUsers = async (adminId) => {
-  try {
-    const users = await prisma.user.findMany({
-      where: {
-        id: { not: adminId }, // ซ่อนตัวเองจาก List
-      },
+const getAllUsers = async (adminId, page = 1, limit = 10, search = "") => {
+  const skip = (page - 1) * limit;
+
+  // เงื่อนไขค้นหา (ไม่เอาตัวเอง + ค้นหาตาม Email)
+  const whereClause = {
+    id: { not: adminId }, // ไม่เอาตัวเอง
+    ...(search && {
+      email: { contains: search, mode: "insensitive" },
+    }),
+  };
+
+  const [total, users] = await prisma.$transaction([
+    // 1. นับจำนวนทั้งหมดที่ตรงเงื่อนไข
+    prisma.user.count({ where: whereClause }),
+
+    // 2. ดึงข้อมูลตามหน้า
+    prisma.user.findMany({
+      where: whereClause,
       select: {
-        // เลือกเฉพาะข้อมูลที่จำเป็น (ไม่เอา Password)
         id: true,
         email: true,
         provider: true,
@@ -18,15 +29,21 @@ const getAllUsers = async (adminId) => {
         createdAt: true,
         updatedAt: true,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-    return users;
-  } catch (error) {
-    logger.error("Error fetching all users:", error);
-    throw new Error("Could not fetch users.");
-  }
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+  ]);
+
+  return {
+    users,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 };
 
 // เปลี่ยนสถานะ Block/Unblock
@@ -137,9 +154,21 @@ const changeUserRole = async (userIdToUpdate, adminId, newRole) => {
   });
 };
 
+const updateUserLimit = async (userId, adminId, newLimit) => {
+  // Safety: Limit ต้องไม่ติดลบ
+  if (newLimit < 0) throw new Error("Limit cannot be negative.");
+
+  return await prisma.user.update({
+    where: { id: userId },
+    data: { linkLimit: newLimit },
+    select: { id: true, email: true, linkLimit: true },
+  });
+};
+
 module.exports = {
   getAllUsers,
   updateUserStatus,
   deleteUser,
   changeUserRole,
+  updateUserLimit,
 };
