@@ -1,7 +1,4 @@
 <script setup>
-// ==========================================
-// 1. IMPORTS
-// ==========================================
 import { onMounted, computed, ref } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
 import api from "@/services/api";
@@ -18,28 +15,22 @@ import {
   Trash2,
   Clock,
   Pencil,
-  QrCode, // +++ (เพิ่ม) Import QrCode Icon +++
+  QrCode,
 } from "lucide-vue-next";
-// +++ (เพิ่ม) Import ResultModal +++
 import ResultModal from "@/components/ResultModal.vue";
 
-// ==========================================
 // 2. STATE
-// ==========================================
 const authStore = useAuthStore();
 const isRenewing = ref(false);
 const isDeleting = ref(false);
 const isRefreshing = ref(false);
 const searchQuery = ref("");
 
-// +++ (เพิ่ม) State สำหรับ QR Code Modal +++
+// State for QR Modal
 const isResultModalOpen = ref(false);
 const selectedLink = ref(null);
 
-// ==========================================
 // 3. COMPUTED & HELPERS
-// ==========================================
-// (ส่วนเดิมคงเดิม)
 const refreshIconClasses = computed(() => ({
   "animate-spin": isRefreshing.value || authStore.isLoadingLinks,
 }));
@@ -84,17 +75,12 @@ const formatShortDate = (dateString) => {
   });
 };
 
-// ==========================================
 // 4. ACTIONS
-// ==========================================
-
-// +++ (เพิ่ม) ฟังก์ชันเปิด Modal QR +++
 const handleShowQr = (link) => {
   selectedLink.value = link;
   isResultModalOpen.value = true;
 };
 
-// +++ (เพิ่ม) ฟังก์ชันปิด Modal +++
 const closeResultModal = () => {
   isResultModalOpen.value = false;
   setTimeout(() => {
@@ -102,17 +88,16 @@ const closeResultModal = () => {
   }, 200);
 };
 
-// (ฟังก์ชันเดิม: handleEdit, copyToClipboard, handleRefresh, handleRenew, handleDelete)
 const handleEdit = async (link) => {
   const { value: newUrl } = await Swal.fire({
-    title: "Edit Destination URL",
+    title: "Edit Destination",
     input: "url",
-    inputLabel: "Where should this short link go?",
+    inputLabel: "New Target URL",
     inputValue: link.targetUrl,
     showCancelButton: true,
-    confirmButtonText: "Update Link",
+    confirmButtonText: "Update",
     confirmButtonColor: "#4F46E5",
-    cancelButtonColor: "#d33",
+    cancelButtonColor: "#ef4444",
     inputValidator: (value) => {
       if (!value) return "Please enter a valid URL!";
     },
@@ -134,15 +119,14 @@ const handleEdit = async (link) => {
         toast: true,
         position: "top-end",
         icon: "success",
-        title: "Link updated successfully!",
+        title: "Updated!",
         showConfirmButton: false,
         timer: 1500,
       });
     } catch (error) {
-      console.error("Update failed:", error);
       Swal.fire(
-        "Update Failed",
-        error.response?.data?.message || "Could not update link.",
+        "Error",
+        error.response?.data?.message || "Update failed",
         "error"
       );
     }
@@ -157,7 +141,7 @@ const copyToClipboard = (text) => {
       icon: "success",
       title: "Copied!",
       showConfirmButton: false,
-      timer: 1500,
+      timer: 1000,
     });
   });
 };
@@ -166,9 +150,6 @@ const handleRefresh = async () => {
   isRefreshing.value = true;
   try {
     await authStore.fetchMyLinks();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  } catch (error) {
-    console.error("Refresh failed:", error);
   } finally {
     isRefreshing.value = false;
   }
@@ -178,8 +159,6 @@ const handleRenew = async (linkId) => {
   isRenewing.value = true;
   try {
     await authStore.renewLink(linkId);
-  } catch (error) {
-    console.error("Error renewing link:", error);
   } finally {
     isRenewing.value = false;
   }
@@ -189,8 +168,6 @@ const handleDelete = async (linkId) => {
   isDeleting.value = true;
   try {
     await authStore.deleteLink(linkId);
-  } catch (error) {
-    console.error("Error deleting link:", error);
   } finally {
     isDeleting.value = false;
   }
@@ -202,19 +179,17 @@ onMounted(() => {
 </script>
 
 <template>
-  <div
-    class="min-h-[calc(100vh-64px)] bg-gradient-to-b from-white via-indigo-50/30 to-white"
-  >
-    <div class="container mx-auto px-4 lg:px-8 py-12">
+  <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 pb-24">
+    <div class="container mx-auto px-4 lg:px-8 py-10">
       <div
-        class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10"
+        class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10"
       >
         <div>
           <h1 class="text-3xl font-bold text-gray-900 tracking-tight">
-            My Links
+            Dashboard
           </h1>
-          <p class="text-sm text-gray-500 mt-2">
-            Manage your short links and track their performance.
+          <p class="text-gray-500 mt-2">
+            Manage your links and view analytics.
           </p>
         </div>
 
@@ -230,7 +205,7 @@ onMounted(() => {
             <input
               type="text"
               v-model="searchQuery"
-              placeholder="Search by link or target..."
+              placeholder="Search links..."
               class="block w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
             />
           </div>
@@ -239,60 +214,54 @@ onMounted(() => {
             <button
               @click="handleRefresh"
               :disabled="isRefreshing || authStore.isLoadingLinks"
-              class="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
-              title="Refresh Data"
+              class="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+              title="Refresh"
             >
               <RefreshCw class="h-5 w-5" :class="refreshIconClasses" />
             </button>
 
             <router-link
               to="/"
-              class="flex-1 sm:flex-none px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-lg hover:shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5"
+              class="flex-1 sm:flex-none px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 active:scale-95"
             >
               <Plus class="h-5 w-5" />
-              <span>Create New</span>
+              <span>New Link</span>
             </router-link>
           </div>
         </div>
       </div>
 
       <div
-        v-if="authStore.isLoadingLinks || isRefreshing"
-        class="py-32 text-center"
+        v-if="authStore.isLoadingLinks && !isRefreshing"
+        class="py-20 flex flex-col items-center justify-center"
       >
-        <div
-          class="inline-flex items-center justify-center p-4 bg-indigo-50 rounded-full mb-4 animate-pulse"
-        >
-          <Loader2 class="h-8 w-8 text-indigo-600 animate-spin" />
-        </div>
-        <h3 class="text-lg font-medium text-gray-900">
-          Updating your links...
-        </h3>
+        <Loader2 class="h-10 w-10 text-indigo-600 animate-spin mb-4" />
+        <p class="text-gray-500 font-medium">Loading your dashboard...</p>
       </div>
 
       <div
         v-else-if="filteredLinks.length === 0"
-        class="py-24 text-center bg-white border-2 border-dashed border-gray-200 rounded-2xl"
+        class="py-20 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
       >
         <div
-          class="inline-flex items-center justify-center p-6 bg-gray-50 rounded-full mb-4"
+          class="inline-flex items-center justify-center w-16 h-16 bg-gray-50 rounded-full mb-4"
         >
-          <Link2 class="h-10 w-10 text-gray-300" />
+          <Link2 class="h-8 w-8 text-gray-300" />
         </div>
-        <h3 class="text-xl font-bold text-gray-900 mb-2">No links found</h3>
-        <p class="text-gray-500 max-w-sm mx-auto">
+        <h3 class="text-lg font-bold text-gray-900">No links found</h3>
+        <p class="text-gray-500 mt-1 max-w-xs mx-auto">
           {{
             searchQuery
-              ? `We couldn't find any links matching "${searchQuery}"`
+              ? `No results for "${searchQuery}"`
               : "Create your first short link to get started."
           }}
         </p>
         <button
           v-if="searchQuery"
           @click="searchQuery = ''"
-          class="mt-6 text-indigo-600 hover:text-indigo-700 font-semibold text-sm hover:underline"
+          class="mt-4 text-indigo-600 font-medium hover:underline"
         >
-          Clear search query
+          Clear search
         </button>
       </div>
 
@@ -300,14 +269,12 @@ onMounted(() => {
         <div
           v-for="link in filteredLinks"
           :key="link.id"
-          class="bg-white rounded-2xl border border-gray-200/60 shadow-sm hover:shadow-xl hover:shadow-indigo-100/50 transition-all duration-300 hover:-translate-y-1 flex flex-col overflow-hidden group"
+          class="group bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:-translate-y-1 flex flex-col"
         >
-          <div
-            class="p-5 flex items-start justify-between gap-3 border-b border-gray-50"
-          >
+          <div class="flex items-start justify-between gap-3 mb-4">
             <div class="flex items-center gap-3 min-w-0">
               <div
-                class="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-105 transition-transform"
+                class="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 overflow-hidden"
               >
                 <img
                   :src="getFaviconUrl(link.targetUrl)"
@@ -316,7 +283,7 @@ onMounted(() => {
                       'https://www.svgrepo.com/show/508699/landscape-placeholder.svg'
                   "
                   alt="Icon"
-                  class="w-6 h-6 object-contain"
+                  class="w-5 h-5 object-contain opacity-80"
                 />
               </div>
               <div class="min-w-0">
@@ -326,15 +293,14 @@ onMounted(() => {
                 >
                   {{ getDomain(link.targetUrl) }}
                 </h3>
-                <p
-                  class="text-xs text-gray-500 truncate max-w-[180px] group-hover:text-indigo-500 transition-colors"
-                >
+                <p class="text-xs text-gray-400 truncate">
                   {{ link.targetUrl }}
                 </p>
               </div>
             </div>
+
             <div
-              class="shrink-0 w-2.5 h-2.5 rounded-full ring-2 ring-white"
+              class="w-2 h-2 rounded-full ring-4 ring-white shrink-0 mt-2"
               :class="
                 isExpired(link.expiredAt) ? 'bg-red-500' : 'bg-emerald-500'
               "
@@ -343,102 +309,91 @@ onMounted(() => {
           </div>
 
           <div
-            class="p-6 flex-grow flex flex-col justify-center items-center bg-gradient-to-b from-white to-gray-50/50"
+            class="bg-gray-50/80 border border-gray-100 rounded-2xl p-3 flex items-center justify-between gap-2 mb-4 group-hover:border-indigo-100 group-hover:bg-indigo-50/30 transition-colors"
           >
-            <div class="flex items-center gap-2 mb-1">
-              <a
-                :href="link.shortUrl"
-                target="_blank"
-                class="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 hover:to-indigo-800 truncate cursor-pointer"
-              >
-                /{{ link.slug }}
-              </a>
-              <button
-                @click="copyToClipboard(link.shortUrl)"
-                class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                title="Copy Link"
-              >
-                <Copy class="h-4 w-4" />
-              </button>
-            </div>
-            <span
-              class="text-[10px] uppercase tracking-widest text-gray-400 font-medium"
-              >Short Link</span
+            <a
+              :href="link.shortUrl"
+              target="_blank"
+              class="text-lg font-bold text-indigo-600 truncate hover:underline decoration-2 underline-offset-2"
             >
+              /{{ link.slug }}
+            </a>
+            <button
+              @click="copyToClipboard(link.shortUrl)"
+              class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all active:scale-95"
+              title="Copy Link"
+            >
+              <Copy class="h-4 w-4" />
+            </button>
           </div>
 
-          <div class="p-4 border-t border-gray-100 bg-white">
+          <div class="flex items-center gap-4 text-xs text-gray-400 px-1 mb-6">
+            <div class="flex items-center gap-1">
+              <Clock class="h-3 w-3" />
+              <span>{{ formatShortDate(link.createdAt) }}</span>
+            </div>
             <div
-              class="flex justify-between items-center text-[11px] text-gray-500 mb-3 px-1"
+              class="flex items-center gap-1"
+              :class="{ 'text-red-500 font-medium': isExpired(link.expiredAt) }"
             >
-              <div class="flex items-center" title="Date Created">
-                <Clock class="h-3 w-3 mr-1" />
-                <span>Created: {{ formatShortDate(link.createdAt) }}</span>
-              </div>
-              <div
-                class="flex items-center"
-                :class="{
-                  'text-red-500 font-medium': isExpired(link.expiredAt),
-                }"
-                title="Expiration Date"
-              >
-                <Calendar class="h-3 w-3 mr-1" />
-                <span>{{
-                  isExpired(link.expiredAt)
-                    ? "Expired"
-                    : formatShortDate(link.expiredAt)
-                }}</span>
-              </div>
+              <Calendar class="h-3 w-3" />
+              <span>{{
+                isExpired(link.expiredAt)
+                  ? "Expired"
+                  : formatShortDate(link.expiredAt)
+              }}</span>
             </div>
+          </div>
 
-            <div class="grid grid-cols-5 gap-2">
-              <router-link
-                :to="`/dashboard/link/${link.id}/stats`"
-                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
-                title="View Stats"
-              >
-                <BarChart2 class="h-3.5 w-3.5 mr-1" />
-                Stats
-              </router-link>
+          <div
+            class="grid grid-cols-5 gap-1 mt-auto border-t border-gray-50 pt-4"
+          >
+            <router-link
+              :to="`/dashboard/link/${link.id}/stats`"
+              class="flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+              title="Statistics"
+            >
+              <BarChart2 class="h-4 w-4" />
+              <span class="text-[10px] font-medium">Stats</span>
+            </router-link>
 
-              <button
-                @click="handleEdit(link)"
-                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
-                title="Edit URL"
-              >
-                <Pencil class="h-3.5 w-3.5 mr-1" />
-                Edit
-              </button>
+            <button
+              @click="handleEdit(link)"
+              class="flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              title="Edit URL"
+            >
+              <Pencil class="h-4 w-4" />
+              <span class="text-[10px] font-medium">Edit</span>
+            </button>
 
-              <button
-                @click="handleShowQr(link)"
-                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-colors"
-                title="Show QR Code"
-              >
-                <QrCode class="h-3.5 w-3.5 mr-1" />
-                QR
-              </button>
+            <button
+              @click="handleShowQr(link)"
+              class="flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-gray-500 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+              title="QR Code"
+            >
+              <QrCode class="h-4 w-4" />
+              <span class="text-[10px] font-medium">QR</span>
+            </button>
 
-              <button
-                @click="handleRenew(link.id)"
-                :disabled="isRenewing"
-                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 rounded-lg transition-colors disabled:opacity-50"
-                title="Renew"
-              >
-                <RefreshCw class="h-3.5 w-3.5 mr-1" :class="renewIconClasses" />
-                Renew
-              </button>
+            <button
+              @click="handleRenew(link.id)"
+              :disabled="isRenewing"
+              class="flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-gray-500 hover:bg-emerald-50 hover:text-emerald-600 transition-colors disabled:opacity-50"
+              title="Renew Expiry"
+            >
+              <RefreshCw class="h-4 w-4" :class="renewIconClasses" />
+              <span class="text-[10px] font-medium">Renew</span>
+            </button>
 
-              <button
-                @click="handleDelete(link.id)"
-                :disabled="isDeleting"
-                class="flex items-center justify-center py-2 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors disabled:opacity-50"
-                title="Delete"
-              >
-                <Trash2 class="h-3.5 w-3.5 mr-1" />
-                Del
-              </button>
-            </div>
+            <button
+              @click="handleDelete(link.id)"
+              :disabled="isDeleting"
+              class="flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
+              title="Delete Link"
+            >
+              <Trash2 class="h-4 w-4" />
+              <span class="text-[10px] font-medium">Del</span>
+            </button>
           </div>
         </div>
       </div>

@@ -62,7 +62,11 @@ app.use(
 );
 
 // Security & Optimization
-app.use(helmet()); // ป้องกัน Header Vulnerabilities
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+); // ป้องกัน Header Vulnerabilities
 app.use(compression()); // ลดขนาด Response Body
 
 // Logging: เชื่อมต่อ Morgan เข้ากับ Winston Logger ที่เราเขียนไว้
