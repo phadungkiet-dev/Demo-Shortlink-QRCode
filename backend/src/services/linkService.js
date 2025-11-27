@@ -189,6 +189,10 @@ const updateLink = async (linkId, ownerId, data) => {
     updateData.qrOptions = finalOptions;
   }
 
+  if (data.disabled !== undefined) {
+    updateData.disabled = data.disabled;
+  }
+
   if (data.renew) {
     /* ...Logic Renew... */
   }

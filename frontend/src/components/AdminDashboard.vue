@@ -1,12 +1,17 @@
 <script setup>
-import { ref, onMounted, computed } from "vue"; // +++ import computed
+import { ref, onMounted, computed } from "vue";
 import {
   ShieldCheck,
   Users,
   Loader2,
   AlertCircle,
   Trash2,
-  Search, // +++ import Search icon
+  Search,
+  MoreVertical,
+  CheckCircle,
+  Ban,
+  Mail,
+  Calendar,
 } from "lucide-vue-next";
 import api from "@/services/api";
 import Swal from "sweetalert2";
@@ -17,11 +22,9 @@ const isLoading = ref(true);
 const errorMsg = ref(null);
 const isUpdating = ref([]);
 const isDeleting = ref([]);
-
-// +++ Search State +++
 const searchQuery = ref("");
 
-// +++ Filtered Users Logic +++
+// --- Computed ---
 const filteredUsers = computed(() => {
   if (!users.value) return [];
   if (!searchQuery.value) return users.value;
@@ -78,7 +81,6 @@ const handleUpdateStatus = async (user, newStatus) => {
       timer: 1500,
     });
   } catch (error) {
-    console.error(`Failed to ${actionText} user:`, error);
     Swal.fire(
       "Error",
       error.response?.data?.message || `Could not ${actionText} user.`,
@@ -91,13 +93,13 @@ const handleUpdateStatus = async (user, newStatus) => {
 
 const handleDeleteUser = async (userId, userEmail) => {
   const result = await Swal.fire({
-    title: "Are you sure?",
-    text: `You are about to PERMANENTLY delete: ${userEmail}`,
+    title: "Delete User?",
+    text: `This will permanently delete ${userEmail} and all their links.`,
     icon: "warning",
     showCancelButton: true,
-    confirmButtonColor: "#D33",
+    confirmButtonColor: "#d33",
     cancelButtonColor: "#3085d6",
-    confirmButtonText: "Yes, delete user",
+    confirmButtonText: "Yes, delete",
   });
 
   if (!result.isConfirmed) return;
@@ -117,7 +119,6 @@ const handleDeleteUser = async (userId, userEmail) => {
       timer: 1500,
     });
   } catch (error) {
-    console.error("Failed to delete user:", error);
     Swal.fire(
       "Error",
       error.response?.data?.message || "Could not delete user.",
@@ -128,7 +129,7 @@ const handleDeleteUser = async (userId, userEmail) => {
   }
 };
 
-// --- Helper ---
+// --- Helpers ---
 const formatDate = (dateString) => {
   const date = new Date(dateString);
   return date.toLocaleDateString("en-US", {
@@ -137,195 +138,317 @@ const formatDate = (dateString) => {
     day: "numeric",
   });
 };
+
+const getUserInitials = (email) => {
+  if (!email) return "U";
+  return email.substring(0, 2).toUpperCase();
+};
 </script>
 
 <template>
-  <div class="container mx-auto px-4 lg:px-8 py-12">
-    <div
-      class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4"
-    >
-      <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
-        <ShieldCheck class="h-8 w-8 text-indigo-600" />
-        User Management
-      </h1>
-
-      <div class="relative w-full sm:w-72">
-        <div
-          class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
-        >
-          <Search class="h-5 w-5 text-gray-400" />
-        </div>
-        <input
-          type="text"
-          v-model="searchQuery"
-          placeholder="Search users by email, role..."
-          class="block w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg leading-5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 sm:text-sm transition-shadow"
-        />
-      </div>
-    </div>
-
-    <div v-if="isLoading" class="text-center py-20">
-      <Loader2 class="h-12 w-12 text-indigo-600 mx-auto animate-spin" />
-      <p class="mt-4 text-gray-600">Loading users...</p>
-    </div>
-
-    <div
-      v-else-if="errorMsg"
-      class="text-center py-20 bg-white shadow rounded-lg p-8"
-    >
-      <AlertCircle class="h-12 w-12 text-red-500 mx-auto" />
-      <h3 class="mt-4 text-xl font-bold text-red-700">Failed to load users</h3>
-      <p class="mt-2 text-gray-600">{{ errorMsg }}</p>
-    </div>
-
-    <div
-      v-else-if="filteredUsers.length > 0"
-      class="bg-white shadow overflow-hidden rounded-lg border border-gray-200"
-    >
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              User (Email)
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Provider
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Role
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Status
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Joined On
-            </th>
-            <th
-              scope="col"
-              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          <tr
-            v-for="user in filteredUsers"
-            :key="user.id"
-            class="hover:bg-gray-50 transition-colors"
-          >
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-sm font-medium text-gray-900">
-                {{ user.email }}
-              </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span
-                :class="
-                  user.provider === 'GOOGLE'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-gray-100 text-gray-800'
-                "
-                class="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full"
-              >
-                {{ user.provider }}
-              </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span
-                :class="
-                  user.role === 'ADMIN'
-                    ? 'bg-purple-100 text-purple-800'
-                    : 'bg-gray-100 text-gray-800'
-                "
-                class="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full"
-              >
-                {{ user.role }}
-              </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span
-                :class="
-                  user.isBlocked
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-green-100 text-green-800'
-                "
-                class="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full"
-              >
-                {{ user.isBlocked ? "Blocked" : "Active" }}
-              </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ formatDate(user.createdAt) }}
-            </td>
-            <td
-              class="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-3"
-            >
-              <button
-                @click="handleUpdateStatus(user, !user.isBlocked)"
-                :disabled="isUpdating.includes(user.id)"
-                :class="[
-                  user.isBlocked ? 'bg-gray-300' : 'bg-indigo-600',
-                  'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50',
-                ]"
-                :title="user.isBlocked ? 'Unblock User' : 'Block User'"
-              >
-                <span
-                  :class="user.isBlocked ? 'translate-x-0' : 'translate-x-5'"
-                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                ></span>
-              </button>
-
-              <button
-                @click="handleDeleteUser(user.id, user.email)"
-                :disabled="isDeleting.includes(user.id)"
-                class="text-gray-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed p-1 rounded-full hover:bg-red-50 transition-colors"
-                title="Permanently Delete User"
-              >
-                <Trash2 v-if="!isDeleting.includes(user.id)" class="h-5 w-5" />
-                <Loader2 v-else class="h-5 w-5 animate-spin" />
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div
-      v-else
-      class="p-12 bg-white border-2 border-dashed border-gray-300 rounded-lg text-center"
-    >
-      <Users class="h-12 w-12 text-gray-300 mx-auto mb-3" />
-      <h3 class="text-lg font-medium text-gray-900">No users found</h3>
-      <p class="mt-1 text-sm text-gray-500">
-        {{
-          searchQuery
-            ? `No results matching "${searchQuery}"`
-            : "The database is empty or only you exist."
-        }}
-      </p>
-      <button
-        v-if="searchQuery"
-        @click="searchQuery = ''"
-        class="mt-4 text-indigo-600 hover:text-indigo-700 font-medium text-sm"
+  <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 pb-24">
+    <div class="container mx-auto px-4 lg:px-8 py-10">
+      <div
+        class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8"
       >
-        Clear search
-      </button>
+        <div>
+          <h1
+            class="text-3xl font-bold text-gray-900 flex items-center gap-3 tracking-tight"
+          >
+            <ShieldCheck class="h-8 w-8 text-indigo-600" />
+            User Management
+          </h1>
+          <p class="text-gray-500 mt-2">
+            Control user access and manage accounts.
+          </p>
+        </div>
+
+        <div class="relative w-full md:w-72">
+          <div
+            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+          >
+            <Search
+              class="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors"
+            />
+          </div>
+          <input
+            type="text"
+            v-model="searchQuery"
+            placeholder="Search users..."
+            class="block w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="isLoading"
+        class="py-20 flex flex-col items-center justify-center"
+      >
+        <Loader2 class="h-10 w-10 text-indigo-600 animate-spin mb-4" />
+        <p class="text-gray-500 font-medium">Loading users...</p>
+      </div>
+
+      <div
+        v-else-if="errorMsg"
+        class="py-16 text-center bg-white shadow-sm rounded-3xl border border-red-100"
+      >
+        <AlertCircle class="h-12 w-12 text-red-500 mx-auto mb-4" />
+        <h3 class="text-lg font-bold text-red-700">Failed to load users</h3>
+        <p class="text-gray-600 mt-1">{{ errorMsg }}</p>
+      </div>
+
+      <div v-else>
+        <div
+          v-if="filteredUsers.length === 0"
+          class="py-16 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
+        >
+          <Users class="h-12 w-12 text-gray-300 mx-auto mb-3" />
+          <h3 class="text-lg font-medium text-gray-900">No users found</h3>
+          <p class="text-gray-500 mt-1">
+            {{
+              searchQuery
+                ? `No results for "${searchQuery}"`
+                : "Database is empty."
+            }}
+          </p>
+          <button
+            v-if="searchQuery"
+            @click="searchQuery = ''"
+            class="mt-4 text-indigo-600 font-medium hover:underline"
+          >
+            Clear search
+          </button>
+        </div>
+
+        <div v-else>
+          <div
+            class="hidden md:block bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden"
+          >
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50/50">
+                <tr>
+                  <th
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                  >
+                    User
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                  >
+                    Role
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                  >
+                    Status
+                  </th>
+                  <th
+                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                  >
+                    Joined
+                  </th>
+                  <th
+                    class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                  >
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <tr
+                  v-for="user in filteredUsers"
+                  :key="user.id"
+                  class="hover:bg-gray-50/50 transition-colors"
+                >
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                      <div
+                        class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-200 shrink-0"
+                      >
+                        {{ getUserInitials(user.email) }}
+                      </div>
+                      <div class="ml-4">
+                        <div class="text-sm font-medium text-gray-900">
+                          {{ user.email }}
+                        </div>
+                        <div
+                          class="text-xs text-gray-500 flex items-center gap-1 mt-0.5"
+                        >
+                          <span class="capitalize">{{
+                            user.provider.toLowerCase()
+                          }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span
+                      class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border"
+                      :class="
+                        user.role === 'ADMIN'
+                          ? 'bg-purple-50 text-purple-700 border-purple-100'
+                          : 'bg-gray-50 text-gray-600 border-gray-200'
+                      "
+                    >
+                      {{ user.role }}
+                    </span>
+                  </td>
+
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span
+                      class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border items-center gap-1.5"
+                      :class="
+                        user.isBlocked
+                          ? 'bg-red-50 text-red-700 border-red-100'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                      "
+                    >
+                      <span
+                        class="w-1.5 h-1.5 rounded-full"
+                        :class="
+                          user.isBlocked ? 'bg-red-500' : 'bg-emerald-500'
+                        "
+                      ></span>
+                      {{ user.isBlocked ? "Blocked" : "Active" }}
+                    </span>
+                  </td>
+
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {{ formatDate(user.createdAt) }}
+                  </td>
+
+                  <td
+                    class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
+                  >
+                    <div class="flex items-center justify-end gap-2">
+                      <button
+                        @click="handleUpdateStatus(user, !user.isBlocked)"
+                        :disabled="isUpdating.includes(user.id)"
+                        class="p-2 rounded-lg transition-colors border"
+                        :class="
+                          user.isBlocked
+                            ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
+                            : 'text-orange-500 border-orange-200 hover:bg-orange-50'
+                        "
+                        :title="user.isBlocked ? 'Unblock User' : 'Block User'"
+                      >
+                        <CheckCircle v-if="user.isBlocked" class="w-4 h-4" />
+                        <Ban v-else class="w-4 h-4" />
+                      </button>
+
+                      <button
+                        @click="handleDeleteUser(user.id, user.email)"
+                        :disabled="isDeleting.includes(user.id)"
+                        class="p-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                        title="Delete User"
+                      >
+                        <Loader2
+                          v-if="isDeleting.includes(user.id)"
+                          class="w-4 h-4 animate-spin"
+                        />
+                        <Trash2 v-else class="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="md:hidden grid grid-cols-1 gap-4">
+            <div
+              v-for="user in filteredUsers"
+              :key="user.id"
+              class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-4"
+            >
+              <div class="flex justify-between items-start">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-200"
+                  >
+                    {{ getUserInitials(user.email) }}
+                  </div>
+                  <div>
+                    <p class="text-sm font-bold text-gray-900">
+                      {{ user.email }}
+                    </p>
+                    <p
+                      class="text-xs text-gray-500 capitalize flex items-center gap-1"
+                    >
+                      {{ user.provider.toLowerCase() }}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  class="px-2 py-1 text-[10px] font-bold uppercase rounded-md border"
+                  :class="
+                    user.role === 'ADMIN'
+                      ? 'bg-purple-50 text-purple-700 border-purple-100'
+                      : 'bg-gray-50 text-gray-600 border-gray-200'
+                  "
+                >
+                  {{ user.role }}
+                </span>
+              </div>
+
+              <div
+                class="flex items-center justify-between text-sm text-gray-500 py-2 border-t border-b border-gray-50"
+              >
+                <div class="flex items-center gap-2">
+                  <Calendar class="w-4 h-4 text-gray-400" />
+                  <span>{{ formatDate(user.createdAt) }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span
+                    class="w-2 h-2 rounded-full"
+                    :class="user.isBlocked ? 'bg-red-500' : 'bg-emerald-500'"
+                  ></span>
+                  <span
+                    :class="
+                      user.isBlocked
+                        ? 'text-red-600 font-medium'
+                        : 'text-emerald-600 font-medium'
+                    "
+                  >
+                    {{ user.isBlocked ? "Blocked" : "Active" }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <button
+                  @click="handleUpdateStatus(user, !user.isBlocked)"
+                  :disabled="isUpdating.includes(user.id)"
+                  class="flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-all active:scale-95"
+                  :class="
+                    user.isBlocked
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'
+                  "
+                >
+                  <CheckCircle v-if="user.isBlocked" class="w-4 h-4" />
+                  <Ban v-else class="w-4 h-4" />
+                  <span>{{ user.isBlocked ? "Unblock" : "Block" }}</span>
+                </button>
+
+                <button
+                  @click="handleDeleteUser(user.id, user.email)"
+                  :disabled="isDeleting.includes(user.id)"
+                  class="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50 font-medium text-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  <Loader2
+                    v-if="isDeleting.includes(user.id)"
+                    class="w-4 h-4 animate-spin"
+                  />
+                  <Trash2 v-else class="w-4 h-4" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

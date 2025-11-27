@@ -24,6 +24,7 @@ const updateLinkSchema = z.object({
   renew: z.boolean().optional(), // รับค่า true/false
   targetUrl: z.string().trim().url("Invalid URL format.").optional(),
   qrOptions: z.record(z.any()).optional(), // รับ JSON object อะไรก็ได้ (ยืดหยุ่น)
+  disabled: z.boolean().optional(),
 });
 
 // Schema สำหรับ "Login"
