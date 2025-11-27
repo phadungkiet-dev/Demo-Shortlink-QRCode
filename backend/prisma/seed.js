@@ -4,76 +4,112 @@ const bcrypt = require("bcrypt");
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log(`Start seeding ...`);
+  console.log(`🌱 Start seeding ...`);
 
   const saltRounds = 10;
+  const password = "User#123"; // รหัสผ่านเดียวกันเพื่อง่ายต่อการเทส
+  const passwordHash = await bcrypt.hash(password, saltRounds);
 
-  // Create Admin User
-  const adminPassword = await bcrypt.hash("Admin#123", saltRounds);
+  // --- Create Users ---
+
+  // Admin (Super User)
   const admin = await prisma.user.upsert({
     where: { email: "admin@local.dev" },
     update: {},
     create: {
       email: "admin@local.dev",
-      passwordHash: adminPassword,
+      passwordHash,
       provider: "LOCAL",
       role: "ADMIN",
     },
   });
 
-  // Create Normal User
-  const userPassword = await bcrypt.hash("User#123", saltRounds);
+  // Normal User (Active)
   const user = await prisma.user.upsert({
     where: { email: "user@local.dev" },
     update: {},
     create: {
       email: "user@local.dev",
-      passwordHash: userPassword,
+      passwordHash,
       provider: "LOCAL",
       role: "USER",
+      linkLimit: 10, // User ปกติ
     },
   });
 
-  console.log(`Created users:`, { admin, user });
+  // Blocked User (Suspended) - เอาไว้เทสระบบป้องกัน
+  const blockedUser = await prisma.user.upsert({
+    where: { email: "blocked@local.dev" },
+    update: {},
+    create: {
+      email: "blocked@local.dev",
+      passwordHash,
+      provider: "LOCAL",
+      role: "USER",
+      isBlocked: true, // โดนแบน
+    },
+  });
 
-  // Create links
+  console.log(`✅ Created users: Admin, User, BlockedUser`);
+
+  // --- Create Links ---
+
+  // เคลียร์ลิงก์เก่าก่อน (Optional) เพื่อไม่ให้ข้อมูลซ้ำซ้อนตอน Seed หลายรอบ
+  await prisma.link.deleteMany({});
+
   const thirtyDaysFromNow = new Date();
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-  const sevenDaysFromNow = new Date();
-  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  const expiredDate = new Date();
+  expiredDate.setDate(expiredDate.getDate() - 1); // เมื่อวาน (หมดอายุแล้ว)
 
-  const link1 = await prisma.link.create({
+  // Normal Link (ของ User)
+  await prisma.link.create({
     data: {
       slug: "google",
       targetUrl: "https://google.com",
       ownerId: user.id,
       expiredAt: thirtyDaysFromNow,
+      isPublic: true,
     },
   });
 
-  const link2 = await prisma.link.create({
+  // Custom QR Link (ของ Admin) - เทส JSON Field
+  await prisma.link.create({
     data: {
-      slug: "prisma",
+      slug: "prisma-qr",
       targetUrl: "https://prisma.io",
       ownerId: admin.id,
+      expiredAt: thirtyDaysFromNow,
+      qrOptions: {
+        color: "#E11D48", // สีแดง
+        style: "dots",
+      },
+    },
+  });
+
+  // Expired Link (ลิงก์หมดอายุ)
+  await prisma.link.create({
+    data: {
+      slug: "expired",
+      targetUrl: "https://expired.com",
+      ownerId: user.id,
+      expiredAt: expiredDate, // หมดอายุแล้ว
+    },
+  });
+
+  // Anonymous Link (ไม่มีเจ้าของ)
+  await prisma.link.create({
+    data: {
+      slug: "anon",
+      targetUrl: "https://github.com",
+      ownerId: null,
       expiredAt: thirtyDaysFromNow,
     },
   });
 
-  // Anonymous link
-  const link3 = await prisma.link.create({
-    data: {
-      slug: "anon-link",
-      targetUrl: "https://github.com",
-      ownerId: null, // No owner
-      expiredAt: sevenDaysFromNow,
-    },
-  });
-
-  console.log(`Created links:`, { link1, link2, link3 });
-
-  console.log(`Seeding finished.`);
+  console.log(`✅ Created links: /r/google, /r/prisma-qr, /r/expired, /r/anon`);
+  console.log(`🌱 Seeding finished.`);
 }
 
 main()

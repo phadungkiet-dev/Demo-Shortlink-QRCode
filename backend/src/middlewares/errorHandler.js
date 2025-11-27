@@ -1,64 +1,117 @@
-const { ZodError } = require("zod");
 const { Prisma } = require("@prisma/client");
+const { ZodError } = require("zod");
+const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
 
-const globalErrorHandler = (err, req, res, next) => {
-  // บันทึก Error ลง Log File ก่อนเสมอ เพื่อให้ Admin มาตรวจสอบภายหลังได้
-  logger.error("Global Error Handler:", err);
+// -------------------------------------------------------------------
+// Helper Functions: แปลง Error แปลกๆ ให้เป็น AppError (มาตรฐานของเรา)
+// -------------------------------------------------------------------
 
-  // 1. จัดการ Error จากการตรวจสอบข้อมูล (Validation) ด้วย Zod
-  if (err instanceof ZodError) {
-    // ดึงเฉพาะใจความสำคัญของ Error (เช่น "Email ไม่ถูกต้อง") ส่งกลับไป
-    const validationErrors = err.errors || err.issues || [];
-    return res.status(400).json({
-      message: "Validation failed.",
-      errors: validationErrors.map((e) => ({
-        path: e.path.join("."), // ชื่อ field ที่ผิด เช่น "user.email"
-        message: e.message,
-      })),
-    });
-  }
+// จัดการ Error ข้อมูลซ้ำจาก Prisma (Code P2002)
+const handlePrismaUniqueError = (err) => {
+  const field = err.meta.target.join(", ");
+  const message = `Duplicate field value: ${field}. Please use another value.`;
+  return new AppError(message, 409); // 409 Conflict
+};
 
-  // 2. จัดการ Error จาก Database (Prisma)
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    // Code P2002: ข้อมูลซ้ำ (เช่น สมัครด้วย Email เดิม, Slug ซ้ำ)
-    if (err.code === "P2002") {
-      return res.status(409).json({
-        message: "Conflict.",
-        detail: `The ${err.meta.target.join(", ")} already exists.`,
-      });
-    }
-    // Code P2025: หาข้อมูลไม่เจอ (Record not found)
-    if (err.code === "P2025") {
-      return res.status(404).json({
-        message: "Not Found.",
-        detail: err.meta.cause || "The requested resource was not found.",
-      });
-    }
-  }
+// จัดการ Error หาข้อมูลไม่เจอจาก Prisma (Code P2025)
+const handlePrismaNotFoundError = (err) => {
+  return new AppError("Record not found.", 404);
+};
 
-  // 3. จัดการ Error เรื่อง CSRF Token (จาก library csurf)
-  if (err.code === "EBADCSRFTOKEN") {
-    logger.warn("Invalid CSRF token received.");
-    return res.status(403).json({ message: "Invalid CSRF token." });
-  }
+// จัดการ Error จากการ Validate ข้อมูลด้วย Zod
+const handleZodError = (err) => {
+  // ดึงข้อความ Error ทั้งหมดมารวมกัน
+  const errors = err.errors.map((el) => `${el.path.join(".")}: ${el.message}`);
+  const message = `Invalid input data. ${errors.join(". ")}`;
+  return new AppError(message, 400); // 400 Bad Request
+};
 
-  // 4. จัดการ Error เรื่อง Rate Limit (ถ้าหลุดมาจาก middleware)
-  if (err.status === 429 || err.name === "RateLimitExceededError") {
-    return res
-      .status(429)
-      .json({ message: "Too many requests. Try again later." });
-  }
+// จัดการ Error JWT (เผื่ออนาคตใช้ JWT)
+const handleJWTError = () =>
+  new AppError("Invalid token. Please log in again.", 401);
 
-  // 5. Default Error (500)
-  // ถ้าไม่เข้าเงื่อนไขข้างบนเลย ให้ถือเป็น Server Error ทั่วไป
-  const statusCode = err.status || 500;
-  res.status(statusCode).json({
-    message: err.message || "An unexpected error occurred.",
-    // ใน Dev mode ให้ส่ง stack trace ไปด้วยเพื่อ debug ง่ายขึ้น
-    // แต่ใน Production ห้ามส่งเด็ดขาด!
-    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
+const handleJWTExpiredError = () =>
+  new AppError("Your token has expired. Please log in again.", 401);
+
+// -------------------------------------------------------------------
+// Response Generators: ส่ง Response กลับตาม Environment
+// -------------------------------------------------------------------
+
+const sendErrorDev = (err, req, res) => {
+  // Dev Mode: ส่งทุกอย่างที่รู้ เพื่อ Debug ง่าย
+  res.status(err.statusCode).json({
+    status: err.status,
+    error: err,
+    message: err.message,
+    stack: err.stack,
   });
 };
 
-module.exports = globalErrorHandler;
+const sendErrorProd = (err, req, res) => {
+  // A) API Error (Request ที่ขึ้นต้นด้วย /api)
+  if (req.originalUrl.startsWith("/api")) {
+    // 1) Operational, trusted error: ส่ง message ที่เราเขียนเองไปให้ Client
+    if (err.isOperational) {
+      return res.status(err.statusCode).json({
+        status: err.status,
+        message: err.message,
+      });
+    }
+
+    // 2) Programming or other unknown error: ไม่ส่งรายละเอียดไป ให้ Log เก็บไว้ดูเอง
+    logger.error("ERROR 💥", err);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Something went wrong!",
+    });
+  }
+
+  // B) Rendered Website Error (ถ้ามี Server-Side Rendering)
+  // กรณีนี้เราทำ API เป็นหลัก แต่เผื่อไว้สำหรับ Redirect
+  logger.error("ERROR 💥", err);
+  return res.status(err.statusCode).render("error", {
+    title: "Something went wrong!",
+    msg: err.message,
+  });
+};
+
+// -------------------------------------------------------------------
+// Main Middleware
+// -------------------------------------------------------------------
+module.exports = (err, req, res, next) => {
+  // กำหนดค่า Default ถ้าไม่มี
+  err.statusCode = err.statusCode || 500;
+  err.status = err.status || "error";
+
+  if (process.env.NODE_ENV === "development") {
+    sendErrorDev(err, req, res);
+  } else if (process.env.NODE_ENV === "production") {
+    // Copy Error Object เพื่อนำมาปรับแต่ง (ระวัง: Error object บางที copy ไม่ติด property พิเศษ)
+    let error = Object.create(err);
+    error.message = err.message;
+
+    // --- แปลง Error ประเภทต่างๆ ให้เป็น AppError ---
+
+    // 1. Prisma Errors
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === "P2002") error = handlePrismaUniqueError(err);
+      if (err.code === "P2025") error = handlePrismaNotFoundError(err);
+    }
+
+    // 2. Zod Validation Errors
+    if (err instanceof ZodError) error = handleZodError(err);
+
+    // 3. JWT Errors (ถ้ามี)
+    if (err.name === "JsonWebTokenError") error = handleJWTError();
+    if (err.name === "TokenExpiredError") error = handleJWTExpiredError();
+
+    // 4. CSRF Errors
+    if (err.code === "EBADCSRFTOKEN") {
+      error = new AppError("Invalid CSRF Token.", 403);
+    }
+
+    sendErrorProd(error, req, res);
+  }
+};

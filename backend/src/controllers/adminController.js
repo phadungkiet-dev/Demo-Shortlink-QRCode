@@ -1,192 +1,137 @@
 const adminService = require("../services/adminService");
 const linkService = require("../services/linkService");
-const logger = require("../utils/logger");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/AppError");
 
 // -------------------------------------------------------------------
-// Get All Users (ดึงรายชื่อ User ทั้งหมด)
+// Get All Users
 // -------------------------------------------------------------------
-const getAllUsers = async (req, res, next) => {
-  try {
-    const adminId = req.user.id;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10; // Admin ดูทีละ 10 คนกำลังดี
-    const search = req.query.search || "";
+const getAllUsers = catchAsync(async (req, res, next) => {
+  const adminId = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const search = req.query.search || "";
 
-    const result = await adminService.getAllUsers(adminId, page, limit, search);
+  const result = await adminService.getAllUsers(adminId, page, limit, search);
+  res.json(result);
+});
 
-    // result คือ { users: [...], meta: {...} }
-    res.json(result);
-  } catch (error) {
-    next(error);
+// -------------------------------------------------------------------
+// Update User Status
+// -------------------------------------------------------------------
+const updateUserStatus = catchAsync(async (req, res, next) => {
+  const adminId = req.user.id;
+  const userIdToUpdate = parseInt(req.params.id);
+
+  if (isNaN(userIdToUpdate)) {
+    throw new AppError("Invalid User ID.", 400);
   }
-};
 
-// -------------------------------------------------------------------
-// Update User Status (Block/Unblock)
-// -------------------------------------------------------------------
-const updateUserStatus = async (req, res, next) => {
-  try {
-    const adminId = req.user.id;
-    const userIdToUpdate = parseInt(req.params.id);
-
-    // Validate ID: ต้องเป็นตัวเลขเท่านั้น
-    if (isNaN(userIdToUpdate)) {
-      return res.status(400).json({ message: "Invalid User ID." });
-    }
-
-    // Validate Body: ต้องส่งค่า isBlocked เป็น true หรือ false เท่านั้น
-    const { isBlocked } = req.body;
-    if (typeof isBlocked !== "boolean") {
-      return res.status(400).json({
-        message: "Invalid request body. 'isBlocked' (boolean) is required.",
-      });
-    }
-
-    // เรียก Service เพื่ออัปเดตสถานะ
-    const updatedUser = await adminService.updateUserStatus(
-      userIdToUpdate,
-      adminId,
-      isBlocked // (ส่งสถานะใหม่ (true/false) เข้าไป)
+  const { isBlocked } = req.body;
+  if (typeof isBlocked !== "boolean") {
+    throw new AppError(
+      "Invalid request body. 'isBlocked' (boolean) is required.",
+      400
     );
-
-    // ส่งข้อมูล User ล่าสุดกลับไปเพื่อให้ Frontend อัปเดต UI ทันที
-    res.json(updatedUser);
-  } catch (error) {
-    // (สำคัญ) แปลง Error จาก Service ให้เป็น HTTP Status Code ที่มีความหมาย
-
-    // กรณีพยายามแบนตัวเอง -> 400 (Bad Request)
-    if (error.message.includes("Admins cannot change their own status")) {
-      return res.status(400).json({ message: error.message });
-    }
-    // กรณีหา User ไม่เจอ -> 404 (Not Found)
-    if (error.message.includes("User not found")) {
-      return res.status(404).json({ message: error.message });
-    }
-    // กรณีพยายามแบน Admin คนอื่น -> 403 (Forbidden - ห้ามทำ)
-    if (error.message.includes("Cannot change status of another Admin")) {
-      return res.status(403).json({ message: error.message }); // 403 Forbidden
-    }
-
-    // Error อื่นๆ (เช่น DB ล่ม) ส่งต่อให้ Global Error Handler
-    next(error);
   }
-};
+
+  // Service จะจัดการ Logic ห้ามแบน Admin ด้วยกันให้เอง
+  const updatedUser = await adminService.updateUserStatus(
+    userIdToUpdate,
+    adminId,
+    isBlocked
+  );
+
+  res.json(updatedUser);
+});
 
 // -------------------------------------------------------------------
-// Delete User (ลบ User ถาวร)
+// Delete User
 // -------------------------------------------------------------------
-const deleteUser = async (req, res, next) => {
-  try {
-    const adminId = req.user.id;
-    const userIdToDelete = parseInt(req.params.id);
+const deleteUser = catchAsync(async (req, res, next) => {
+  const adminId = req.user.id;
+  const userIdToDelete = parseInt(req.params.id);
 
-    // Validate ID
-    if (isNaN(userIdToDelete)) {
-      return res.status(400).json({ message: "Invalid User ID." });
-    }
-
-    // เรียก Service (Service จะมี Logic เช็คความปลอดภัยซ้ำอีกที)
-    const result = await adminService.deleteUser(userIdToDelete, adminId);
-    res.json(result);
-  } catch (error) {
-    // จัดการ Error เฉพาะทางเหมือนกับ updateStatus
-
-    if (error.message.includes("Admins cannot delete their own account")) {
-      return res.status(400).json({ message: error.message });
-    }
-    if (error.message.includes("User not found")) {
-      return res.status(404).json({ message: error.message });
-    }
-    if (error.message.includes("Cannot delete another Admin")) {
-      return res.status(403).json({ message: error.message }); // 403 Forbidden
-    }
-
-    // Error ทั่วไป
-    next(error);
+  if (isNaN(userIdToDelete)) {
+    throw new AppError("Invalid User ID.", 400);
   }
-};
 
-const changeUserRole = async (req, res, next) => {
-  try {
-    const adminId = req.user.id;
-    const userIdToUpdate = parseInt(req.params.id);
-    const { role } = req.body; // รับค่า "ADMIN" หรือ "USER"
+  const result = await adminService.deleteUser(userIdToDelete, adminId);
+  res.json(result);
+});
 
-    if (isNaN(userIdToUpdate)) {
-      return res.status(400).json({ message: "Invalid User ID." });
-    }
+// -------------------------------------------------------------------
+// Change User Role
+// -------------------------------------------------------------------
+const changeUserRole = catchAsync(async (req, res, next) => {
+  const adminId = req.user.id;
+  const userIdToUpdate = parseInt(req.params.id);
+  const { role } = req.body;
 
-    const updatedUser = await adminService.changeUserRole(
-      userIdToUpdate,
-      adminId,
-      role
-    );
-
-    res.json(updatedUser);
-  } catch (error) {
-    if (error.message.includes("Admins cannot change their own role")) {
-      return res.status(400).json({ message: error.message });
-    }
-    next(error);
+  if (isNaN(userIdToUpdate)) {
+    throw new AppError("Invalid User ID.", 400);
   }
-};
 
-const updateUserLimit = async (req, res, next) => {
-  try {
-    const adminId = req.user.id;
-    const userIdToUpdate = parseInt(req.params.id);
-    const { limit } = req.body; // รับค่าตัวเลข
+  const updatedUser = await adminService.changeUserRole(
+    userIdToUpdate,
+    adminId,
+    role
+  );
+  res.json(updatedUser);
+});
 
-    if (isNaN(userIdToUpdate) || typeof limit !== "number") {
-      return res.status(400).json({ message: "Invalid input." });
-    }
+// -------------------------------------------------------------------
+// Update User Limit
+// -------------------------------------------------------------------
+const updateUserLimit = catchAsync(async (req, res, next) => {
+  const adminId = req.user.id;
+  const userIdToUpdate = parseInt(req.params.id);
+  const { limit } = req.body;
 
-    const updatedUser = await adminService.updateUserLimit(
-      userIdToUpdate,
-      adminId,
-      limit
-    );
-    res.json(updatedUser);
-  } catch (error) {
-    next(error);
+  if (isNaN(userIdToUpdate) || typeof limit !== "number") {
+    throw new AppError("Invalid input.", 400);
   }
-};
 
-const getUserLinks = async (req, res, next) => {
-  try {
-    const userId = parseInt(req.params.id);
-    if (isNaN(userId)) {
-      return res.status(400).json({ message: "Invalid User ID" });
-    }
+  const updatedUser = await adminService.updateUserLimit(
+    userIdToUpdate,
+    adminId,
+    limit
+  );
+  res.json(updatedUser);
+});
 
-    // รับ Query Params (Page, Search)
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const search = req.query.search || "";
-
-    // Reuse Logic เดิมของ linkService (มันรับ ownerId ได้อยู่แล้ว)
-    const result = await linkService.findLinksByOwner(
-      userId,
-      page,
-      limit,
-      search
-    );
-
-    // เติม shortUrl ให้สมบูรณ์
-    const linksWithUrl = result.links.map((link) => ({
-      ...link,
-      shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
-    }));
-
-    res.json({
-      data: linksWithUrl,
-      meta: result.meta,
-      stats: result.stats,
-    });
-  } catch (error) {
-    next(error);
+// -------------------------------------------------------------------
+// Get User Links (Admin View)
+// -------------------------------------------------------------------
+const getUserLinks = catchAsync(async (req, res, next) => {
+  const userId = parseInt(req.params.id);
+  if (isNaN(userId)) {
+    throw new AppError("Invalid User ID", 400);
   }
-};
+
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const search = req.query.search || "";
+
+  // Reuse Service ของ Link ได้เลย
+  const result = await linkService.findLinksByOwner(
+    userId,
+    page,
+    limit,
+    search
+  );
+
+  const linksWithUrl = result.links.map((link) => ({
+    ...link,
+    shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
+  }));
+
+  res.json({
+    data: linksWithUrl,
+    meta: result.meta,
+    stats: result.stats,
+  });
+});
 
 module.exports = {
   getAllUsers,

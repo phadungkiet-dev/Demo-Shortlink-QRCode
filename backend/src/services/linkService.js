@@ -1,18 +1,22 @@
+const { Prisma } = require("@prisma/client");
+const fs = require("fs/promises");
+const path = require("path");
 const { prisma } = require("../config/prisma");
 const { generateSlug } = require("../utils/slug");
 const { addDays, getNow } = require("../utils/time");
-const { Prisma } = require("@prisma/client");
+const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
-const useragent = require("useragent");
 
-const fs = require("fs/promises"); // ใช้ fs แบบ Promise เพื่อความทันสมัย
-const path = require("path");
-
-// โฟลเดอร์เก็บรูปโลโก้
+// Config
 const LOGO_DIR = path.join(__dirname, "../../storage/logos");
 const MAX_SLUG_RETRIES = 5;
 
-// Helper: สร้างโฟลเดอร์ถ้ายังไม่มี
+// --- Internal Helper Functions ---
+
+/**
+ * @function ensureLogoDir
+ * @description ตรวจสอบและสร้างโฟลเดอร์เก็บ Logo หากยังไม่มี
+ */
 const ensureLogoDir = async () => {
   try {
     await fs.access(LOGO_DIR);
@@ -21,66 +25,79 @@ const ensureLogoDir = async () => {
   }
 };
 
-// Helper: บันทึกรูปจาก Base64 ลงไฟล์
+/**
+ * @function saveLogoFile
+ * @description แปลง Base64 Image เป็นไฟล์และบันทึกลง Disk
+ * @param {string} slug - Slug ของลิงก์ (ใช้ตั้งชื่อไฟล์)
+ * @param {string} base64String - ข้อมูลรูปภาพแบบ Base64
+ * @returns {Promise<string|null>} - URL path ของรูปภาพ
+ */
 const saveLogoFile = async (slug, base64String) => {
+  if (!base64String || !base64String.startsWith("data:image")) return null;
+
   await ensureLogoDir();
 
-  // แยก Header (data:image/png;base64,...) ออกจากเนื้อข้อมูล
   const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-  if (!matches || matches.length !== 3) {
-    return null;
-  }
+  if (!matches || matches.length !== 3) return null;
 
-  const extension = matches[1].split("/")[1]; // เช่น png
+  const extension = matches[1].split("/")[1];
   const imageBuffer = Buffer.from(matches[2], "base64");
-  const filename = `${slug}-${Date.now()}.${extension}`; // ตั้งชื่อไฟล์ให้ไม่ซ้ำ
+
+  const filename = `${slug}-${Date.now()}.${extension}`;
   const filePath = path.join(LOGO_DIR, filename);
 
   await fs.writeFile(filePath, imageBuffer);
 
-  // คืนค่าเป็น URL สำหรับเรียกใช้งาน
   return `${process.env.BASE_URL}/uploads/logos/${filename}`;
 };
 
-// สร้าง Shortlink
+// --- Main Service Functions ---
+/**
+ * @function createLink
+ * @description สร้าง Short Link ใหม่
+ * @param {string} targetUrl - URL ปลายทาง
+ * @param {number|null} ownerId - ID เจ้าของ (null = Anonymous)
+ * @param {string|null} customSlug - Slug ที่ผู้ใช้ตั้งเอง (Optional)
+ */
 const createLink = async (targetUrl, ownerId, customSlug = null) => {
   const now = getNow();
   const isAnonymous = ownerId === null;
-
-  // Anonymous อยู่ได้ 7 วัน, สมาชิกอยู่ได้ 30 วัน
   const expiryDays = isAnonymous ? 7 : 30;
   const expiredAt = addDays(now, expiryDays);
 
+  // 1. Check Quota (สำหรับ Logged-in User เท่านั้น)
   if (!isAnonymous) {
-    // 1. ดึงข้อมูล User เพื่อดู limit ของเขา
+    // ดึงข้อมูล User เพื่อดู Limit และ Role
     const user = await prisma.user.findUnique({
       where: { id: ownerId },
-      select: { linkLimit: true }, // ดึงมาแค่ค่า limit
+      select: { linkLimit: true, role: true }, // +++ เพิ่ม role มาเช็ค
     });
 
-    // 2. นับจำนวนลิงก์ที่เขามีตอนนี้
-    const currentLinkCount = await prisma.link.count({
-      where: { ownerId: ownerId },
-    });
+    // +++ ถ้าไม่ใช่ Admin ถึงจะทำการเช็ค Quota +++
+    // (Admin สร้างได้ไม่จำกัด Unlimited)
+    if (user && user.role !== "ADMIN") {
+      const currentLinkCount = await prisma.link.count({
+        where: { ownerId: ownerId },
+      });
 
-    // 3. เปรียบเทียบ (ถ้าหา user ไม่เจอ ให้ใช้ค่า default 10 กันเหนียว)
-    const limit = user?.linkLimit || 10;
+      const limit = user.linkLimit || 10;
 
-    if (currentLinkCount >= limit) {
-      throw new Error(
-        `Limit reached! You have used ${currentLinkCount}/${limit} links. Please contact admin to increase your quota.`
-      );
+      if (currentLinkCount >= limit) {
+        throw new AppError(
+          `Limit reached! You have used ${currentLinkCount}/${limit} links. Please contact admin or upgrade.`,
+          403 // Forbidden
+        );
+      }
     }
   }
 
-  // กรณีตั้งชื่อเอง (Custom Slug)
+  // 2. กรณี Custom Slug
   if (customSlug) {
     const existing = await prisma.link.findUnique({
       where: { slug: customSlug },
     });
-
     if (existing) {
-      throw new Error("This custom alias is already taken.");
+      throw new AppError("This custom alias is already taken.", 409);
     }
 
     return prisma.link.create({
@@ -90,23 +107,16 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
         ownerId,
         expiredAt,
         isPublic: false,
-        disabled: false,
       },
     });
   }
 
-  // กรณีสุ่มชื่อ (Auto Slug) - มีระบบ Retry ถ้าซ้ำ
+  // 3. กรณี Auto Generated Slug (Retry Logic)
   let slug;
   let retries = 0;
-  let linkCreated = false;
 
-  // Retry loop for unique slug generation
-  while (!linkCreated) {
-    if (retries >= MAX_SLUG_RETRIES) {
-      throw new Error("Failed to generate a unique slug. Please try again.");
-    }
-
-    slug = generateSlug(isAnonymous ? 5 : 7); // สั้นกว่าสำหรับ Anonymous
+  while (retries < MAX_SLUG_RETRIES) {
+    slug = generateSlug(isAnonymous ? 5 : 7);
     retries++;
 
     try {
@@ -117,72 +127,38 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
           ownerId,
           expiredAt,
           isPublic: false,
-          disabled: false,
         },
       });
-
-      linkCreated = true;
       return link;
     } catch (e) {
-      // P2002 คือ Error ข้อมูลซ้ำ (Slug ชนกัน) -> ให้วนลูปใหม่
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === "P2002"
       ) {
-        // Unique constraint violation (slug already exists)
-        logger.warn(`Slug collision: ${slug}. Retrying... (${retries})`);
-      } else {
-        throw e; // Error อื่นให้โยนออกไป
+        logger.warn(
+          `Slug collision detected: ${slug}. Retrying... (${retries})`
+        );
+        continue;
       }
+      throw e;
     }
   }
+
+  throw new AppError(
+    "Failed to generate a unique link. Please try again.",
+    500
+  );
 };
 
-// ดึงลิงก์ปลายทาง + บันทึกสถิติ
-const getAndRecordClick = async (slug, ip, uaString, referrer) => {
-  const now = getNow();
-
-  const link = await prisma.link.findUnique({
-    where: { slug },
-  });
-
-  // เช็คว่าลิงก์มีอยู่จริง / ไม่ถูกปิด / ไม่หมดอายุ
-  if (!link || link.disabled || link.expiredAt <= now) {
-    logger.warn(
-      `Link access failed: ${slug} (Found: ${!!link}, Disabled: ${
-        link?.disabled
-      }, Expired: ${link?.expiredAt <= now})`
-    );
-    return null;
-  }
-
-  // *Performance Trick* บันทึก Click แบบไม่ต้องรอ (Fire-and-forget)
-  // เพื่อให้ User ได้ Redirect เร็วที่สุด
-  prisma.click
-    .create({
-      data: {
-        linkId: link.id,
-        ip: ip,
-        userAgent: uaString,
-        referrer: referrer || null,
-      },
-    })
-    .catch((err) => {
-      logger.error(`Failed to record click for link ${link.id}:`, err);
-    });
-
-  return link.targetUrl;
-};
-
-// Finds links by owner ID.
+/**
+ * @function findLinksByOwner
+ * @description ดึงลิงก์ทั้งหมดของ User พร้อม Pagination และ Search
+ */
 const findLinksByOwner = async (ownerId, page = 1, limit = 9, search = "") => {
   const skip = (page - 1) * limit;
   const now = getNow();
 
-  // 1. สร้างเงื่อนไขการค้นหา (Base Where Clause)
   const baseWhere = { ownerId };
-
-  // ถ้ามี search ให้เพิ่มเงื่อนไข OR
   if (search) {
     baseWhere.AND = {
       OR: [
@@ -192,16 +168,10 @@ const findLinksByOwner = async (ownerId, page = 1, limit = 9, search = "") => {
     };
   }
 
-  // 2. ดึงข้อมูล (Transaction)
-  // เราต้องนับแยก:
-  // - totalMatched: จำนวนที่ตรงกับ Search (ใช้ทำ Pagination)
-  // - stats: สถิติภาพรวมของ User (ไม่สน Search) เพื่อโชว์ใน Cards
   const [totalMatched, links, totalLinks, activeLinks] =
     await prisma.$transaction([
-      // A. นับจำนวนที่ตรงกับ Search (เพื่อทำ Pagination)
       prisma.link.count({ where: baseWhere }),
 
-      // B. ดึงข้อมูลลิงก์ (Pagination + Search)
       prisma.link.findMany({
         where: baseWhere,
         orderBy: { createdAt: "desc" },
@@ -210,10 +180,8 @@ const findLinksByOwner = async (ownerId, page = 1, limit = 9, search = "") => {
         include: { _count: { select: { clicks: true } } },
       }),
 
-      // C. นับลิงก์ทั้งหมดของ User (ไม่สน Search)
       prisma.link.count({ where: { ownerId } }),
 
-      // D. นับลิงก์ที่ Active (ไม่สน Search)
       prisma.link.count({
         where: {
           ownerId,
@@ -223,63 +191,57 @@ const findLinksByOwner = async (ownerId, page = 1, limit = 9, search = "") => {
       }),
     ]);
 
-  // คำนวณ Inactive
-  const inactiveLinks = totalLinks - activeLinks;
-
   return {
     links,
     meta: {
-      total: totalMatched, // ใช้สำหรับคำนวณหน้า (Page 1 of X)
+      total: totalMatched,
       page,
       limit,
-      totalPages: Math.ceil(totalMatched / limit),
+      totalPages: Math.ceil(totalMatched / limit) || 1,
     },
-    // ส่งสถิติแยกออกมาต่างหาก
     stats: {
       total: totalLinks,
       active: activeLinks,
-      inactive: inactiveLinks,
+      inactive: totalLinks - activeLinks,
     },
   };
 };
 
-// อัปเดตลิงก์ (เปลี่ยน URL, ต่ออายุ, แก้ QR)
+/**
+ * @function updateLink
+ * @description แก้ไขลิงก์ (URL, QR Options, Status, Renew)
+ */
 const updateLink = async (linkId, ownerId, data) => {
-  const link = await prisma.link.findFirst({ where: { id: linkId, ownerId } });
-  if (!link) throw new Error("Link not found...");
+  const link = await prisma.link.findFirst({
+    where: { id: linkId, ownerId },
+  });
+
+  if (!link) {
+    throw new AppError("Link not found or you do not have permission.", 404);
+  }
 
   let updateData = {};
 
-  // จัดการรูป QR (ถ้ามีการอัปโหลดใหม่)
-  if (data.qrOptions) {
-    // Copy object มาเพื่อแก้ไข
-    let finalOptions = { ...data.qrOptions };
+  if (data.targetUrl) updateData.targetUrl = data.targetUrl;
+  if (data.disabled !== undefined) updateData.disabled = data.disabled;
 
-    // เช็คว่าเป็น Base64 รูปใหม่หรือไม่?
+  if (data.renew) {
+    const now = getNow();
+    updateData.expiredAt = addDays(now, 30);
+    updateData.disabled = false;
+  }
+
+  if (data.qrOptions) {
+    let finalOptions = { ...data.qrOptions };
     if (finalOptions.image && finalOptions.image.startsWith("data:image")) {
       try {
         const logoUrl = await saveLogoFile(link.slug, finalOptions.image);
-        if (logoUrl) {
-          finalOptions.image = logoUrl;
-        }
+        if (logoUrl) finalOptions.image = logoUrl;
       } catch (err) {
-        console.error("Failed to save logo:", err);
+        logger.error(`Failed to save logo for link ${link.slug}:`, err);
       }
     }
-
-    // บันทึกลง DB (Prisma field Json)
     updateData.qrOptions = finalOptions;
-  }
-
-  if (data.disabled !== undefined) {
-    updateData.disabled = data.disabled;
-  }
-
-  if (data.renew) {
-    /* ...Logic Renew... */
-  }
-  if (data.targetUrl) {
-    updateData.targetUrl = data.targetUrl;
   }
 
   if (Object.keys(updateData).length === 0) return link;
@@ -290,36 +252,59 @@ const updateLink = async (linkId, ownerId, data) => {
   });
 };
 
-// ลบลิงก์
+/**
+ * @function deleteLink
+ * @description ลบลิงก์ถาวร
+ */
 const deleteLink = async (linkId, ownerId) => {
-  // ต้องเช็ค ownerId เสมอ เพื่อไม่ให้ลบของคนอื่น
   const link = await prisma.link.findFirst({
     where: { id: linkId, ownerId },
   });
 
   if (!link) {
-    throw new Error("Link not found or user does not have permission.");
+    throw new AppError("Link not found or you do not have permission.", 404);
   }
 
-  // ลบรูป Logo เก่าทิ้งด้วย (ถ้ามี) -> ควรเพิ่ม Logic นี้
-  // await deleteQrConfig(link.slug);
-
-  await prisma.link.delete({
-    where: { id: linkId },
-  });
-
+  await prisma.link.delete({ where: { id: linkId } });
   return { message: "Link deleted successfully." };
 };
 
-// ลบลิงก์ขยะ (Anonymous หมดอายุ) สำหรับ Cron Job
+/**
+ * @function getAndRecordClick
+ * @description ดึง URL ปลายทาง และบันทึกสถิติการคลิก (ใช้โดย Redirect Controller)
+ */
+const getAndRecordClick = async (slug, ip, uaString, referrer) => {
+  const now = getNow();
+  const link = await prisma.link.findUnique({ where: { slug } });
+
+  if (!link || link.disabled || link.expiredAt <= now) return null;
+
+  prisma.click
+    .create({
+      data: {
+        linkId: link.id,
+        ip: ip,
+        userAgent: uaString,
+        referrer: referrer || null,
+      },
+    })
+    .catch((err) => {
+      logger.error(`Failed to record click for ${slug}:`, err);
+    });
+
+  return link.targetUrl;
+};
+
+/**
+ * @function deleteExpiredAnonymousLinks
+ * @description Cron Job function เพื่อลบลิงก์ขยะ
+ */
 const deleteExpiredAnonymousLinks = async () => {
   const now = getNow();
   const result = await prisma.link.deleteMany({
     where: {
       ownerId: null,
-      expiredAt: {
-        lte: now, // น้อยกว่าหรือเท่ากับตอนนี้
-      },
+      expiredAt: { lte: now },
     },
   });
   return result.count;
@@ -327,9 +312,9 @@ const deleteExpiredAnonymousLinks = async () => {
 
 module.exports = {
   createLink,
-  getAndRecordClick,
   findLinksByOwner,
   updateLink,
   deleteLink,
+  getAndRecordClick,
   deleteExpiredAnonymousLinks,
 };

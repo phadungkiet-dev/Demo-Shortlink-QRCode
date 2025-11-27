@@ -1,58 +1,75 @@
 const { z } = require("zod");
 
-// Schema สำหรับการ "สร้างลิงก์"
+/**
+ * Common Rules: กฎที่ใช้ร่วมกันบ่อยๆ
+ */
+const passwordRule = z
+  .string()
+  .min(8, "Password must be at least 8 characters long.");
+// .regex(/[A-Z]/, "Password must contain at least one uppercase letter.") // (Optional: ถ้าต้องการเข้มงวด)
+// .regex(/[0-9]/, "Password must contain at least one number.");         // (Optional)
+
+/**
+ * Schema: สร้างลิงก์ใหม่ (Create Link)
+ */
 const createLinkSchema = z.object({
   targetUrl: z
     .string()
-    .trim() // ตัดช่องว่างหน้าหลังออกอัตโนมัติ
+    .trim()
     .min(1, "Target URL is required.")
-    .url("Invalid URL format."), // บังคับว่าเป็น URL (ต้องมี http/https)
+    .url("Invalid URL format (must verify http/https)."), // ต้องเป็น URL ที่ถูกต้อง
+
   slug: z
     .string()
     .trim()
     .min(3, "Slug must be at least 3 characters.")
     .max(30, "Slug must be at most 30 characters.")
     .regex(
-      /^[a-zA-Z0-9_-]+$/, // อนุญาตแค่ตัวอักษร, ตัวเลข, ขีดกลาง, ขีดล่าง
-      "Slug can only contain letters, numbers, hyphens, and underscores."
+      /^[a-zA-Z0-9_-]+$/,
+      "Slug can only contain letters, numbers, hyphens (-), and underscores (_)."
     )
-    .optional(), // เป็น Optional เพราะถ้าไม่กรอก เราจะสุ่มให้
+    .optional(), // ถ้าไม่ส่งมา ระบบจะ Auto Generate ให้
 });
 
-// Schema สำหรับการ "อัปเดตลิงก์" (เช่น ต่ออายุ)
+/**
+ * Schema: แก้ไขลิงก์ (Update Link)
+ */
 const updateLinkSchema = z.object({
-  renew: z.boolean().optional(), // รับค่า true/false
+  renew: z.boolean().optional(),
   targetUrl: z.string().trim().url("Invalid URL format.").optional(),
-  qrOptions: z.record(z.any()).optional(), // รับ JSON object อะไรก็ได้ (ยืดหยุ่น)
+  qrOptions: z.record(z.any()).optional(), // รับ JSON Object (ยืดหยุ่นสำหรับ Config QR)
   disabled: z.boolean().optional(),
 });
 
-// Schema สำหรับ "Login"
+/**
+ * Schema: เข้าสู่ระบบ (Login)
+ */
 const loginSchema = z.object({
-  email: z.string().email("Invalid email format."), // เช็ครูปแบบอีเมล
+  email: z.string().email("Invalid email format."),
   password: z.string().min(1, "Password is required."),
 });
 
-// Schema สำหรับ "เปลี่ยนรหัสผ่าน"
+/**
+ * Schema: เปลี่ยนรหัสผ่าน (Change Password)
+ */
 const changePasswordSchema = z
   .object({
     oldPassword: z.string().min(1, "Old password is required."),
-    newPassword: z
-      .string()
-      .min(8, "New password must be at least 8 characters."),
+    newPassword: passwordRule,
     confirmPassword: z.string(),
   })
-  // .refine คือไม้ตายของ Zod ใช้เช็คเงื่อนไขข้าม field
   .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "New passwords don't match.",
-    path: ["confirmPassword"], // บอกตำแหน่งที่จะแสดง Error
+    message: "New passwords do not match.",
+    path: ["confirmPassword"], // ชี้เป้า Error ไปที่ field นี้
   });
 
-// Schema สำหรับ "สมัครสมาชิกใหม่" (Register)
+/**
+ * Schema: ลงทะเบียน (Register)
+ */
 const registerSchema = z
   .object({
     email: z.string().email("Invalid email format."),
-    password: z.string().min(8, "Password must be at least 8 characters long."),
+    password: passwordRule,
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {

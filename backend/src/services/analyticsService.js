@@ -1,115 +1,78 @@
 const { prisma } = require("../config/prisma");
-const logger = require("../utils/logger");
+const AppError = require("../utils/AppError");
 
+/**
+ * @function getStatsForLink
+ * @description ดึงข้อมูลสถิติเชิงลึกของลิงก์ (กราฟ, Referrer, Device)
+ * @param {number} linkId
+ * @param {number} ownerId - ใช้ตรวจสอบสิทธิ์ความเป็นเจ้าของ
+ */
 const getStatsForLink = async (linkId, ownerId) => {
-  // ตรวจสอบความเป็นเจ้าของก่อน (Security First)
+  // 1. ตรวจสอบความเป็นเจ้าของ (Security)
   const link = await prisma.link.findFirst({
-    where: {
-      id: linkId,
-      ownerId: ownerId,
-    },
+    where: { id: linkId, ownerId },
   });
 
   if (!link) {
-    throw new Error("Link not found or user does not have permission.");
+    throw new AppError("Link not found or permission denied.", 404);
   }
 
-  // นับยอดคลิกรวม
+  // 2. ดึงยอดรวม
   const totalClicks = await prisma.click.count({
-    where: { linkId: linkId },
+    where: { linkId },
   });
 
-  // เตรียมข้อมูลกราฟเส้น (ยอดคลิกย้อนหลัง 7 วัน)
+  // 3. ดึงข้อมูลย้อนหลัง 7 วัน (สำหรับกราฟ)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const clicksOverTime = await prisma.click.groupBy({
-    by: ["createdAt"], // This is not ideal, should be truncated
+  // ดึง Log ทั้งหมดในช่วง 7 วัน (เลือกเฉพาะวันที่เพื่อประหยัด RAM)
+  const recentClicks = await prisma.click.findMany({
     where: {
-      linkId: linkId,
-      createdAt: {
-        gte: sevenDaysAgo,
-      },
+      linkId,
+      createdAt: { gte: sevenDaysAgo },
     },
-    _count: {
-      id: true,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
+    select: { createdAt: true },
   });
 
-  // ดึง Log ทั้งหมดใน 7 วันมา (เลือกเฉพาะ field วันที่เพื่อความเบา)
-  const clicksByDay = await prisma.click.findMany({
-    where: {
-      linkId: linkId,
-      createdAt: {
-        gte: sevenDaysAgo,
-      },
-    },
-    select: {
-      createdAt: true,
-    },
-  });
-
-  // Group ข้อมูลตามวัน (YYYY-MM-DD) ด้วย JavaScript
+  // Aggregate Data: แปลงเป็น format { "2023-10-25": 5, "2023-10-26": 12 }
   const dailyCounts = {};
-  clicksByDay.forEach((click) => {
-    const day = click.createdAt.toISOString().split("T")[0];
-    dailyCounts[day] = (dailyCounts[day] || 0) + 1;
+  recentClicks.forEach((click) => {
+    // ใช้ toISOString().split('T')[0] เพื่อให้ได้ YYYY-MM-DD ที่เป็นมาตรฐาน (UTC)
+    // หมายเหตุ: ถ้าต้องการตาม Timezone ไทย อาจต้องใช้ library 'date-fns-tz' หรือคำนวณ offset
+    const dateKey = click.createdAt.toISOString().split("T")[0];
+    dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
   });
 
-  // หา Top 10 Referrers (มาจากเว็บไหนบ้าง?)
+  // 4. Top Referrers
   const topReferrers = await prisma.click.groupBy({
     by: ["referrer"],
-    where: {
-      linkId: linkId,
-      referrer: {
-        not: null,
-      },
-    },
-    _count: {
-      id: true,
-    },
-    orderBy: {
-      _count: {
-        id: "desc",
-      },
-    },
+    where: { linkId, referrer: { not: null } },
+    _count: { id: true },
+    orderBy: { _count: { id: "desc" } },
     take: 10,
   });
 
-  // หา Top 5 User Agents (ใช้อุปกรณ์อะไร?)
+  // 5. Top User Agents
   const topUserAgents = await prisma.click.groupBy({
     by: ["userAgent"],
-    where: {
-      linkId: linkId,
-      userAgent: {
-        not: null,
-      },
-    },
-    _count: {
-      id: true,
-    },
-    orderBy: {
-      _count: {
-        id: "desc",
-      },
-    },
+    where: { linkId, userAgent: { not: null } },
+    _count: { id: true },
+    orderBy: { _count: { id: "desc" } },
     take: 5,
   });
 
   return {
-    link,
+    link, // ส่งข้อมูลลิงก์กลับไปด้วย (เผื่อ Frontend อยากแสดงชื่อ/URL)
     totalClicks,
     dailyCounts,
     topReferrers: topReferrers.map((r) => ({
       referrer: r.referrer || "Direct",
       count: r._count.id,
     })),
-    topUserAgents: topUserAgents.map((ua) => ({
-      userAgent: ua.userAgent,
-      count: ua._count.id,
+    topUserAgents: topUserAgents.map((u) => ({
+      userAgent: u.userAgent,
+      count: u._count.id,
     })),
   };
 };

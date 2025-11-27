@@ -12,56 +12,67 @@ datasource db {
 
 // --- ตารางผู้ใช้งาน (Users) ---
 model User {
-  id           Int     @id @default(autoincrement()) // Primary Key รันเลขเอง
-  provider     String // provider: ระบุว่าสมัครผ่านอะไร 'LOCAL' (Email/Pass) หรือ 'GOOGLE'
-  providerId   String? @unique // providerId: เก็บ ID จาก Google (ถ้า Login ผ่าน Google)
+  id           Int     @id @default(autoincrement())
   email        String  @unique
-  passwordHash String? // เก็บ Password ที่ Hash แล้ว (ถ้า Login ผ่าน Google จะเป็น null)
-  role         String  @default("USER") // 'ADMIN' หรือ 'USER'
+  passwordHash String? @map("password_hash") // Map ชื่อ column ใน DB
+  provider     String  @default("LOCAL") // 'LOCAL', 'GOOGLE'
+  providerId   String? @map("provider_id")
+  role         String  @default("USER")
+  isBlocked    Boolean @default(false) @map("is_blocked")
+  linkLimit    Int     @default(10) @map("link_limit")
 
-  isBlocked Boolean @default(false) // สถานะโดนแบนหรือไม่
+  // Timestamps (Create/Update อัตโนมัติ)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  links Link[] // ความสัมพันธ์: User 1 คน มีได้หลาย Link
+  // Relations
+  links Link[]
 
-  linkLimit Int      @default(10)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // ตั้งชื่อตารางจริงใน DB ว่า 'users' (พหูพจน์)
+  @@map("users")
 }
 
 // --- ตารางลิงก์ (Links) ---
 model Link {
   id        Int      @id @default(autoincrement())
-  slug      String   @unique // รหัสต่อท้าย URL (เช่น /r/xyz123) ห้ามซ้ำ
-  targetUrl String // ลิงก์ปลายทาง
-  ownerId   Int? // ownerId: ใครเป็นเจ้าของ? (ถ้าเป็น null คือ Anonymous)
-  owner     User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade) // ความสัมพันธ์: ผูกกับ User, ถ้า User ถูกลบ ลิงก์นี้จะหายไปด้วย (Cascade)
-  isPublic  Boolean  @default(false)
-  expiredAt DateTime // วันหมดอายุ
-  disabled  Boolean  @default(false) // ปิดใช้งานชั่วคราวโดยเจ้าของหรือ Admin
-  clicks    Click[] // ความสัมพันธ์: Link 1 อัน มี Log การคลิกได้หลายครั้ง
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  slug      String   @unique
+  targetUrl String   @map("target_url")
+  isPublic  Boolean  @default(false) @map("is_public")
+  disabled  Boolean  @default(false)
+  expiredAt DateTime @map("expired_at")
 
-  // เก็บการตั้งค่า QR Code (สี, โลโก้, รูปทรง) เป็น JSON 
-  // ข้อดี: ยืดหยุ่นมาก ไม่ต้องแก้ Schema บ่อยๆ
-  qrOptions Json?
+  // JSON เก็บ Config QR Code (ยืดหยุ่น ไม่ต้องแก้ Schema บ่อย)
+  qrOptions Json? @map("qr_options")
 
-  // ทำ Index ที่ ownerId เพื่อให้ค้นหา "ลิงก์ของฉัน" ได้เร็วขึ้น
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  ownerId Int?    @map("owner_id")
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  clicks  Click[]
+
+  // Indexes เพื่อความเร็วในการค้นหาของ Admin และ User
   @@index([ownerId])
+  @@index([createdAt])
+  @@map("links")
 }
 
 // --- ตารางสถิติการคลิก (Clicks) ---
 model Click {
   id        Int      @id @default(autoincrement())
-  linkId    Int
-  link      Link     @relation(fields: [linkId], references: [id], onDelete: Cascade) // ความสัมพันธ์: ผูกกับ Link, ถ้า Link ถูกลบ Log นี้จะหายไปด้วย (Cascade)
-  ip        String // IP ของคนที่คลิก (ใช้ทำ Unique Visitor ได้คร่าวๆ)
-  userAgent String? // ข้อมูล Browser/Device
-  referrer  String? // มาจากเว็บไหน
-  createdAt DateTime @default(now()) // เวลาที่คลิก
+  ip        String
+  userAgent String?  @map("user_agent")
+  referrer  String?
+  createdAt DateTime @default(now()) @map("created_at")
 
-  // ทำ Index ที่ linkId เพื่อให้ดึง "สถิติของลิงก์นี้" ได้เร็ว
+  // Relations
+  linkId Int  @map("link_id")
+  link   Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
   @@index([linkId])
+  @@index([createdAt]) // ช่วยให้ query กราฟย้อนหลังเร็วขึ้น
+  @@map("clicks")
 }
 
 // --- ตาราง Session (สำหรับ express-session) ---

@@ -2,48 +2,79 @@ const winston = require("winston");
 require("winston-daily-rotate-file");
 const path = require("path");
 
-// กำหนดรูปแบบ Log: [เวลา] ระดับความรุนแรง: ข้อความ {ข้อมูลเสริม}
+// กำหนด Timezone ให้ตรงกับ System (Asia/Bangkok)
+const timezoned = () => {
+  return new Date().toLocaleString("en-US", {
+    timeZone: process.env.TZ || "Asia/Bangkok",
+  });
+};
+
+/**
+ * Format การแสดงผลของ Log
+ * รูปแบบ: [TIMESTAMP] LEVEL: MESSAGE {METADATA}
+ */
 const logFormat = winston.format.combine(
-  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+  winston.format.timestamp({ format: timezoned }),
   winston.format.printf(({ timestamp, level, message, ...args }) => {
     const argsString = Object.keys(args).length
-      ? JSON.stringify(args, null, 2)
+      ? `\n${JSON.stringify(args, null, 2)}` // ถ้ามีข้อมูลเสริม ให้ขึ้นบรรทัดใหม่และ Pretty Print
       : "";
     return `[${timestamp}] ${level.toUpperCase()}: ${message} ${argsString}`;
   })
 );
 
+/**
+ * Logger Instance หลักของระบบ
+ * - Development: แสดง Debug Log สีสันสวยงามใน Console
+ * - Production: บันทึกลงไฟล์ แยกตามวัน (Rotate) เพื่อประหยัดพื้นที่และดูย้อนหลังได้
+ */
 const logger = winston.createLogger({
-  // ใน Production จะเก็บแค่ Info ขึ้นไป (ไม่เก็บ Debug) เพื่อประหยัดที่
   level: process.env.NODE_ENV === "production" ? "info" : "debug",
   format: logFormat,
   transports: [
-    // แสดงผลใน Console (เพื่อให้ Developer เห็นตอนรัน)
+    // Console Transport (แสดงผลหน้าจอ)
     new winston.transports.Console({
-      format: winston.format.combine(winston.format.colorize(), logFormat),
+      format: winston.format.combine(
+        winston.format.colorize(), // ใส่สีตามระดับความรุนแรง
+        logFormat
+      ),
     }),
-    // บันทึกลงไฟล์ (สำคัญมากสำหรับ Production)
-    // ใช้ DailyRotateFile เพื่อแบ่งไฟล์ตามวัน และลบไฟล์เก่าอัตโนมัติ
+
+    // File Transport (บันทึกลงไฟล์) - ทำ Daily Rotate
     new winston.transports.DailyRotateFile({
       filename: path.join("logs", "app-%DATE%.log"), // เก็บในโฟลเดอร์ logs/
       datePattern: "YYYY-MM-DD",
-      zippedArchive: true, // บีบอัดไฟล์เก่าเป็น .gz เพื่อประหยัดพื้นที่
-      maxSize: "20m", // ถ้าวันนั้น Log เยอะเกิน 20MB ให้ตัดไฟล์ใหม่
-      maxFiles: "90d", // เก็บย้อนหลัง 90 วัน
+      zippedArchive: true, // บีบอัดไฟล์เก่าเป็น .gz
+      maxSize: "20m", // ขนาดสูงสุดต่อไฟล์ 20MB
+      maxFiles: "14d", // เก็บย้อนหลัง 14 วัน (ปรับจาก 90 วัน เพื่อประหยัดที่)
+      level: "info", // เก็บตั้งแต่ Info ขึ้นไป
+    }),
+
+    // Error File Transport (แยก Error หนักๆ ไว้อีกไฟล์เพื่อง่ายต่อการตรวจสอบ)
+    new winston.transports.DailyRotateFile({
+      filename: path.join("logs", "error-%DATE%.log"),
+      datePattern: "YYYY-MM-DD",
+      zippedArchive: true,
+      maxSize: "20m",
+      maxFiles: "30d",
+      level: "error", // เก็บเฉพาะ Error เท่านั้น
     }),
   ],
 });
 
-// Adapter สำหรับเชื่อมต่อกับ Morgan (HTTP Request Logger) หรือ Code เดิม
+/**
+ * Logger Adapter สำหรับใช้งานร่วมกับ Morgan (HTTP Request Logger)
+ * แปลงข้อความจาก Morgan ให้มาลงที่ Winston แทน Console.log
+ */
 const loggerAdapter = {
-  info: (message, ...args) => logger.info(message, ...args),
-  warn: (message, ...args) => logger.warn(message, ...args),
-  error: (message, ...args) => logger.error(message, ...args),
-  debug: (message, ...args) => logger.debug(message, ...args),
-  // Stream: ฟังก์ชันพิเศษเพื่อให้ Morgan มองเห็น Logger นี้เป็นเหมือน File Stream
   stream: {
     write: (message) => logger.info(message.trim()),
   },
+  // Shortcut method ให้เรียกใช้ได้ง่ายๆ เหมือน console.log
+  info: (msg, meta) => logger.info(msg, meta),
+  warn: (msg, meta) => logger.warn(msg, meta),
+  error: (msg, meta) => logger.error(msg, meta),
+  debug: (msg, meta) => logger.debug(msg, meta),
 };
 
 module.exports = loggerAdapter;

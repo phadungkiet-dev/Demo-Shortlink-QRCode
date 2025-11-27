@@ -7,12 +7,8 @@ const redirectController = require("../controllers/redirectController");
 // -------------------------------------------------------------------
 
 // GET /r/:slug
-// รับค่า 'slug' จาก URL แล้วส่งให้ Controller จัดการ
-//
-// *ข้อสังเกตสำคัญ:*
-// Route นี้ถูก Mount ไว้ใน app.js *ก่อน* Middleware ป้องกัน CSRF
-// เพราะการ Redirect เป็น Public Action ที่ไม่ต้องใช้ Token ความปลอดภัย
-// (ใครๆ ก็คลิกลิงก์ได้)
+// หน้าที่: รับค่า 'slug' จาก URL -> ค้นหาปลายทาง -> Redirect ผู้ใช้
+// หมายเหตุ: Route นี้ถูก Mount นอก CSRF Protection ใน app.js (เพราะเป็น Public Action)
 router.get("/:slug", redirectController.handleRedirect);
 
 module.exports = router;

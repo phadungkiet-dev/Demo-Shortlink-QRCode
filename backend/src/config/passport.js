@@ -3,7 +3,6 @@ const LocalStrategy = require("passport-local").Strategy;
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const bcrypt = require("bcrypt");
 const { prisma } = require("./prisma");
-const logger = require("../utils/logger");
 
 // -------------------------------------------------------------------
 // Local Strategy (Login ด้วย Email/Password)
@@ -11,46 +10,33 @@ const logger = require("../utils/logger");
 passport.use(
   new LocalStrategy(
     {
-      usernameField: "email", // บอกว่าเราใช้ field 'email' เป็น username
+      usernameField: "email",
       passwordField: "password",
     },
     async (email, password, done) => {
       try {
-        // หา User จาก Email
+        // 1. หา User จาก Email
         const user = await prisma.user.findUnique({ where: { email } });
 
-        // เช็คว่ามี User ไหม และต้องเป็นคนละประเภทกับ Google (provider='LOCAL')
-        if (!user || user.provider !== "LOCAL") {
-          return done(null, false, {
-            message: "Invalid email or password.",
-          });
+        // 2. ถ้าไม่เจอ User หรือเป็น User ที่สมัครผ่าน Google (ไม่มีรหัสผ่าน)
+        if (!user || !user.passwordHash) {
+          return done(null, false, { message: "Invalid email or password." });
         }
 
-        // (Double Check) ถ้าไม่มี Hash แปลว่าข้อมูลผิดพลาด
-        if (!user.passwordHash) {
-          return done(null, false, {
-            message: "Invalid login method. Try Google.",
-          });
-        }
-
-        // ตรวจสอบรหัสผ่าน (Compare Hash)
+        // 3. ตรวจสอบรหัสผ่าน
         const isMatch = await bcrypt.compare(password, user.passwordHash);
         if (!isMatch) {
-          return done(null, false, {
-            message: "Invalid email or password.",
-          });
+          return done(null, false, { message: "Invalid email or password." });
         }
 
-        // *สำคัญ* เช็คสถานะโดนแบน (Blocked)
+        // 4. เช็คสถานะโดนแบน
         if (user.isBlocked) {
           return done(null, false, {
-            message: "Your account has been suspended by an administrator.",
+            message: "Your account has been suspended.",
           });
         }
 
-        // ผ่านทุกด่าน -> ส่ง User กลับไป (ตัด Password ทิ้งเพื่อความปลอดภัย)
-        const { passwordHash, ...userWithoutPass } = user;
-        return done(null, userWithoutPass);
+        return done(null, user);
       } catch (error) {
         return done(error);
       }
@@ -71,55 +57,42 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        // ดึง Email จาก Profile ที่ Google ส่งมา
         const email = profile.emails?.[0]?.value;
         if (!email) {
-          return done(
-            new Error("Google profile did not return an email."),
-            null
-          );
+          return done(new Error("No email found from Google profile."), null);
         }
 
-        // เช็คว่ามี User นี้ในระบบหรือยัง
-        const existingUser = await prisma.user.findUnique({
-          where: { email },
-        });
+        // 1. เช็คว่ามี User นี้หรือยัง
+        let user = await prisma.user.findUnique({ where: { email } });
 
-        if (existingUser) {
-          // กรณีเจอ User เก่า
-
-          // Safety Check: ถ้าอีเมลนี้เคยสมัครแบบ LOCAL ไว้ ห้ามให้เข้าผ่าน Google
-          // (ป้องกันการสวมรอย หรือความสับสนของข้อมูล)
-          if (existingUser.provider !== "GOOGLE") {
+        if (user) {
+          // 2. ถ้ามีแล้ว -> เช็คว่า Login ถูกวิธีไหม
+          if (user.provider !== "GOOGLE") {
             return done(null, false, {
               message:
-                "Email already registered with a different method (e.g., local password).",
+                "This email is registered with password. Please login normally.",
             });
           }
-
-          // Safety Check: เช็คโดนแบน
-          if (existingUser.isBlocked) {
+          // 3. เช็คโดนแบน
+          if (user.isBlocked) {
             return done(null, false, {
-              message: "Your account has been suspended by an administrator.",
+              message: "Your account has been suspended.",
             });
           }
-          // Login สำเร็จ
-          const { passwordHash, ...userWithoutPass } = existingUser;
-          return done(null, userWithoutPass);
+        } else {
+          // 4. ถ้ายังไม่มี -> สร้าง User ใหม่ (Auto Register)
+          user = await prisma.user.create({
+            data: {
+              email: email,
+              provider: "GOOGLE",
+              providerId: profile.id,
+              role: "USER",
+              linkLimit: 10, // ให้ Limit เริ่มต้น
+            },
+          });
         }
 
-        // กรณี User ใหม่ -> สร้างสมาชิกใหม่เลย (Auto Register)
-        const newUser = await prisma.user.create({
-          data: {
-            email: email,
-            provider: "GOOGLE",
-            providerId: profile.id,
-            role: "USER",
-          },
-        });
-
-        const { passwordHash, ...userWithoutPass } = newUser;
-        return done(null, userWithoutPass);
+        return done(null, user);
       } catch (error) {
         return done(error);
       }
@@ -130,29 +103,21 @@ passport.use(
 // -------------------------------------------------------------------
 // Session Handling (Serialize / Deserialize)
 // -------------------------------------------------------------------
-
-// Serialize: ตอน Login สำเร็จ จะเก็บข้อมูลอะไรลง Session?
-// ตอบ: เก็บแค่ "User ID" ก็พอ (ประหยัดพื้นที่ Cookie)
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  done(null, user.id); // เก็บแค่ ID ลง Session Store
 });
 
-// Deserialize: ทุกครั้งที่ User ส่ง Request เข้ามา เราจะเอา ID จาก Session ไปดึงข้อมูล User เต็มๆ
 passport.deserializeUser(async (id, done) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
-    if (user) {
-      // *สำคัญมาก* เช็คสถานะโดนแบนอีกรอบตรงนี้
-      // ถ้า Admin กดแบนปุ๊บ -> User กดลิงก์ถัดไป -> Deserialize ทำงาน -> เจอบล็อก -> เด้งหลุดทันที
-      if (user.isBlocked) {
-        return done(null, false); // req.user จะกลายเป็น null (เหมือนไม่ได้ login)
-      }
 
-      const { passwordHash, ...userWithoutPass } = user;
-      done(null, userWithoutPass); // เอา User ใส่กลับเข้าไปใน req.user
-    } else {
-      done(null, false);
+    // Double Check: ถ้า User โดนลบหรือโดนแบนระหว่างที่ Session ยังค้างอยู่ ให้ดีดออก
+    if (!user || user.isBlocked) {
+      return done(null, false);
     }
+
+    const { passwordHash, ...userWithoutPass } = user;
+    done(null, userWithoutPass);
   } catch (error) {
     done(error, null);
   }
