@@ -48,7 +48,6 @@ export const useAuthStore = defineStore("auth", {
       try {
         // ส่ง Password ไป Backend (API จะจัดการ Session ให้เอง)
         const response = await api.post("/auth/login", { email, password });
-
         this.user = response.data;
 
         Swal.fire({
@@ -68,10 +67,13 @@ export const useAuthStore = defineStore("auth", {
       } catch (error) {
         // Error 401/400 จะถูก api.js แปลงมาเป็น error.message แล้ว
         console.error("Login failed:", error);
+        const displayMsg = error.message || "Invalid credentials";
+
         Swal.fire({
           icon: "error",
           title: "Login Failed",
-          text: error.message || "Invalid credentials",
+          text: displayMsg,
+          confirmButtonColor: "#4F46E5",
         });
         throw error; // โยนต่อให้ Component (LoginForm) จัดการ UI (เช่น หยุด Loading)
       }
@@ -103,7 +105,8 @@ export const useAuthStore = defineStore("auth", {
       } catch (error) {
         console.error("Registration failed:", error);
         // แสดง Error ที่ได้จาก Backend (เช่น Email ซ้ำ, รหัสไม่ตรง)
-        throw new Error(error.message || "Registration failed.");
+        const displayMsg = error.response?.data?.message || error.message || "Registration failed.";
+        throw new Error(displayMsg);
       }
     },
     // ----------------------------------------------------------------

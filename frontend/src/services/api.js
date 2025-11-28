@@ -41,36 +41,33 @@ api.interceptors.response.use(
   (error) => {
     const authStore = useAuthStore();
 
-    // ดึง Message จาก Backend (ที่ส่งมาจาก AppError) หรือใช้ Default text
-    let errorMessage = error.response?.data?.message || "Something went wrong.";
+    // ดึง Message จาก Backend ให้ถูกต้อง
+    // Backend เราส่ง { message: "..." } มาเสมอใน AppError
+    const serverMessage = error.response?.data?.message;
+    let errorMessage = serverMessage || "Something went wrong.";
     const status = error.response?.status;
 
     // --- Case 1: 401 Unauthorized (Session หมดอายุ / ยังไม่ Login) ---
     // ยกเว้น endpoint /auth/me และ /auth/login เพื่อไม่ให้เกิด Infinite Loop
-    if (
-      status === 401 &&
-      !error.config.url.includes("/auth/me") &&
-      !error.config.url.includes("/auth/login")
-    ) {
-      console.warn("Session expired. Logging out...");
-
-      authStore.logoutCleanup(); // ล้าง State หน้าบ้าน
-
-      // ดีดกลับไปหน้าแรก พร้อมแจ้งเตือน
-      router.push("/?login=true");
-
-      Swal.fire({
-        icon: "warning",
-        title: "Session Expired",
-        text: "Please log in again.",
-        timer: 3000,
-        showConfirmButton: false,
-        toast: true,
-        position: "top-end",
-      });
-
-      // ไม่ต้องส่ง Error ต่อ เพราะเราจัดการแล้ว
-      return Promise.reject(error);
+    if (status === 401) {
+      // ถ้าเป็น Endpoint เช็คสถานะหรือ Login ไม่ต้องเด้ง Logout ซ้ำ
+      if (
+        !error.config.url.includes("/auth/me") &&
+        !error.config.url.includes("/auth/login")
+      ) {
+        console.warn("Session expired. Logging out...");
+        authStore.logoutCleanup();
+        router.push("/?login=true");
+        Swal.fire({
+          icon: "warning",
+          title: "Session Expired",
+          text: "Please log in again.",
+          timer: 3000,
+          toast: true,
+          position: "top-end",
+          showConfirmButton: false,
+        });
+      }
     }
 
     // --- Case 2: 403 Forbidden (ไม่มีสิทธิ์ เช่น User จะลบลิงก์คนอื่น) ---

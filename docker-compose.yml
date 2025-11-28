@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: shortlink-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: P@ssw0rd1234
+      POSTGRES_DB: shortlinkqr
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Backend Service
+  backend:
+    build: ./backend
+    container_name: shortlink-backend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      # ใช้ชื่อ Service 'postgres' แทน localhost เพราะอยู่ใน Network เดียวกัน
+      DATABASE_URL: "postgresql://postgres:P@ssw0rd1234@postgres:5432/shortlinkqr?schema=public"
+      NODE_ENV: "production"
+      PORT: 3001
+      BASE_URL: "http://localhost:3001"
+      CORS_ORIGIN: "http://localhost:8080" # Frontend Nginx Port
+      SESSION_SECRET: "somesuperstrongsecretkey_changeme"
+      # ใส่ Google OAuth Key ที่นี่ด้วยถ้าจะใช้
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend/storage:/app/storage # Map โฟลเดอร์รูปภาพออกมาข้างนอก กันรูปหาย
+
+  # Frontend Service
+  frontend:
+    build: ./frontend
+    container_name: shortlink-frontend
+    restart: always
+    ports:
+      - "8080:80" # เข้าเว็บผ่าน http://localhost:8080
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

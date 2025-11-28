@@ -38,6 +38,9 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
+// สำคัญมากสำหรับ Docker/Nginx: ต้องบอกให้เชื่อใจ Proxy
+app.set("trust proxy", 1);
+
 // -------------------------------------------------------------------
 // Database & Session Store Setup
 // -------------------------------------------------------------------
@@ -93,9 +96,10 @@ app.use(
     resave: false, // ไม่บันทึกซ้ำถ้าไม่มีอะไรเปลี่ยน (ลด load DB)
     saveUninitialized: false, // ไม่สร้าง Session เปล่าถ้ายังไม่ Login
     rolling: true, // ต่ออายุ Session ทุกครั้งที่มีการใช้งาน
+    proxy: true, // บังคับให้รองรับ Proxy สำหรับ Secure Cookie
     cookie: {
       httpOnly: true, // ป้องกัน JS ฝั่ง Client เข้าถึง Cookie (กัน XSS)
-      secure: IS_PRODUCTION, // Production บังคับใช้ HTTPS
+      secure: IS_PRODUCTION && process.env.USE_HTTPS === 'true', // Production บังคับใช้ HTTPS
       maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS || "900000"), // 15 นาที
       sameSite: IS_PRODUCTION ? "lax" : "lax", // Policy การส่ง Cookie
     },
@@ -121,7 +125,7 @@ app.use("/r", redirectRouter);
 const csrfProtection = csurf({
   cookie: {
     httpOnly: true,
-    secure: IS_PRODUCTION,
+    secure: IS_PRODUCTION && process.env.USE_HTTPS === 'true',
     sameSite: IS_PRODUCTION ? "lax" : "lax",
   },
 });
