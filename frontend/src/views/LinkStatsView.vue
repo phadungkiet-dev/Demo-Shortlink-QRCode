@@ -10,6 +10,7 @@ import {
   Globe,
   Calendar,
   ExternalLink,
+  MapPin,
 } from "lucide-vue-next";
 import {
   Chart as ChartJS,
@@ -129,6 +130,9 @@ const commonOptions = {
       backgroundColor: "#ffffff",
       borderWidth: 2,
     },
+    bar: {
+      borderRadius: 6, // ทำมุมมนให้แท่งกราฟ
+    },
   },
 };
 
@@ -186,6 +190,25 @@ const referrerChartData = computed(() => {
         label: "Visits",
         backgroundColor: "#818cf8",
         borderRadius: 8,
+        data,
+      },
+    ],
+  };
+});
+
+// Country Chart
+const countryChartData = computed(() => {
+  if (!stats.value?.topCountries) return { labels: [], datasets: [] };
+  // ถ้าไม่มีข้อมูล ให้แสดงเป็น 'Unknown'
+  const labels = stats.value.topCountries.map((c) => c.country || "Unknown");
+  const data = stats.value.topCountries.map((c) => c.count);
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: "Visits",
+        backgroundColor: "#34d399", // สีเขียวมรกต
         data,
       },
     ],
@@ -329,7 +352,7 @@ const referrerChartData = computed(() => {
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div
-            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col"
+            class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col"
           >
             <div class="flex items-center justify-between mb-6">
               <h3
@@ -363,6 +386,31 @@ const referrerChartData = computed(() => {
             </div>
             <div class="flex-1 min-h-0 w-full">
               <Bar :data="referrerChartData" :options="commonOptions" />
+            </div>
+          </div>
+
+          <div
+            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col"
+          >
+            <div class="flex items-center justify-between mb-6">
+              <h3
+                class="text-lg font-bold text-gray-900 flex items-center gap-2"
+              >
+                <MapPin class="h-5 w-5 text-gray-400" /> Top Locations
+              </h3>
+              <span
+                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
+                >By Country</span
+              >
+            </div>
+            <div class="flex-1 min-h-0 w-full">
+              <Bar
+                :data="countryChartData"
+                :options="{
+                  ...commonOptions,
+                  indexAxis: 'y', // กราฟแนวนอน
+                }"
+              />
             </div>
           </div>
         </div>

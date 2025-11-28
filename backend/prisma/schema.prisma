@@ -21,6 +21,9 @@ model User {
   isBlocked    Boolean @default(false) @map("is_blocked")
   linkLimit    Int     @default(10) @map("link_limit")
 
+  resetPasswordToken   String?   @map("reset_password_token")
+  resetPasswordExpires DateTime? @map("reset_password_expires")
+
   // Timestamps (Create/Update อัตโนมัติ)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -60,10 +63,15 @@ model Link {
 
 // --- ตารางสถิติการคลิก (Clicks) ---
 model Click {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   ip        String
-  userAgent String?  @map("user_agent")
+  userAgent String? @map("user_agent")
   referrer  String?
+
+  // [New Features] Geo-Location
+  country String? // รหัสประเทศ (เช่น TH, US, JP)
+  city    String? // ชื่อเมือง (เช่น Bangkok, Tokyo)
+
   createdAt DateTime @default(now()) @map("created_at")
 
   // Relations

@@ -279,6 +279,21 @@ const getAndRecordClick = async (slug, ip, uaString, referrer) => {
 
   if (!link || link.disabled || link.expiredAt <= now) return null;
 
+  // Resolve Geo Location from IP
+  let country = null;
+  let city = null;
+
+  try {
+    // geoip.lookup อาจคืนค่า null ถ้าหาไม่เจอ (เช่น Localhost 127.0.0.1)
+    const geo = geoip.lookup(ip);
+    if (geo) {
+      country = geo.country; // e.g., 'TH', 'US'
+      city = geo.city; // e.g., 'Bangkok'
+    }
+  } catch (err) {
+    logger.warn(`GeoIP lookup failed for IP ${ip}:`, err);
+  }
+
   prisma.click
     .create({
       data: {

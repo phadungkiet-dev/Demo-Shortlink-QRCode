@@ -53,7 +53,16 @@ const getStatsForLink = async (linkId, ownerId) => {
     take: 10,
   });
 
-  // 5. Top User Agents
+  // 5. [New Feature] Top Countries 🌍
+  const topCountries = await prisma.click.groupBy({
+    by: ["country"],
+    where: { linkId, country: { not: null } }, // ไม่นับพวกหาไม่เจอ (null)
+    _count: { id: true },
+    orderBy: { _count: { id: "desc" } },
+    take: 5,
+  });
+
+  // 6. Top User Agents (Optional: ลดเหลือ 5 เพื่อความสะอาด)
   const topUserAgents = await prisma.click.groupBy({
     by: ["userAgent"],
     where: { linkId, userAgent: { not: null } },
@@ -63,12 +72,17 @@ const getStatsForLink = async (linkId, ownerId) => {
   });
 
   return {
-    link, // ส่งข้อมูลลิงก์กลับไปด้วย (เผื่อ Frontend อยากแสดงชื่อ/URL)
+    link,
     totalClicks,
     dailyCounts,
     topReferrers: topReferrers.map((r) => ({
       referrer: r.referrer || "Direct",
       count: r._count.id,
+    })),
+    // [New Data] ส่งกลับไป Frontend
+    topCountries: topCountries.map((c) => ({
+      country: c.country, // รหัสประเทศ เช่น 'TH'
+      count: c._count.id,
     })),
     topUserAgents: topUserAgents.map((u) => ({
       userAgent: u.userAgent,

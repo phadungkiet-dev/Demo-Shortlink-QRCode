@@ -298,155 +298,162 @@ const getUserInitials = (email) =>
           <div
             class="hidden md:block bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden"
           >
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50/50">
-                <tr>
-                  <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50/50">
+                  <tr>
+                    <th
+                      class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
+                    >
+                      User
+                    </th>
+                    <th
+                      class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
+                    >
+                      Role
+                    </th>
+                    <th
+                      class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
+                    >
+                      Limit
+                    </th>
+                    <th
+                      class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
+                    >
+                      Status
+                    </th>
+                    <th
+                      class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
+                    >
+                      Joined
+                    </th>
+                    <th
+                      class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase"
+                    >
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr
+                    v-for="user in users"
+                    :key="user.id"
+                    class="hover:bg-gray-50/50 transition-colors"
                   >
-                    User
-                  </th>
-                  <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
-                  >
-                    Role
-                  </th>
-                  <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
-                  >
-                    Limit
-                  </th>
-                  <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
-                  >
-                    Status
-                  </th>
-                  <th
-                    class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase"
-                  >
-                    Joined
-                  </th>
-                  <th
-                    class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase"
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <tr
-                  v-for="user in users"
-                  :key="user.id"
-                  class="hover:bg-gray-50/50 transition-colors"
-                >
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center">
-                      <div
-                        class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-200 shrink-0"
-                      >
-                        {{ getUserInitials(user.email) }}
-                      </div>
-                      <div class="ml-4">
-                        <div class="text-sm font-medium text-gray-900">
-                          {{ user.email }}
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="flex items-center">
+                        <div
+                          class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-200 shrink-0"
+                        >
+                          {{ getUserInitials(user.email) }}
                         </div>
-                        <div class="text-xs text-gray-500 capitalize">
-                          {{ user.provider.toLowerCase() }}
+                        <div class="ml-4">
+                          <div class="text-sm font-medium text-gray-900">
+                            {{ user.email }}
+                          </div>
+                          <div class="text-xs text-gray-500 capitalize">
+                            {{ user.provider.toLowerCase() }}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span
-                      class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border"
-                      :class="
-                        user.role === 'ADMIN'
-                          ? 'bg-purple-50 text-purple-700 border-purple-100'
-                          : 'bg-gray-50 text-gray-600 border-gray-200'
-                      "
-                      >{{ user.role }}</span
-                    >
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div
-                      class="text-sm font-bold text-gray-900 flex items-center gap-1"
-                    >
-                      {{ user.linkLimit || 10 }}
-                      <span class="text-xs font-normal text-gray-500"
-                        >links</span
-                      >
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span
-                      class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border items-center gap-1.5"
-                      :class="
-                        user.isBlocked
-                          ? 'bg-red-50 text-red-700 border-red-100'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                      "
-                    >
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
                       <span
-                        class="w-1.5 h-1.5 rounded-full"
+                        class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border"
                         :class="
-                          user.isBlocked ? 'bg-red-500' : 'bg-emerald-500'
+                          user.role === 'ADMIN'
+                            ? 'bg-purple-50 text-purple-700 border-purple-100'
+                            : 'bg-gray-50 text-gray-600 border-gray-200'
                         "
-                      ></span>
-                      {{ user.isBlocked ? "Blocked" : "Active" }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {{ formatDate(user.createdAt) }}
-                  </td>
-                  <td
-                    class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
-                  >
-                    <div class="flex items-center justify-end gap-2">
-                      <button
-                        @click="handleViewLinks(user)"
-                        class="p-2 text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
-                        title="View User Links"
+                        >{{ user.role }}</span
                       >
-                        <LinkIcon class="w-4 h-4" />
-                      </button>
-                      <button
-                        @click="handleEditLimit(user)"
-                        class="p-2 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
-                        title="Set Link Limit"
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div
+                        class="text-sm font-bold text-gray-900 flex items-center gap-1"
                       >
-                        <Gauge class="w-4 h-4" />
-                      </button>
-                      <button
-                        @click="handleUpdateStatus(user, !user.isBlocked)"
-                        :disabled="isUpdating.includes(user.id)"
-                        class="p-2 rounded-lg transition-colors border"
+                        {{ user.linkLimit || 10 }}
+                        <span class="text-xs font-normal text-gray-500"
+                          >links</span
+                        >
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span
+                        class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border items-center gap-1.5"
                         :class="
                           user.isBlocked
-                            ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
-                            : 'text-orange-500 border-orange-200 hover:bg-orange-50'
+                            ? 'bg-red-50 text-red-700 border-red-100'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100'
                         "
                       >
-                        <Loader2
-                          v-if="isUpdating.includes(user.id)"
-                          class="w-4 h-4 animate-spin"
-                        />
-                        <template v-else>
-                          <CheckCircle v-if="user.isBlocked" class="w-4 h-4" />
-                          <Ban v-else class="w-4 h-4" />
-                        </template>
-                      </button>
-                      <button
-                        @click="handleDeleteUser(user.id, user.email)"
-                        :disabled="isDeleting.includes(user.id)"
-                        class="p-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 class="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                        <span
+                          class="w-1.5 h-1.5 rounded-full"
+                          :class="
+                            user.isBlocked ? 'bg-red-500' : 'bg-emerald-500'
+                          "
+                        ></span>
+                        {{ user.isBlocked ? "Blocked" : "Active" }}
+                      </span>
+                    </td>
+                    <td
+                      class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                    >
+                      {{ formatDate(user.createdAt) }}
+                    </td>
+                    <td
+                      class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
+                    >
+                      <div class="flex items-center justify-end gap-2">
+                        <button
+                          @click="handleViewLinks(user)"
+                          class="p-2 text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                          title="View User Links"
+                        >
+                          <LinkIcon class="w-4 h-4" />
+                        </button>
+                        <button
+                          @click="handleEditLimit(user)"
+                          class="p-2 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                          title="Set Link Limit"
+                        >
+                          <Gauge class="w-4 h-4" />
+                        </button>
+                        <button
+                          @click="handleUpdateStatus(user, !user.isBlocked)"
+                          :disabled="isUpdating.includes(user.id)"
+                          class="p-2 rounded-lg transition-colors border"
+                          :class="
+                            user.isBlocked
+                              ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
+                              : 'text-orange-500 border-orange-200 hover:bg-orange-50'
+                          "
+                        >
+                          <Loader2
+                            v-if="isUpdating.includes(user.id)"
+                            class="w-4 h-4 animate-spin"
+                          />
+                          <template v-else>
+                            <CheckCircle
+                              v-if="user.isBlocked"
+                              class="w-4 h-4"
+                            />
+                            <Ban v-else class="w-4 h-4" />
+                          </template>
+                        </button>
+                        <button
+                          @click="handleDeleteUser(user.id, user.email)"
+                          :disabled="isDeleting.includes(user.id)"
+                          class="p-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div class="md:hidden grid grid-cols-1 gap-4">

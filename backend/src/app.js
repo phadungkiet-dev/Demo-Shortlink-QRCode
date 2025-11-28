@@ -36,10 +36,25 @@ const apiRouter = require("./routes/index"); // API routes
 // เริ่มต้น Express App
 const app = express();
 const PORT = process.env.PORT || 3001;
-const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
-// สำคัญมากสำหรับ Docker/Nginx: ต้องบอกให้เชื่อใจ Proxy
-app.set("trust proxy", 1);
+// --- Security & Environment Constants ---
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const USE_HTTPS = process.env.USE_HTTPS === "true";
+
+// -------------------------------------------------------------------
+// Centralized Cookie Configuration (ใช้ร่วมกันทั้ง Session และ CSRF)
+// -------------------------------------------------------------------
+const cookieConfig = {
+  httpOnly: true, // ป้องกัน XSS (JS เข้าถึง Cookie ไม่ได้)
+  secure: IS_PRODUCTION && USE_HTTPS, // Prod+HTTPS เท่านั้นถึงส่ง Cookie (Dev=false)
+  sameSite: IS_PRODUCTION ? "lax" : "lax", // Lax ดีสุดสำหรับ UX ทั่วไป
+  maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS || "900000"), // Default 15 นาที
+  // ถ้ามีค่า COOKIE_DOMAIN ใน .env ให้ใช้ (เช่น .yourdomain.com เพื่อแชร์ระหว่าง subdomains)
+  domain:
+    IS_PRODUCTION && process.env.COOKIE_DOMAIN
+      ? process.env.COOKIE_DOMAIN
+      : undefined,
+};
 
 // -------------------------------------------------------------------
 // Database & Session Store Setup
@@ -60,18 +75,31 @@ const sessionStore = new ConnectPgSimple({
 // Security & Core Middlewares
 // -------------------------------------------------------------------
 
-// CORS: อนุญาตให้ Frontend ส่ง Cookie มาได้ (credentials: true)
+// Trust Proxy: สำคัญมากสำหรับ Docker/Nginx เพื่อให้ Express รู้จัก IP จริง และ Secure Cookie ทำงานถูก
+app.set("trust proxy", 1);
+
+// CORS: รองรับหลาย Origin (แยกด้วยเครื่องหมาย ,)
+const allowedOrigins = process.env.CORS_ORIGIN.split(",");
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN, // e.g., http://localhost:5173
-    credentials: true, // อนุญาตให้ส่ง Cookie/Session ข้ามมาได้
+    origin: (origin, callback) => {
+      // อนุญาต request ที่ไม่มี origin (เช่น mobile apps หรือ curl) หรืออยู่ใน whitelist
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true, // อนุญาต Cookie/Session
   })
 );
 
-// Helmet: ปรับ Policy ให้โหลดรูปจากภายนอกได้ (เช่น Logo QR)
+// Helmet: Security Headers
 app.use(
   helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // โหลดรูปข้าม domain ได้
+    // ใน Dev ปิด CSP เพื่อความสะดวก, Prod เปิดไว้เพื่อความปลอดภัย
+    contentSecurityPolicy: IS_PRODUCTION ? undefined : false,
   })
 );
 
@@ -96,13 +124,8 @@ app.use(
     resave: false, // ไม่บันทึกซ้ำถ้าไม่มีอะไรเปลี่ยน (ลด load DB)
     saveUninitialized: false, // ไม่สร้าง Session เปล่าถ้ายังไม่ Login
     rolling: true, // ต่ออายุ Session ทุกครั้งที่มีการใช้งาน
-    proxy: true, // บังคับให้รองรับ Proxy สำหรับ Secure Cookie
-    cookie: {
-      httpOnly: true, // ป้องกัน JS ฝั่ง Client เข้าถึง Cookie (กัน XSS)
-      secure: IS_PRODUCTION && process.env.USE_HTTPS === 'true', // Production บังคับใช้ HTTPS
-      maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS || "900000"), // 15 นาที
-      sameSite: IS_PRODUCTION ? "lax" : "lax", // Policy การส่ง Cookie
-    },
+    proxy: true, // จำเป็นสำหรับ Secure Cookie หลัง Nginx
+    cookie: cookieConfig, // ใช้ Config กลางที่เราประกาศไว้
   })
 );
 
@@ -124,9 +147,8 @@ app.use("/r", redirectRouter);
 // API Routes (Protected with CSRF)
 const csrfProtection = csurf({
   cookie: {
-    httpOnly: true,
-    secure: IS_PRODUCTION && process.env.USE_HTTPS === 'true',
-    sameSite: IS_PRODUCTION ? "lax" : "lax",
+    ...cookieConfig,
+    key: "_csrf",
   },
 });
 
@@ -163,6 +185,7 @@ const server = app.listen(PORT, () => {
   logger.info(
     `🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
   );
+  logger.info(`🔒 Security: HTTPS=${USE_HTTPS}, SecureCookie=${cookieConfig.secure}`);
 });
 
 // Graceful Shutdown: ปิด Server อย่างนุ่มนวล

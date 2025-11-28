@@ -141,6 +141,38 @@ const deleteAccount = catchAsync(async (req, res, next) => {
   });
 });
 
+// -------------------------------------------------------------------
+// Forgot Password (Request Token)
+// -------------------------------------------------------------------
+const forgotPassword = catchAsync(async (req, res, next) => {
+  const { email } = req.body;
+  if (!email) {
+    throw new AppError("Please provide your email address.", 400);
+  }
+
+  const result = await authService.forgotPassword(email);
+  res.status(200).json(result);
+});
+
+// -------------------------------------------------------------------
+// Reset Password (Verify Token & Set New Password)
+// -------------------------------------------------------------------
+const resetPassword = catchAsync(async (req, res, next) => {
+  // Token มาจาก URL params (/api/auth/reset-password/:token)
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  if (password !== confirmPassword) {
+    throw new AppError("Passwords do not match.", 400);
+  }
+  if (!password || password.length < 8) {
+    throw new AppError("Password must be at least 8 characters.", 400);
+  }
+
+  const result = await authService.resetPassword(token, password);
+  res.status(200).json(result);
+});
+
 module.exports = {
   getCsrfToken,
   loginLocal,
@@ -151,4 +183,6 @@ module.exports = {
   googleCallback,
   register,
   deleteAccount,
+  forgotPassword,
+  resetPassword,
 };

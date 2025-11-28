@@ -62,9 +62,19 @@ const handleLogin = async () => {
       </div>
 
       <div class="space-y-1.5">
-        <label class="block text-sm font-semibold text-gray-700 ml-1"
-          >Password</label
-        >
+        <div class="flex justify-between items-center">
+          <label class="block text-sm font-semibold text-gray-700 ml-1"
+            >Password</label
+          >
+          <router-link
+            to="/forgot-password"
+            class="text-xs font-semibold text-indigo-600 hover:text-indigo-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 rounded px-1"
+            @click="$emit('login-success')"
+            tabindex="-1"
+          >
+            Forgot password?
+          </router-link>
+        </div>
         <div class="relative">
           <input
             v-model="password"

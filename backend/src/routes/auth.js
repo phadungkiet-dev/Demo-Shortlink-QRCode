@@ -8,6 +8,10 @@ router.get("/csrf", authController.getCsrfToken);
 router.post("/login", authController.loginLocal);
 router.post("/register", authController.register);
 
+// --- Password Recovery Routes ---
+router.post("/forgot-password", authController.forgotPassword);
+router.post("/reset-password/:token", authController.resetPassword);
+
 // --- Google OAuth ---
 router.get("/google", authController.googleAuth);
 router.get("/google/callback", authController.googleCallback);

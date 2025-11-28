@@ -61,6 +61,18 @@ const routes = [
     path: "/:pathMatch(.*)*",
     redirect: "/404",
   },
+  {
+    path: "/forgot-password",
+    name: "ForgotPassword",
+    component: () => import("@/views/ForgotPasswordView.vue"),
+    meta: { requiresGuest: true }, // ต้องยังไม่ Login ถึงจะเข้าได้
+  },
+  {
+    path: "/reset-password/:token", // รับ param :token
+    name: "ResetPassword",
+    component: () => import("@/views/ResetPasswordView.vue"),
+    meta: { requiresGuest: true },
+  },
 ];
 
 const router = createRouter({
