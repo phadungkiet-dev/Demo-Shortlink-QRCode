@@ -15,6 +15,7 @@ import Swal from "sweetalert2";
 import api from "@/services/api";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useLinkStore } from "@/stores/useLinkStore";
+import { APP_CONFIG } from "@/config/constants";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -30,9 +31,9 @@ const isSaving = ref(false);
 const copyIcon = ref(Copy);
 
 // QR Config States
-const qrSize = ref(300);
-const mainColor = ref("#4f46e5");
-const backgroundColor = ref("#ffffff");
+const qrSize = ref(APP_CONFIG.QR.DEFAULT_SIZE);
+const mainColor = ref(APP_CONFIG.QR.DEFAULT_COLOR);
+const backgroundColor = ref(APP_CONFIG.QR.DEFAULT_BG);
 const isTransparent = ref(false);
 const dotsOptionsType = ref("rounded");
 const cornersSquareOptionsType = ref("extra-rounded");
@@ -56,8 +57,8 @@ watch(
     if (newLink && newLink.qrOptions) {
       // Load config from DB
       const opts = newLink.qrOptions;
-      mainColor.value = opts.mainColor || "#4f46e5";
-      backgroundColor.value = opts.backgroundColor || "#ffffff";
+      mainColor.value = opts.mainColor || APP_CONFIG.QR.DEFAULT_COLOR;
+      backgroundColor.value = opts.backgroundColor || APP_CONFIG.QR.DEFAULT_BG;
       isTransparent.value = opts.isTransparent || false;
       dotsOptionsType.value = opts.dotsOptionsType || "rounded";
       cornersSquareOptionsType.value =
@@ -65,8 +66,8 @@ watch(
       logoImage.value = opts.image || null;
     } else {
       // Reset to defaults
-      mainColor.value = "#4f46e5";
-      backgroundColor.value = "#ffffff";
+      mainColor.value = APP_CONFIG.QR.DEFAULT_COLOR;
+      backgroundColor.value = APP_CONFIG.QR.DEFAULT_BG;
       isTransparent.value = false;
       dotsOptionsType.value = "rounded";
       cornersSquareOptionsType.value = "extra-rounded";
@@ -98,10 +99,11 @@ watchEffect(() => {
   if (props.modelValue && props.link && qrCodeRef.value) {
     if (!qrCodeInstance.value) {
       qrCodeInstance.value = new QrCodeStyling(getQrOptions(300));
-      qrCodeInstance.value.append(qrCodeRef.value);
     } else {
       qrCodeInstance.value.update(getQrOptions(300));
     }
+    qrCodeRef.value.innerHTML = "";
+    qrCodeInstance.value.append(qrCodeRef.value);
   }
 });
 

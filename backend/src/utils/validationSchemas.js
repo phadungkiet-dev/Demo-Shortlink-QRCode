@@ -1,11 +1,15 @@
 const { z } = require("zod");
+const { VALIDATION } = require("../config/constants");
 
 /**
  * Common Rules: กฎที่ใช้ร่วมกันบ่อยๆ
  */
 const passwordRule = z
   .string()
-  .min(8, "Password must be at least 8 characters long.");
+  .min(
+    VALIDATION.PASSWORD_MIN_LEN,
+    `Password must be at least ${VALIDATION.PASSWORD_MIN_LEN} characters long.`
+  );
 // .regex(/[A-Z]/, "Password must contain at least one uppercase letter.") // (Optional: ถ้าต้องการเข้มงวด)
 // .regex(/[0-9]/, "Password must contain at least one number.");         // (Optional)
 
@@ -22,8 +26,8 @@ const createLinkSchema = z.object({
   slug: z
     .string()
     .trim()
-    .min(3, "Slug must be at least 3 characters.")
-    .max(30, "Slug must be at most 30 characters.")
+    .min(VALIDATION.SLUG_MIN_LEN, `Slug must be at least ${VALIDATION.SLUG_MIN_LEN} characters.`)
+    .max(VALIDATION.SLUG_MAX_LEN, `Slug must be at most ${VALIDATION.SLUG_MAX_LEN} characters.`)
     .regex(
       /^[a-zA-Z0-9_-]+$/,
       "Slug can only contain letters, numbers, hyphens (-), and underscores (_)."

@@ -22,9 +22,10 @@ const ConnectPgSimple = require("connect-pg-simple")(session); // ตัวเ�
 
 // Internal Modules
 const { prisma } = require("./config/prisma");
+const { COOKIE } = require("./config/constants");
 const logger = require("./utils/logger");
 const globalErrorHandler = require("./middlewares/errorHandler");
-const linkService = require("./services/linkService");
+const initCronJobs = require("./jobs/cron");
 
 // Load Passport Config (เพื่อให้ Strategy ทำงาน)
 require("./config/passport");
@@ -45,11 +46,10 @@ const USE_HTTPS = process.env.USE_HTTPS === "true";
 // Centralized Cookie Configuration (ใช้ร่วมกันทั้ง Session และ CSRF)
 // -------------------------------------------------------------------
 const cookieConfig = {
-  httpOnly: true, // ป้องกัน XSS (JS เข้าถึง Cookie ไม่ได้)
-  secure: IS_PRODUCTION && USE_HTTPS, // Prod+HTTPS เท่านั้นถึงส่ง Cookie (Dev=false)
-  sameSite: IS_PRODUCTION ? "lax" : "lax", // Lax ดีสุดสำหรับ UX ทั่วไป
-  maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS || "900000"), // Default 15 นาที
-  // ถ้ามีค่า COOKIE_DOMAIN ใน .env ให้ใช้ (เช่น .yourdomain.com เพื่อแชร์ระหว่าง subdomains)
+  httpOnly: true,
+  secure: IS_PRODUCTION && USE_HTTPS,
+  sameSite: IS_PRODUCTION ? "lax" : "lax",
+  maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS || COOKIE.MAX_AGE),
   domain:
     IS_PRODUCTION && process.env.COOKIE_DOMAIN
       ? process.env.COOKIE_DOMAIN
@@ -79,18 +79,22 @@ const sessionStore = new ConnectPgSimple({
 app.set("trust proxy", 1);
 
 // CORS: รองรับหลาย Origin (แยกด้วยเครื่องหมาย ,)
-const allowedOrigins = process.env.CORS_ORIGIN.split(",");
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",")
+  : [];
 app.use(
   cors({
     origin: (origin, callback) => {
-      // อนุญาต request ที่ไม่มี origin (เช่น mobile apps หรือ curl) หรืออยู่ใน whitelist
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg =
+          "The CORS policy for this site does not allow access from the specified Origin.";
+        return callback(new Error(msg), false);
       }
+      return callback(null, true);
     },
-    credentials: true, // อนุญาต Cookie/Session
+    credentials: true,
   })
 );
 
@@ -148,7 +152,7 @@ app.use("/r", redirectRouter);
 const csrfProtection = csurf({
   cookie: {
     ...cookieConfig,
-    key: "_csrf",
+    key: COOKIE.SECRET_KEY,
   },
 });
 
@@ -164,19 +168,7 @@ app.use(globalErrorHandler);
 // Background Jobs (Cron)
 // -------------------------------------------------------------------
 // ลบลิงก์ Anonymous ที่หมดอายุ ทุกตี 1
-cron.schedule(
-  "0 1 * * *",
-  async () => {
-    logger.info("Cron Job: Cleaning expired links...");
-    try {
-      const count = await linkService.deleteExpiredAnonymousLinks();
-      logger.info(`Cron Job: Deleted ${count} links.`);
-    } catch (error) {
-      logger.error("Cron Job Failed:", error);
-    }
-  },
-  { timezone: "Asia/Bangkok" }
-);
+initCronJobs();
 
 // -------------------------------------------------------------------
 // Server Start & Graceful Shutdown
@@ -185,7 +177,9 @@ const server = app.listen(PORT, () => {
   logger.info(
     `🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
   );
-  logger.info(`🔒 Security: HTTPS=${USE_HTTPS}, SecureCookie=${cookieConfig.secure}`);
+  logger.info(
+    `🔒 Security: HTTPS=${USE_HTTPS}, SecureCookie=${cookieConfig.secure}`
+  );
 });
 
 // Graceful Shutdown: ปิด Server อย่างนุ่มนวล

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { Lock, Loader2, AlertCircle } from "lucide-vue-next";
 import api from "@/services/api";
 import Swal from "sweetalert2";
+import { APP_CONFIG } from "@/config/constants";
 
 const route = useRoute();
 const router = useRouter();
@@ -14,13 +15,15 @@ const confirmPassword = ref("");
 const isLoading = ref(false);
 const errorMsg = ref(null);
 
+const minPassLen = APP_CONFIG.VALIDATION.PASSWORD_MIN_LEN;
+
 const handleReset = async () => {
   if (password.value !== confirmPassword.value) {
     errorMsg.value = "Passwords do not match.";
     return;
   }
-  if (password.value.length < 8) {
-    errorMsg.value = "Password must be at least 8 characters.";
+  if (password.value.length < minPassLen) {
+    errorMsg.value = `Password must be at least ${minPassLen} characters.`;
     return;
   }
 

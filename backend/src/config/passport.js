@@ -3,6 +3,7 @@ const LocalStrategy = require("passport-local").Strategy;
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const bcrypt = require("bcrypt");
 const { prisma } = require("./prisma");
+const { DEFAULTS, USER_ROLES } = require("./constants");
 
 // -------------------------------------------------------------------
 // Local Strategy (Login ด้วย Email/Password)
@@ -86,8 +87,8 @@ passport.use(
               email: email,
               provider: "GOOGLE",
               providerId: profile.id,
-              role: "USER",
-              linkLimit: 10, // ให้ Limit เริ่มต้น
+              role: USER_ROLES.USER,
+              linkLimit: DEFAULTS.LINK_LIMIT,
             },
           });
         }

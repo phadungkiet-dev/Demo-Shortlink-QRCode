@@ -93,7 +93,7 @@ onUnmounted(() => window.removeEventListener("scroll", handleScroll));
               "
               class="w-full flex justify-center items-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-md active:scale-95 transition-all"
             >
-              <LogIn class="h-5 w-5" /> Log in / Sign up
+              <LogIn class="h-5 w-5" /> Sign in / Sign up
             </button>
           </template>
         </div>

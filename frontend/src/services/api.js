@@ -2,15 +2,16 @@ import axios from "axios";
 import { useAuthStore } from "@/stores/useAuthStore";
 import Swal from "sweetalert2";
 import router from "@/router";
+import { APP_CONFIG } from "@/config/constants";
 
 // สร้าง Axios Instance
 const api = axios.create({
   // baseURL: '/api' -> Vite Proxy จะส่งต่อไปที่ http://localhost:3001/api
-  baseURL: "/api",
+  baseURL: APP_CONFIG.API.BASE_URL,
   // สำคัญมาก! อนุญาตให้ส่ง Cookie (Session ID) ไปพร้อมกับ Request
   withCredentials: true,
   // Timeout 10 วินาที (ป้องกันรอนานเกินไป)
-  timeout: 10000,
+  timeout: APP_CONFIG.API.TIMEOUT,
 });
 
 // -------------------------------------------------------------------

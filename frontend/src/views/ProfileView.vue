@@ -13,6 +13,7 @@ import {
   Mail,
   KeyRound,
 } from "lucide-vue-next";
+import { APP_CONFIG } from "@/config/constants";
 
 const authStore = useAuthStore();
 const isLoading = ref(false);
@@ -21,6 +22,8 @@ const apiError = ref(null);
 const showOldPassword = ref(false);
 const showNewPassword = ref(false);
 const showConfirmPassword = ref(false);
+
+const minPassLen = APP_CONFIG.VALIDATION.PASSWORD_MIN_LEN;
 
 const formData = reactive({
   oldPassword: "",
@@ -52,11 +55,11 @@ const handleChangePassword = async () => {
 
   if (passwordMatchError.value) return;
 
-  if (!formData.oldPassword || formData.newPassword.length < 8) {
+  if (!formData.oldPassword || formData.newPassword.length < minPassLen) {
     Swal.fire({
       icon: "warning",
       title: "Weak Password",
-      text: "New password must be at least 8 characters long.",
+      text: `New password must be at least ${minPassLen} characters long.`,
       confirmButtonColor: "#4F46E5",
     });
     return;

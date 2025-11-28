@@ -1,55 +1,15 @@
 const { Prisma } = require("@prisma/client");
-const fs = require("fs/promises");
-const path = require("path");
 const { prisma } = require("../config/prisma");
 const { generateSlug } = require("../utils/slug");
 const { addDays, getNow } = require("../utils/time");
 const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
+const geoip = require("geoip-lite");
 
-// Config
-const LOGO_DIR = path.join(__dirname, "../../storage/logos");
+const storageService = require("./storageService");
+const { DEFAULTS, USER_ROLES } = require("../config/constants");
+
 const MAX_SLUG_RETRIES = 5;
-
-// --- Internal Helper Functions ---
-
-/**
- * @function ensureLogoDir
- * @description ตรวจสอบและสร้างโฟลเดอร์เก็บ Logo หากยังไม่มี
- */
-const ensureLogoDir = async () => {
-  try {
-    await fs.access(LOGO_DIR);
-  } catch {
-    await fs.mkdir(LOGO_DIR, { recursive: true });
-  }
-};
-
-/**
- * @function saveLogoFile
- * @description แปลง Base64 Image เป็นไฟล์และบันทึกลง Disk
- * @param {string} slug - Slug ของลิงก์ (ใช้ตั้งชื่อไฟล์)
- * @param {string} base64String - ข้อมูลรูปภาพแบบ Base64
- * @returns {Promise<string|null>} - URL path ของรูปภาพ
- */
-const saveLogoFile = async (slug, base64String) => {
-  if (!base64String || !base64String.startsWith("data:image")) return null;
-
-  await ensureLogoDir();
-
-  const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-  if (!matches || matches.length !== 3) return null;
-
-  const extension = matches[1].split("/")[1];
-  const imageBuffer = Buffer.from(matches[2], "base64");
-
-  const filename = `${slug}-${Date.now()}.${extension}`;
-  const filePath = path.join(LOGO_DIR, filename);
-
-  await fs.writeFile(filePath, imageBuffer);
-
-  return `${process.env.BASE_URL}/uploads/logos/${filename}`;
-};
 
 // --- Main Service Functions ---
 /**
@@ -62,25 +22,27 @@ const saveLogoFile = async (slug, base64String) => {
 const createLink = async (targetUrl, ownerId, customSlug = null) => {
   const now = getNow();
   const isAnonymous = ownerId === null;
-  const expiryDays = isAnonymous ? 7 : 30;
+
+  const expiryDays = isAnonymous
+    ? DEFAULTS.ANON_LINK_EXPIRY_DAYS
+    : DEFAULTS.USER_LINK_EXPIRY_DAYS;
   const expiredAt = addDays(now, expiryDays);
 
-  // 1. Check Quota (สำหรับ Logged-in User เท่านั้น)
+  // Check Quota (สำหรับ Logged-in User เท่านั้น)
   if (!isAnonymous) {
     // ดึงข้อมูล User เพื่อดู Limit และ Role
     const user = await prisma.user.findUnique({
       where: { id: ownerId },
-      select: { linkLimit: true, role: true }, // +++ เพิ่ม role มาเช็ค
+      select: { linkLimit: true, role: true },
     });
 
-    // +++ ถ้าไม่ใช่ Admin ถึงจะทำการเช็ค Quota +++
     // (Admin สร้างได้ไม่จำกัด Unlimited)
-    if (user && user.role !== "ADMIN") {
+    if (user && user.role !== USER_ROLES.ADMIN) {
       const currentLinkCount = await prisma.link.count({
         where: { ownerId: ownerId },
       });
 
-      const limit = user.linkLimit || 10;
+      const limit = user.linkLimit || DEFAULTS.LINK_LIMIT;
 
       if (currentLinkCount >= limit) {
         throw new AppError(
@@ -91,7 +53,7 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
     }
   }
 
-  // 2. กรณี Custom Slug
+  // กรณี Custom Slug
   if (customSlug) {
     const existing = await prisma.link.findUnique({
       where: { slug: customSlug },
@@ -111,7 +73,7 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
     });
   }
 
-  // 3. กรณี Auto Generated Slug (Retry Logic)
+  // กรณี Auto Generated Slug (Retry Logic)
   let slug;
   let retries = 0;
 
@@ -131,6 +93,7 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
       });
       return link;
     } catch (e) {
+      // P2002 = Unique constraint failed (Slug ซ้ำ)
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === "P2002"
@@ -227,7 +190,7 @@ const updateLink = async (linkId, ownerId, data) => {
 
   if (data.renew) {
     const now = getNow();
-    updateData.expiredAt = addDays(now, 30);
+    updateData.expiredAt = addDays(now, DEFAULTS.USER_LINK_EXPIRY_DAYS);
     updateData.disabled = false;
   }
 
@@ -235,7 +198,10 @@ const updateLink = async (linkId, ownerId, data) => {
     let finalOptions = { ...data.qrOptions };
     if (finalOptions.image && finalOptions.image.startsWith("data:image")) {
       try {
-        const logoUrl = await saveLogoFile(link.slug, finalOptions.image);
+        const logoUrl = await storageService.saveImage(
+          link.slug,
+          finalOptions.image
+        );
         if (logoUrl) finalOptions.image = logoUrl;
       } catch (err) {
         logger.error(`Failed to save logo for link ${link.slug}:`, err);

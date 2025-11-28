@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { prisma } = require("../config/prisma");
 const AppError = require("../utils/AppError");
 const sendEmail = require("../utils/email");
+const { DEFAULTS, USER_ROLES } = require("../config/constants");
 
 /**
  * @function getSafeUser
@@ -24,7 +25,7 @@ const getSafeUser = (user) => {
  * @returns {Promise<Object>} - User ที่สร้างใหม่
  */
 const registerUser = async (email, password) => {
-  // 1. ตรวจสอบว่ามีอีเมลนี้ในระบบหรือยัง
+  // ตรวจสอบว่ามีอีเมลนี้ในระบบหรือยัง
   const existingUser = await prisma.user.findUnique({
     where: { email },
   });
@@ -33,17 +34,17 @@ const registerUser = async (email, password) => {
     throw new AppError("Email address is already in use.", 409); // 409 Conflict
   }
 
-  // 2. Hash Password (ความปลอดภัยระดับ 10 rounds)
+  // Hash Password (ความปลอดภัยระดับ 10 rounds)
   const passwordHash = await bcrypt.hash(password, 10);
 
-  // 3. สร้าง User ลง DB
+  // สร้าง User ลง DB
   const newUser = await prisma.user.create({
     data: {
       email,
       passwordHash,
       provider: "LOCAL",
-      role: "USER",
-      linkLimit: 10, // Default Limit
+      role: USER_ROLES.USER,
+      linkLimit: DEFAULTS.LINK_LIMIT,
     },
   });
 
@@ -158,7 +159,7 @@ const forgotPassword = async (email) => {
   try {
     await sendEmail({
       to: user.email,
-      subject: "Password Reset Request (Valid for 10 mins)",
+      subject: "Password Reset Request",
       text: message,
       // html: `<p>Click <a href="${resetUrl}">here</a> to reset your password.</p>` // ถ้าอยากทำ HTML สวยๆ
     });

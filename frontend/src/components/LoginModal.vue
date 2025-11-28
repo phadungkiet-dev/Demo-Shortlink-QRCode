@@ -88,7 +88,7 @@ const closeModal = () => {
                 @click="viewMode = viewMode === 'login' ? 'register' : 'login'"
                 class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
               >
-                {{ viewMode === "login" ? "Sign up" : "Log in" }}
+                {{ viewMode === "login" ? "Sign up" : "Sign in" }}
               </button>
             </p>
           </div>
