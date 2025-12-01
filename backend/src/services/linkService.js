@@ -117,18 +117,47 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
  * @function findLinksByOwner
  * @description ดึงลิงก์ทั้งหมดของ User พร้อม Pagination และ Search
  */
-const findLinksByOwner = async (ownerId, page = 1, limit = 9, search = "") => {
+const findLinksByOwner = async (
+  ownerId,
+  page = 1,
+  limit = 9,
+  search = "",
+  status = "ALL"
+) => {
   const skip = (page - 1) * limit;
   const now = getNow();
 
   const baseWhere = { ownerId };
+  const andConditions = [];
+
+  // Search
   if (search) {
-    baseWhere.AND = {
+    andConditions.push({
       OR: [
         { targetUrl: { contains: search, mode: "insensitive" } },
         { slug: { contains: search, mode: "insensitive" } },
       ],
-    };
+    });
+  }
+
+  // Status Filter (Active / Inactive)
+  if (status === "ACTIVE") {
+    andConditions.push({
+      disabled: false,
+      expiredAt: { gt: now },
+    });
+  } else if (status === "INACTIVE") {
+    andConditions.push({
+      OR: [
+        { disabled: true },
+        { expiredAt: { lte: now } }, // หมดอายุถือว่า Inactive
+      ],
+    });
+  }
+
+  // รวมเงื่อนไข
+  if (andConditions.length > 0) {
+    baseWhere.AND = andConditions;
   }
 
   const [totalMatched, links, totalLinks, activeLinks] =

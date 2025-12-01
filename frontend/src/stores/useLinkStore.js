@@ -27,12 +27,13 @@ export const useLinkStore = defineStore("links", {
     async fetchMyLinks(
       page = APP_CONFIG.PAGINATION.DEFAULT_PAGE,
       limit = APP_CONFIG.PAGINATION.DEFAULT_LIMIT,
-      search = ""
+      search = "",
+      status = "ALL"
     ) {
       this.isLoading = true;
       try {
         const response = await api.get("/links/me", {
-          params: { page, limit, search },
+          params: { page, limit, search, status },
         });
 
         // รองรับโครงสร้าง Response ใหม่ { data, meta, stats }

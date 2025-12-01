@@ -6,20 +6,48 @@ const { USER_ROLES } = require("../config/constants");
 /**
  * @function getAllUsers
  * @description ดึงรายชื่อ User ทั้งหมดสำหรับหน้า Admin Dashboard
- * ใช้ Pagination และ Search เพื่อรองรับข้อมูลจำนวนมาก
+ * @param {number} adminId
+ * @param {number} [page=1]
+ * @param {number} [limit=10]
+ * @param {string} [search=""]
+ * @param {boolean|undefined} [isBlockedFilter=undefined] - กรองตามสถานะ Blocked
  */
-const getAllUsers = async (adminId, page = 1, limit = 10, search = "") => {
+const getAllUsers = async (
+  adminId,
+  page = 1,
+  limit = 10,
+  search = "",
+  isBlockedFilter = undefined
+) => {
   const skip = (page - 1) * limit;
 
+  // Where Clause สำหรับการค้นหา/กรอง (Filter)
   const whereClause = {
     id: { not: adminId }, // ไม่ดึงข้อมูลตัวเอง
-    ...(search && {
-      email: { contains: search, mode: "insensitive" },
-    }),
   };
 
-  const [total, users] = await prisma.$transaction([
-    prisma.user.count({ where: whereClause }),
+  // Combine search and status filters
+  const andConditions = [];
+
+  if (search) {
+    andConditions.push({
+      email: { contains: search, mode: "insensitive" },
+    });
+  }
+
+  if (isBlockedFilter !== undefined) {
+    andConditions.push({
+      isBlocked: isBlockedFilter,
+    });
+  }
+
+  if (andConditions.length > 0) {
+    whereClause.AND = andConditions;
+  }
+
+  // Fetch Matched Users and Count (สำหรับ Pagination)
+  const [totalMatched, users] = await prisma.$transaction([
+    prisma.user.count({ where: whereClause }), // Total count of filtered results
     prisma.user.findMany({
       where: whereClause,
       select: {
@@ -31,6 +59,7 @@ const getAllUsers = async (adminId, page = 1, limit = 10, search = "") => {
         linkLimit: true,
         createdAt: true,
         updatedAt: true,
+        _count: { select: { links: true } }, // นับจำนวนลิงก์
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -38,13 +67,28 @@ const getAllUsers = async (adminId, page = 1, limit = 10, search = "") => {
     }),
   ]);
 
+  // Fetch Global Stats (Total, Active, Blocked for KPI cards)
+  // ใช้เงื่อนไขที่ไม่มี filter/search เพื่อให้ได้ Total Users ที่แท้จริง (ยกเว้น Admin ตัวเอง)
+  const [total, active, blocked] = await prisma.$transaction([
+    prisma.user.count({ where: { id: { not: adminId } } }), // All users (excluding admin)
+    prisma.user.count({ where: { id: { not: adminId }, isBlocked: false } }), // Active
+    prisma.user.count({ where: { id: { not: adminId }, isBlocked: true } }), // Blocked
+  ]);
+
   return {
     users,
     meta: {
-      total,
+      total: totalMatched, // Total for current filter/search
       page,
       limit,
-      totalPages: Math.ceil(total / limit) || 1,
+      totalPages: Math.ceil(totalMatched / limit) || 1,
+      totalItems: totalMatched,
+    },
+    // Return Stats for KPI cards
+    stats: {
+      total,
+      active,
+      blocked,
     },
   };
 };

@@ -23,9 +23,9 @@ const authStore = useAuthStore();
 const isOpen = ref(false);
 const dropdownRoot = ref(null);
 
-// 1. Logic Initials
+// --- Computed Data ---
 const initials = computed(() => {
-  if (!authStore.user || !authStore.user.email) return "?";
+  if (!authStore.user?.email) return "?";
   const email = authStore.user.email;
   const parts = email.split("@")[0].split(".");
   if (parts.length > 1 && parts[0].length > 0 && parts[1].length > 0) {
@@ -34,7 +34,10 @@ const initials = computed(() => {
   return email.substring(0, 2).toUpperCase();
 });
 
-// 2. Click Outside (ใช้เฉพาะ Desktop)
+const userRole = computed(() => authStore.user?.role || "USER");
+const userEmail = computed(() => authStore.user?.email || "");
+
+// --- Click Outside (Desktop Only) ---
 const handleClickOutside = (event) => {
   if (
     props.mode === "desktop" &&
@@ -54,23 +57,22 @@ onUnmounted(() => {
   document.removeEventListener("mousedown", handleClickOutside);
 });
 
-// Helper: สั่งปิดเมนู
+// --- Actions ---
 const handleItemClick = () => {
-  isOpen.value = false;
+  if (props.mode === "desktop") isOpen.value = false;
   emit("close-menu");
 };
 
-// 3. Logout
 const handleLogoutClick = () => {
   handleItemClick();
   Swal.fire({
-    title: "Are you sure?",
-    text: "You will be logged out.",
+    title: "Sign out?",
+    text: "You will be returned to the home page.",
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#4F46E5",
     cancelButtonColor: "#d33",
-    confirmButtonText: "Yes, log out",
+    confirmButtonText: "Yes, sign out",
   }).then((result) => {
     if (result.isConfirmed) {
       authStore.logout();
@@ -78,9 +80,13 @@ const handleLogoutClick = () => {
   });
 };
 
-// [Modified] Class สำหรับเมนูไอเท็ม (ย้ายจาก <style> มาเป็นตัวแปร)
-const menuItemClasses =
-  "group flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors w-full text-left cursor-pointer";
+// --- Styles ---
+// รวม Class พื้นฐานของรายการเมนูไว้ที่เดียว
+const menuItemClass =
+  "group flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-xl transition-all hover:bg-indigo-50 hover:text-indigo-600";
+// Class สำหรับสถานะ Active (Current Page)
+const activeClass =
+  "bg-indigo-50 text-indigo-600 !font-semibold ring-1 ring-indigo-100";
 </script>
 
 <template>
@@ -92,7 +98,7 @@ const menuItemClasses =
       v-if="mode === 'desktop'"
       @click="isOpen = !isOpen"
       type="button"
-      class="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+      class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-sm font-bold shadow-md hover:shadow-lg hover:ring-2 hover:ring-offset-2 hover:ring-indigo-500 transition-all active:scale-95"
     >
       {{ initials }}
     </button>
@@ -102,7 +108,7 @@ const menuItemClasses =
         mode === 'desktop' ? 'transition ease-out duration-200' : ''
       "
       :enter-from-class="
-        mode === 'desktop' ? 'transform opacity-0 scale-95 -translate-y-2' : ''
+        mode === 'desktop' ? 'transform opacity-0 scale-95 translate-y-2' : ''
       "
       :enter-to-class="
         mode === 'desktop'
@@ -118,124 +124,108 @@ const menuItemClasses =
           : ''
       "
       :leave-to-class="
-        mode === 'desktop' ? 'transform opacity-0 scale-95 -translate-y-2' : ''
+        mode === 'desktop' ? 'transform opacity-0 scale-95 translate-y-2' : ''
       "
     >
       <div
-        v-if="isOpen || mode === 'mobile'"
+        v-show="isOpen || mode === 'mobile'"
         :class="[
-          // Styles สำหรับ Desktop (Popup)
+          'bg-white overflow-hidden',
+          // Desktop Specific Styles
           mode === 'desktop'
-            ? 'absolute right-0 mt-3 w-64 origin-top-right rounded-xl bg-white shadow-2xl ring-1 ring-black/5 focus:outline-none z-50 overflow-hidden'
+            ? 'absolute right-0 mt-3 w-72 origin-top-right rounded-2xl shadow-2xl ring-1 ring-black/5 z-50'
             : '',
-          // Styles สำหรับ Mobile (Embedded List)
-          mode === 'mobile' ? 'w-full space-y-2' : '',
+          // Mobile Specific Styles
+          mode === 'mobile'
+            ? 'w-full rounded-xl border border-gray-100 shadow-sm'
+            : '',
         ]"
       >
-        <div
-          v-if="mode === 'mobile'"
-          class="flex items-center gap-3 px-2 py-3 bg-gray-50 rounded-xl mb-2"
-        >
-          <div
-            class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-200"
-          >
-            {{ initials }}
-          </div>
-          <div class="overflow-hidden">
-            <p class="text-sm font-semibold text-gray-900 truncate">
-              {{ authStore.user.email }}
-            </p>
-            <p class="text-xs text-gray-500 capitalize">
-              {{ authStore.user.role }} Account
-            </p>
+        <div class="px-5 py-4 bg-gray-50/50 border-b border-gray-100">
+          <div class="flex items-center gap-3">
+            <div
+              class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-200"
+            >
+              {{ initials }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold text-gray-900 truncate">
+                {{ userEmail }}
+              </p>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span
+                  class="w-1.5 h-1.5 rounded-full"
+                  :class="
+                    userRole === 'ADMIN' ? 'bg-purple-500' : 'bg-emerald-500'
+                  "
+                ></span>
+                <p class="text-xs font-medium text-gray-500 capitalize">
+                  {{ userRole.toLowerCase() }} Account
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div v-else class="px-4 py-4 bg-gray-50 border-b border-gray-100">
-          <p
-            class="text-xs text-gray-500 uppercase font-semibold tracking-wider mb-1"
-          >
-            Signed in as
-          </p>
-          <p class="truncate text-sm font-bold text-gray-900">
-            {{ authStore.user.email }}
-          </p>
-          <span
-            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 mt-2"
-          >
-            {{ authStore.user.role }}
-          </span>
-        </div>
-
-        <div :class="mode === 'desktop' ? 'py-2' : 'space-y-1'">
+        <div class="p-2 space-y-1">
           <router-link
             to="/dashboard"
+            :class="menuItemClass"
+            :active-class="activeClass"
             @click="handleItemClick"
-            :class="[menuItemClasses, mode === 'mobile' ? 'rounded-xl' : '']"
           >
             <LayoutDashboard
-              class="mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500"
-              :class="mode === 'mobile' ? 'h-5 w-5' : ''"
+              class="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors"
             />
             Dashboard
           </router-link>
 
           <router-link
-            v-if="authStore.user?.role === 'ADMIN'"
+            v-if="userRole === 'ADMIN'"
             to="/admin/users"
+            :class="menuItemClass"
+            :active-class="activeClass"
             @click="handleItemClick"
-            :class="[menuItemClasses, mode === 'mobile' ? 'rounded-xl' : '']"
           >
             <Shield
-              class="mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500"
-              :class="mode === 'mobile' ? 'h-5 w-5' : ''"
+              class="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors"
             />
-            <span v-if="mode === 'mobile'">Manage Users</span>
-            <span v-else>Admin Panel</span>
+            User Management
           </router-link>
 
           <router-link
             to="/profile"
+            :class="menuItemClass"
+            :active-class="activeClass"
             @click="handleItemClick"
-            :class="[menuItemClasses, mode === 'mobile' ? 'rounded-xl' : '']"
           >
             <User
-              class="mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500"
-              :class="mode === 'mobile' ? 'h-5 w-5' : ''"
+              class="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors"
             />
             My Profile
           </router-link>
 
           <router-link
             to="/settings"
+            :class="menuItemClass"
+            :active-class="activeClass"
             @click="handleItemClick"
-            :class="[menuItemClasses, mode === 'mobile' ? 'rounded-xl' : '']"
           >
             <Settings
-              class="mr-3 h-4 w-4 text-gray-400 group-hover:text-indigo-500"
-              :class="mode === 'mobile' ? 'h-5 w-5' : ''"
+              class="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors"
             />
             Settings
           </router-link>
         </div>
 
-        <div
-          :class="[
-            mode === 'desktop'
-              ? 'border-t border-gray-100 bg-gray-50 p-2'
-              : 'border-t border-gray-100 pt-2 mt-2',
-          ]"
-        >
+        <div class="p-2 border-t border-gray-100 bg-gray-50/30">
           <button
             @click="handleLogoutClick"
-            :class="[
-              'flex w-full items-center gap-2 px-4 py-2 text-sm font-medium transition-all',
-              mode === 'desktop'
-                ? 'justify-center text-red-600 bg-white border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-700'
-                : 'text-red-600 hover:bg-red-50 rounded-xl justify-start',
-            ]"
+            class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-red-600 rounded-xl hover:bg-red-50 transition-colors group"
           >
-            <LogOut :class="mode === 'desktop' ? 'h-4 w-4' : 'h-5 w-5'" />
+            <LogOut
+              class="w-4 h-4 text-red-400 group-hover:text-red-600 transition-colors"
+            />
             Sign out
           </button>
         </div>

@@ -23,7 +23,10 @@ const createLink = catchAsync(async (req, res, next) => {
 
   // ป้องกัน Anonymous พยายามส่ง Slug มาเอง (ต้อง Login ก่อน)
   if (slug && !ownerId) {
-    throw new AppError("Custom slugs are for logged-in users only. Please login.", 403);
+    throw new AppError(
+      "Custom slugs are for logged-in users only. Please login.",
+      403
+    );
   }
 
   // Call Service
@@ -43,13 +46,15 @@ const getMyLinks = catchAsync(async (req, res, next) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 9;
   const search = req.query.search || "";
+  const status = req.query.status || "ALL";
   const ownerId = req.user.id;
 
   const { links, meta, stats } = await linkService.findLinksByOwner(
     ownerId,
     page,
     limit,
-    search
+    search,
+    status
   );
 
   // Map URL เต็มให้ Frontend ใช้งานง่าย

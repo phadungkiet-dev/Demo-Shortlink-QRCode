@@ -11,9 +11,34 @@ const getAllUsers = catchAsync(async (req, res, next) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const search = req.query.search || "";
+  const status = req.query.status || "ALL"; // Get status from frontend
 
-  const result = await adminService.getAllUsers(adminId, page, limit, search);
-  res.json(result);
+  // Map frontend status to backend isBlocked boolean/undefined
+  let isBlockedFilter;
+  if (status === "ACTIVE") {
+    isBlockedFilter = false;
+  } else if (status === "BLOCKED") {
+    isBlockedFilter = true;
+  } else {
+    // ALL
+    isBlockedFilter = undefined;
+  }
+
+  // Service returns { users, meta, stats }
+  const result = await adminService.getAllUsers(
+    adminId,
+    page,
+    limit,
+    search,
+    isBlockedFilter
+  );
+
+  // Format response to match frontend expectation: { data: users, meta: pagination, stats: stats }
+  res.json({
+    data: result.users,
+    meta: result.meta,
+    stats: result.stats,
+  });
 });
 
 // -------------------------------------------------------------------

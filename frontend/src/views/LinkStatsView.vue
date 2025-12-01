@@ -11,6 +11,7 @@ import {
   Calendar,
   ExternalLink,
   MapPin,
+  Smartphone,
 } from "lucide-vue-next";
 import {
   Chart as ChartJS,
@@ -136,7 +137,19 @@ const commonOptions = {
   },
 };
 
-// [Modified] Logic สร้างกราฟ 7 วันย้อนหลัง (เติม 0 ให้เต็ม)
+// [Critical Fix] Helper สำหรับสร้าง Date String (YYYY-MM-DD) ตาม Timezone ไทย
+// เพื่อให้ Key ตรงกับที่ Backend ส่งมา (Backend ใช้ 'Asia/Bangkok')
+const getBangkokDateKey = (dateObj) => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok", // บังคับใช้เวลาไทย
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(dateObj);
+};
+
+// --- Chart Data Computeds ---
+// Traffic Chart (Last 7 Days)
 const dailyChartData = computed(() => {
   if (!stats.value) return { labels: [], datasets: [] };
 
@@ -148,7 +161,9 @@ const dailyChartData = computed(() => {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD (UTC base)
+
+    // ใช้ Helper เพื่อให้ได้วันที่แบบไทย (YYYY-MM-DD)
+    const dateStr = getBangkokDateKey(d);
 
     labels.push(dateStr);
     // ถ้าวันนั้นมีข้อมูลให้ใส่ค่า ถ้าไม่มีใส่ 0
@@ -176,6 +191,7 @@ const dailyChartData = computed(() => {
   };
 });
 
+// Referrers Chart
 const referrerChartData = computed(() => {
   if (!stats.value?.topReferrers) return { labels: [], datasets: [] };
   const labels = stats.value.topReferrers.map(
@@ -196,7 +212,7 @@ const referrerChartData = computed(() => {
   };
 });
 
-// Country Chart
+// Countries Chart
 const countryChartData = computed(() => {
   if (!stats.value?.topCountries) return { labels: [], datasets: [] };
   // ถ้าไม่มีข้อมูล ให้แสดงเป็น 'Unknown'
@@ -209,6 +225,33 @@ const countryChartData = computed(() => {
       {
         label: "Visits",
         backgroundColor: "#34d399", // สีเขียวมรกต
+        borderRadius: 4,
+        barPercentage: 0.6,
+        data,
+      },
+    ],
+  };
+});
+
+// User Agents / Browsers Chart
+const uaChartData = computed(() => {
+  if (!stats.value?.topUserAgents) return { labels: [], datasets: [] };
+  // ตัดชื่อให้สั้นลงอีกนิดถ้ามันยาวไป เพื่อการแสดงผลกราฟที่ดี
+  const labels = stats.value.topUserAgents.map((u) => {
+    return u.userAgent.length > 20
+      ? u.userAgent.substring(0, 20) + "..."
+      : u.userAgent;
+  });
+  const data = stats.value.topUserAgents.map((u) => u.count);
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: "Visits",
+        backgroundColor: "#f472b6", // สีชมพู
+        borderRadius: 4,
+        barPercentage: 0.6,
         data,
       },
     ],
@@ -410,6 +453,29 @@ const countryChartData = computed(() => {
                   ...commonOptions,
                   indexAxis: 'y', // กราฟแนวนอน
                 }"
+              />
+            </div>
+          </div>
+
+          <div
+            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col lg:col-span-2"
+          >
+            <div class="flex items-center justify-between mb-6">
+              <h3
+                class="text-lg font-bold text-gray-900 flex items-center gap-2"
+              >
+                <Smartphone class="h-5 w-5 text-gray-400" /> Browsers & Devices
+              </h3>
+              <span
+                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
+              >
+                User Agents
+              </span>
+            </div>
+            <div class="flex-1 min-h-0 w-full">
+              <Bar
+                :data="uaChartData"
+                :options="{ ...commonOptions, indexAxis: 'y' }"
               />
             </div>
           </div>
