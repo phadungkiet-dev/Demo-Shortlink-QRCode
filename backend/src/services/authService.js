@@ -60,7 +60,7 @@ const registerUser = async (email, password) => {
  * @returns {Promise<Object>} - Message ยืนยัน
  */
 const changePassword = async (userId, oldPassword, newPassword) => {
-  // 1. ดึงข้อมูล User
+  // ดึงข้อมูล User
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
   // Safety Check: ต้องมี User และเป็นแบบ Local เท่านั้น
@@ -71,13 +71,13 @@ const changePassword = async (userId, oldPassword, newPassword) => {
     );
   }
 
-  // 2. ตรวจสอบรหัสผ่านเก่า
+  // ตรวจสอบรหัสผ่านเก่า
   const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
   if (!isMatch) {
     throw new AppError("Incorrect old password.", 401); // 401 Unauthorized
   }
 
-  // 3. Hash รหัสใหม่และบันทึก
+  // Hash รหัสใหม่และบันทึก
   const newPasswordHash = await bcrypt.hash(newPassword, 10);
   await prisma.user.update({
     where: { id: userId },
@@ -112,7 +112,7 @@ const deleteAccount = async (userId) => {
  * @description สร้าง Reset Token และส่งอีเมล
  */
 const forgotPassword = async (email) => {
-  // 1. หา User จาก Email
+  // หา User จาก Email
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user || user.provider !== "LOCAL") {
@@ -121,16 +121,16 @@ const forgotPassword = async (email) => {
     throw new AppError("There is no account with that email address.", 404);
   }
 
-  // 2. สร้าง Reset Token (Random String)
+  // สร้าง Reset Token (Random String)
   const resetToken = crypto.randomBytes(32).toString("hex");
 
-  // 3. Hash Token ก่อนเก็บลง DB (เพื่อความปลอดภัย ถ้า DB หลุด Token ก็ยังใช้ไม่ได้ทันที)
+  // Hash Token ก่อนเก็บลง DB (เพื่อความปลอดภัย ถ้า DB หลุด Token ก็ยังใช้ไม่ได้ทันที)
   const hashedToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
 
-  // 4. บันทึก Token และวันหมดอายุ (1 ชั่วโมง = 60 * 60 * 1000 ms)
+  // บันทึก Token และวันหมดอายุ (1 ชั่วโมง = 60 * 60 * 1000 ms)
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
   await prisma.user.update({
@@ -141,7 +141,7 @@ const forgotPassword = async (email) => {
     },
   });
 
-  // 5. สร้าง URL สำหรับ Reset (Frontend Route)
+  // สร้าง URL สำหรับ Reset (Frontend Route)
   // หมายเหตุ: FRONTEND_URL ต้องตั้งใน .env (เช่น http://localhost:5173)
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
@@ -155,7 +155,7 @@ const forgotPassword = async (email) => {
     Link expires in 1 hour.
   `;
 
-  // 6. ส่งเมล
+  // ส่งเมล
   try {
     await sendEmail({
       to: user.email,
@@ -186,10 +186,10 @@ const forgotPassword = async (email) => {
  * @description ตรวจสอบ Token และตั้งรหัสผ่านใหม่
  */
 const resetPassword = async (token, newPassword) => {
-  // 1. Hash Token ที่ได้จาก URL เพื่อไปเทียบกับใน DB
+  // Hash Token ที่ได้จาก URL เพื่อไปเทียบกับใน DB
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
-  // 2. หา User ที่มี Token นี้ และยังไม่หมดอายุ
+  // หา User ที่มี Token นี้ และยังไม่หมดอายุ
   const user = await prisma.user.findFirst({
     where: {
       resetPasswordToken: hashedToken,
@@ -201,10 +201,10 @@ const resetPassword = async (token, newPassword) => {
     throw new AppError("Token is invalid or has expired.", 400);
   }
 
-  // 3. Hash รหัสผ่านใหม่
+  // Hash รหัสผ่านใหม่
   const passwordHash = await bcrypt.hash(newPassword, 10);
 
-  // 4. อัปเดต User และล้าง Token ทิ้ง
+  // อัปเดต User และล้าง Token ทิ้ง
   await prisma.user.update({
     where: { id: user.id },
     data: {

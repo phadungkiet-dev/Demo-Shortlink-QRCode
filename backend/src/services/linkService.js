@@ -78,7 +78,7 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
   let retries = 0;
 
   while (retries < MAX_SLUG_RETRIES) {
-    slug = generateSlug(isAnonymous ? 5 : 7);
+    slug = await generateSlug(isAnonymous ? 5 : 7);
     retries++;
 
     try {
@@ -99,7 +99,7 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
         e.code === "P2002"
       ) {
         logger.warn(
-          `Slug collision detected: ${slug}. Retrying... (${retries})`
+          `Slug collision detected: ${slug}. Retrying... (${retries}/${MAX_SLUG_RETRIES})`
         );
         continue;
       }
@@ -267,6 +267,8 @@ const getAndRecordClick = async (slug, ip, uaString, referrer) => {
         ip: ip,
         userAgent: uaString,
         referrer: referrer || null,
+        country: country, // บันทึกประเทศ
+        city: city, // บันทึกเมือง
       },
     })
     .catch((err) => {

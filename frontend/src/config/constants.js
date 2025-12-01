@@ -1,8 +1,13 @@
 export const APP_CONFIG = {
   // ตั้งค่าเกี่ยวกับ API
   API: {
-    TIMEOUT: 10000, // 10 วินาที
+    TIMEOUT: 15000, // 15 วินาที
     BASE_URL: "/api",
+  },
+  // Roles
+  USER_ROLES: {
+    ADMIN: "ADMIN",
+    USER: "USER",
   },
 
   // กฎการตรวจสอบข้อมูล (ต้องตรงกับ Backend)

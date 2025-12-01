@@ -1,21 +1,22 @@
 // -------------------------------------------------------------------
-// Init & Config
+// Init & Config (เริ่มต้นระบบและโหลดค่าคอนฟิก)
 // -------------------------------------------------------------------
 require("dotenv").config();
 
-// บังคับ Timezone ให้เป็นเวลาไทย (สำคัญสำหรับ Cron Job และ Log)
+// บังคับ Timezone ให้เป็นเวลาไทย (สำคัญมากสำหรับ Log และ Cron Job)
+// เพื่อให้เวลาที่บันทึกลง Database หรือ Log file ตรงกับเวลาประเทศไทยเสมอ
 process.env.TZ = process.env.TIMEZONE || "Asia/Bangkok";
 
 const express = require("express");
-const helmet = require("helmet"); // เพิ่ม Security Headers
-const cors = require("cors"); // จัดการ Cross-Origin Resource Sharing
+const helmet = require("helmet"); // ความปลอดภัย HTTP Headers (ป้องกัน XSS, Clickjacking)
+const cors = require("cors"); // อนุญาตให้ Frontend ข้าม Domain มาเรียกได้
 const compression = require("compression"); // บีบอัด Response (Gzip) ให้โหลดเร็วขึ้น
-const morgan = require("morgan"); // Logger (บันทึก Request ที่เข้ามา)
+const morgan = require("morgan"); // ตัว Log Request ที่เข้ามา (Access Log)
 const cookieParser = require("cookie-parser");
 const session = require("express-session"); // จัดการ Session ฝั่ง Server
 const passport = require("passport"); // Authentication Middleware
 const csurf = require("csurf"); // ป้องกัน CSRF Attack
-const cron = require("node-cron"); // ตั้งเวลาทำงานอัตโนมัติ (Cron Job)
+// const cron = require("node-cron"); // ตั้งเวลาทำงานอัตโนมัติ (Cron Job)
 const path = require("path");
 const pg = require("pg");
 const ConnectPgSimple = require("connect-pg-simple")(session); // ตัวเก็บ Session ลง PostgreSQL
@@ -38,7 +39,8 @@ const apiRouter = require("./routes/index"); // API routes
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// --- Security & Environment Constants ---
+// --- Environment Flags ---
+// เช็คว่าเป็น Production หรือ Development เพื่อปรับพฤติกรรมความปลอดภัย
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const USE_HTTPS = process.env.USE_HTTPS === "true";
 
@@ -75,18 +77,22 @@ const sessionStore = new ConnectPgSimple({
 // Security & Core Middlewares
 // -------------------------------------------------------------------
 
-// Trust Proxy: สำคัญมากสำหรับ Docker/Nginx เพื่อให้ Express รู้จัก IP จริง และ Secure Cookie ทำงานถูก
+// Trust Proxy: จำเป็นมากเมื่อรันหลัง Nginx, Cloudflare หรือ Docker Load Balancer
+// เพื่อให้ Express รู้จัก IP จริงของผู้ใช้ และรู้ว่าผ่าน HTTPS มาหรือไม่
 app.set("trust proxy", 1);
 
 // CORS: รองรับหลาย Origin (แยกด้วยเครื่องหมาย ,)
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",")
   : [];
+
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
+
+      // ตรวจสอบว่า origin อยู่ใน whitelist ที่เราตั้งไว้ไหม
       if (allowedOrigins.indexOf(origin) === -1) {
         const msg =
           "The CORS policy for this site does not allow access from the specified Origin.";
@@ -94,7 +100,7 @@ app.use(
       }
       return callback(null, true);
     },
-    credentials: true,
+    credentials: true, // อนุญาตให้ส่ง Cookie/Session ข้าม Domain
   })
 );
 
@@ -114,9 +120,9 @@ app.use(compression());
 app.use(morgan("combined", { stream: logger.stream }));
 
 // Parsing: แปลง Body
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser(process.env.SESSION_SECRET));
+app.use(express.json()); // อ่าน JSON body
+app.use(express.urlencoded({ extended: false })); // อ่าน Form body
+app.use(cookieParser(process.env.SESSION_SECRET)); // อ่าน Cookie
 
 // -------------------------------------------------------------------
 // Session & Auth Setup
@@ -147,6 +153,16 @@ app.use("/uploads", express.static(path.join(__dirname, "../storage")));
 // Redirect Route (Public - No CSRF)
 // *ต้องอยู่ก่อน CSRF Protection*
 app.use("/r", redirectRouter);
+
+// Health Check: ย้ายมาตรงนี้เพื่อให้ Cloud Service (Render/Fly.io) ยิง Ping ตรวจสอบได้
+// โดยไม่ต้องติด CSRF Token (ถ้าติด 403 Deploy จะไม่ผ่าน)
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Server is healthy",
+    uptime: process.uptime(),
+  });
+});
 
 // API Routes (Protected with CSRF)
 const csrfProtection = csurf({

@@ -52,10 +52,12 @@ api.interceptors.response.use(
     // ยกเว้น endpoint /auth/me และ /auth/login เพื่อไม่ให้เกิด Infinite Loop
     if (status === 401) {
       // ถ้าเป็น Endpoint เช็คสถานะหรือ Login ไม่ต้องเด้ง Logout ซ้ำ
-      if (
-        !error.config.url.includes("/auth/me") &&
-        !error.config.url.includes("/auth/login")
-      ) {
+
+      const isAuthCheck =
+        error.config.url.includes("/auth/me") ||
+        error.config.url.includes("/auth/login");
+        
+      if (!isAuthCheck) {
         console.warn("Session expired. Logging out...");
         authStore.logoutCleanup();
         router.push("/?login=true");

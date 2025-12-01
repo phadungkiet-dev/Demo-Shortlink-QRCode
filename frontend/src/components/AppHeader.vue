@@ -47,7 +47,7 @@ onUnmounted(() => window.removeEventListener("scroll", handleScroll));
                 @click="isLoginModalOpen = true"
                 class="inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/20 transition-all active:scale-95"
               >
-                <LogIn class="w-4 h-4 mr-2" /> Log in
+                <LogIn class="w-4 h-4 mr-2" /> Sign in
               </button>
             </template>
           </div>

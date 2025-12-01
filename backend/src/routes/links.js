@@ -5,15 +5,22 @@ const statsController = require("../controllers/statsController");
 const { isAuthenticated } = require("../middlewares/authGuard");
 const { createLinkLimiter } = require("../middlewares/rateLimit");
 
-// Public: สร้างลิงก์ (มี Rate Limit สำหรับ Anonymous)
+// ===================================================================
+// PUBLIC ROUTES (เส้นทางสาธารณะ)
+// ===================================================================
 router.post("/", createLinkLimiter, linkController.createLink);
 
-// Protected: จัดการลิงก์ของตัวเอง
+// ===================================================================
+// SECURITY GATE (โซนพื้นที่ส่วนตัว)
+// ===================================================================
 router.use(isAuthenticated);
 
+// ===================================================================
+// PROTECTED ROUTES (จัดการลิงก์ของฉัน)
+// ===================================================================
 router.get("/me", linkController.getMyLinks);
+router.get("/:id/stats", statsController.getLinkStats);
 router.patch("/:id", linkController.updateLink);
 router.delete("/:id", linkController.deleteLink);
-router.get("/:id/stats", statsController.getLinkStats);
 
 module.exports = router;

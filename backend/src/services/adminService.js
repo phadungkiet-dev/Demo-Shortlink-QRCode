@@ -1,10 +1,12 @@
 const { prisma } = require("../config/prisma");
 const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
+const { USER_ROLES } = require("../config/constants");
 
 /**
  * @function getAllUsers
- * @description ดึงรายชื่อ User ทั้งหมด (ยกเว้นตัว Admin ผู้เรียก)
+ * @description ดึงรายชื่อ User ทั้งหมดสำหรับหน้า Admin Dashboard
+ * ใช้ Pagination และ Search เพื่อรองรับข้อมูลจำนวนมาก
  */
 const getAllUsers = async (adminId, page = 1, limit = 10, search = "") => {
   const skip = (page - 1) * limit;
@@ -26,7 +28,7 @@ const getAllUsers = async (adminId, page = 1, limit = 10, search = "") => {
         provider: true,
         role: true,
         isBlocked: true,
-        linkLimit: true, // เพิ่ม field limit
+        linkLimit: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -58,7 +60,7 @@ const updateUserStatus = async (userId, adminId, isBlocked) => {
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!targetUser) throw new AppError("User not found.", 404);
-  if (targetUser.role === "ADMIN")
+  if (targetUser.role === USER_ROLES.ADMIN)
     throw new AppError("Cannot block another Admin.", 403);
 
   const updatedUser = await prisma.user.update({
@@ -80,8 +82,9 @@ const deleteUser = async (userId, adminId) => {
     throw new AppError("Cannot delete your own account.", 400);
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+
   if (!targetUser) throw new AppError("User not found.", 404);
-  if (targetUser.role === "ADMIN")
+  if (targetUser.role === USER_ROLES.ADMIN)
     throw new AppError("Cannot delete another Admin.", 403);
 
   await prisma.user.delete({ where: { id: userId } });
@@ -113,8 +116,13 @@ const updateUserLimit = async (userId, adminId, newLimit) => {
 const changeUserRole = async (userId, adminId, newRole) => {
   if (userId === adminId)
     throw new AppError("Cannot change your own role.", 400);
-  if (!["ADMIN", "USER"].includes(newRole))
+
+  // if (!["ADMIN", "USER"].includes(newRole))
+  //   throw new AppError("Invalid role.", 400);
+
+  if (!Object.values(USER_ROLES).includes(newRole)) {
     throw new AppError("Invalid role.", 400);
+  }
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },

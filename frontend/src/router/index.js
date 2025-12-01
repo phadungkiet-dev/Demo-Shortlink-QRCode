@@ -8,6 +8,7 @@ const routes = [
     path: "/",
     name: "Home",
     component: HomeView, // โหลดทันที (Eager loading) เพราะเป็นหน้าแรก
+    meta: { title: "Free URL Shortener & QR Code Generator" },
   },
   {
     path: "/login",
@@ -17,44 +18,45 @@ const routes = [
     redirect: (to) => {
       return { path: "/", query: { login: "true" } };
     },
-    meta: { requiresGuest: true },
+    meta: { requiresGuest: true, title: "Sign in / Sign up" },
   },
   {
     path: "/dashboard",
     name: "Dashboard",
     // Lazy loading: โหลดเมื่อ User เข้าหน้านี้เท่านั้น (Code Splitting)
     component: () => import("@/views/DashboardView.vue"),
-    meta: { requiresAuth: true }, // ต้อง Login
+    meta: { requiresAuth: true, title: "My Dashboard" }, // ต้อง Login
   },
   {
     path: "/dashboard/link/:id/stats",
     name: "LinkStats",
     component: () => import("@/views/LinkStatsView.vue"),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, title: "Analytics Report" },
     props: true, // ส่ง :id เข้าไปเป็น Props
   },
   {
     path: "/profile",
     name: "Profile",
     component: () => import("@/views/ProfileView.vue"),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, title: "My Profile" },
   },
   {
     path: "/admin/users",
     name: "AdminUsers",
     component: () => import("@/views/AdminUsersView.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true }, // ต้องเป็น Admin เท่านั้น
+    meta: { requiresAuth: true, requiresAdmin: true, title: "User Management" }, // ต้องเป็น Admin เท่านั้น
   },
   {
     path: "/settings",
     name: "Settings",
     component: () => import("@/views/SettingsView.vue"),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, title: "Settings" },
   },
   {
     path: "/404",
     name: "NotFound",
     component: NotFoundView,
+    meta: { title: "Page Not Found" },
   },
   // Catch-all route: ถ้าพิมพ์มั่วๆ ให้ไปหน้า 404
   {
@@ -65,13 +67,13 @@ const routes = [
     path: "/forgot-password",
     name: "ForgotPassword",
     component: () => import("@/views/ForgotPasswordView.vue"),
-    meta: { requiresGuest: true }, // ต้องยังไม่ Login ถึงจะเข้าได้
+    meta: { requiresGuest: true, title: "Reset Password" }, // ต้องยังไม่ Login ถึงจะเข้าได้
   },
   {
     path: "/reset-password/:token", // รับ param :token
     name: "ResetPassword",
     component: () => import("@/views/ResetPasswordView.vue"),
-    meta: { requiresGuest: true },
+    meta: { requiresGuest: true, title: "Set New Password" },
   },
 ];
 
@@ -88,11 +90,17 @@ const router = createRouter({
   },
 });
 
+const DEFAULT_TITLE = "Shortlink.QR";
+
 // -------------------------------------------------------------------
 // Global Navigation Guard
 // -------------------------------------------------------------------
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
+
+  document.title = to.meta.title
+    ? `${to.meta.title} | ${DEFAULT_TITLE}`
+    : DEFAULT_TITLE;
 
   // รอเช็คสถานะ Login กับ Backend ให้เสร็จก่อนเสมอ (สำคัญมาก!)
   // ถ้าไม่รอ Router จะคิดว่า User เป็น null ทั้งที่จริงๆ อาจจะ Login ค้างอยู่

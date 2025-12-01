@@ -1,6 +1,13 @@
 const winston = require("winston");
 require("winston-daily-rotate-file");
 const path = require("path");
+const fs = require("fs");
+
+// สร้างโฟลเดอร์ logs ถ้ายังไม่มี (ป้องกัน Error ตอนเริ่มโปรแกรม)
+const logDir = "logs";
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir);
+}
 
 // กำหนด Timezone ให้ตรงกับ System (Asia/Bangkok)
 const timezoned = () => {

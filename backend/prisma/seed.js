@@ -1,5 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcrypt");
+const { USER_ROLES, DEFAULTS } = require("../src/config/constants");
 
 const prisma = new PrismaClient();
 
@@ -10,7 +11,9 @@ async function main() {
   const password = "User#123"; // รหัสผ่านเดียวกันเพื่อง่ายต่อการเทส
   const passwordHash = await bcrypt.hash(password, saltRounds);
 
-  // --- Create Users ---
+  // -----------------------------------------------------------------------
+  // Create Users (ใช้ upsert เพื่อให้รันซ้ำได้ไม่ Error)
+  // -----------------------------------------------------------------------
 
   // Admin (Super User)
   const admin = await prisma.user.upsert({
@@ -20,7 +23,7 @@ async function main() {
       email: "admin@local.dev",
       passwordHash,
       provider: "LOCAL",
-      role: "ADMIN",
+      role: USER_ROLES.ADMIN,
     },
   });
 
@@ -32,8 +35,8 @@ async function main() {
       email: "user@local.dev",
       passwordHash,
       provider: "LOCAL",
-      role: "USER",
-      linkLimit: 10, // User ปกติ
+      role: USER_ROLES.USER,
+      linkLimit: DEFAULTS.LINK_LIMIT,
     },
   });
 
@@ -47,12 +50,15 @@ async function main() {
       provider: "LOCAL",
       role: "USER",
       isBlocked: true, // โดนแบน
+      linkLimit: DEFAULTS.LINK_LIMIT,
     },
   });
 
   console.log(`✅ Created users: Admin, User, BlockedUser`);
 
-  // --- Create Links ---
+  // -----------------------------------------------------------------------
+  // Create Links
+  // -----------------------------------------------------------------------
 
   // เคลียร์ลิงก์เก่าก่อน (Optional) เพื่อไม่ให้ข้อมูลซ้ำซ้อนตอน Seed หลายรอบ
   await prisma.link.deleteMany({});
@@ -82,8 +88,8 @@ async function main() {
       ownerId: admin.id,
       expiredAt: thirtyDaysFromNow,
       qrOptions: {
-        color: "#E11D48", // สีแดง
-        style: "dots",
+        dotsOptions: { color: "#E11D48", type: "dots" },
+        backgroundOptions: { color: "#ffffff" },
       },
     },
   });

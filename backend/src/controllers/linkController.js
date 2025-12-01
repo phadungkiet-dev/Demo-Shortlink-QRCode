@@ -10,10 +10,10 @@ const AppError = require("../utils/AppError");
 // Create Shortlink
 // -------------------------------------------------------------------
 const createLink = catchAsync(async (req, res, next) => {
-  // 1. Validate Input (ถ้าไม่ผ่าน Zod จะ throw error ไปที่ Global Handler เอง)
+  // Validate Input (ถ้าไม่ผ่าน Zod จะ throw error ไปที่ Global Handler เอง)
   const { targetUrl, slug } = createLinkSchema.parse(req.body);
 
-  // 2. Business Logic Validation
+  // Business Logic Validation
   // ป้องกันการย่อลิงก์ของตัวเอง (Self-loop)
   if (targetUrl.includes(process.env.BASE_URL)) {
     throw new AppError("Cannot create a shortlink that points to itself.", 400);
@@ -23,13 +23,13 @@ const createLink = catchAsync(async (req, res, next) => {
 
   // ป้องกัน Anonymous พยายามส่ง Slug มาเอง (ต้อง Login ก่อน)
   if (slug && !ownerId) {
-    throw new AppError("Custom slugs are for logged-in users only.", 403);
+    throw new AppError("Custom slugs are for logged-in users only. Please login.", 403);
   }
 
-  // 3. Call Service
+  // Call Service
   const link = await linkService.createLink(targetUrl, ownerId, slug);
 
-  // 4. Send Response
+  // Send Response
   res.status(201).json({
     ...link,
     shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
@@ -75,6 +75,8 @@ const updateLink = catchAsync(async (req, res, next) => {
   }
 
   const ownerId = req.user.id;
+
+  // Validate ข้อมูลที่จะแก้ไข (อนุญาตเฉพาะบาง field ที่กำหนดใน Schema)
   const updateData = updateLinkSchema.parse(req.body);
 
   // Service จะ throw AppError(404/403) ให้เองถ้าไม่ใช่เจ้าของ

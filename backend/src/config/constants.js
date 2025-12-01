@@ -1,43 +1,47 @@
 module.exports = {
-  // สิทธิ์ผู้ใช้งาน
+  // --- สิทธิ์ผู้ใช้งาน (User Roles) ---
+  // ใช้กำหนดสิทธิ์เข้าถึง (Authorization) ใน Middleware 'isAdmin'
   USER_ROLES: {
     ADMIN: "ADMIN",
     USER: "USER",
   },
-  // ค่า Default ต่างๆ
+  // --- ค่าเริ่มต้นของระบบ (System Defaults) ---
   DEFAULTS: {
-    LINK_LIMIT: 10,
-    ANON_LINK_EXPIRY_DAYS: 7,
-    USER_LINK_EXPIRY_DAYS: 30,
+    LINK_LIMIT: 10, // ผู้ใช้ทั่วไปสร้างได้ไม่เกิน 10 ลิงก์ (ป้องกัน DB บวม)
+    ANON_LINK_EXPIRY_DAYS: 7, // ลิงก์จากคนไม่ล็อกอิน อยู่ได้ 7 วัน
+    USER_LINK_EXPIRY_DAYS: 30, // ลิงก์จากสมาชิก อยู่ได้ 30 วัน
   },
-  // การตั้งค่า Cookie
+  // --- การตั้งค่า Cookie & Session ---
   COOKIE: {
-    NAME: "connect.sid",
-    SECRET_KEY: "_csrf", // ชื่อ Cookie สำหรับ CSRF
-    MAX_AGE: 900000, // 15 นาที (Milliseconds)
+    NAME: "connect.sid", // ชื่อ Cookie ที่จะฝังใน Browser
+    SECRET_KEY: "_csrf", // ชื่อ Cookie สำหรับ CSRF Token
+    MAX_AGE: 900000, // 15 นาที (หน่วย Milliseconds) - Session หลุดถ้าไม่ใช้งาน
   },
-  // การตั้งค่า Storage
+  // --- การจัดการไฟล์ (Storage) ---
   STORAGE: {
     LOCAL_PATH: "storage/logos",
-    MAX_FILE_SIZE: 1024 * 1024, // 1MB
+    MAX_FILE_SIZE: 1 * 1024 * 1024, // 1MB (คำนวณให้เห็นชัดๆ: 1 * 1024KB * 1024Bytes)
   },
+  // --- Rate Limiting (ป้องกัน Spam/DDoS) ---
   RATE_LIMIT: {
-    // จำกัดการสร้างลิงก์ (Create Link)
+    // กฎสำหรับการสร้างลิงก์ (เข้มงวดหน่อย)
     CREATE: {
-      WINDOW_MS: 60 * 60 * 1000, // 1 ชั่วโมง
-      MAX_DEV: 1000, // สำหรับ Dev Test ง่ายๆ
-      MAX_PROD: 5, // สำหรับ Prod (กัน Spam)
+      WINDOW_MS: 60 * 60 * 1000, // ภายใน 1 ชั่วโมง
+      MAX_DEV: 1000, // Dev: สร้างได้รัวๆ ไว้เทส
+      MAX_PROD: 5, // Prod: อนุญาตแค่ 5 ลิงก์ (สำหรับ Anonymous) กัน spam
     },
-    // API ทั่วไป (General API)
+    // กฎสำหรับ API ทั่วไป (เช่น Login, Get Links)
     GENERAL: {
-      WINDOW_MS: 15 * 60 * 1000, // 15 นาที
+      WINDOW_MS: 15 * 60 * 1000, // ภายใน 15 นาที
       MAX_DEV: 5000,
-      MAX_PROD: 200,
+      MAX_PROD: 200, // 200 Requests (เฉลี่ย 13 req/นาที)
     },
   },
+  // --- กฎการตรวจสอบข้อมูล (Validation Rules) ---
+  // ใช้ร่วมกับ Zod Schema
   VALIDATION: {
     PASSWORD_MIN_LEN: 8,
-    SLUG_MIN_LEN: 3,
-    SLUG_MAX_LEN: 30,
+    SLUG_MIN_LEN: 3, // สั้นสุดเช่น /r/abc
+    SLUG_MAX_LEN: 30, // ยาวสุดไม่เกินนี้
   },
 };

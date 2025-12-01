@@ -1,18 +1,27 @@
 const { z } = require("zod");
 const { VALIDATION } = require("../config/constants");
 
-/**
- * Common Rules: กฎที่ใช้ร่วมกันบ่อยๆ
- */
+// -------------------------------------------------------------------
+// Reusable Rules (กฎที่ใช้ซ้ำได้)
+// -------------------------------------------------------------------
+// 1 upper, 1 lower, 1 number, 1 special char, >= 8 char
 const passwordRule = z
   .string()
   .min(
     VALIDATION.PASSWORD_MIN_LEN,
     `Password must be at least ${VALIDATION.PASSWORD_MIN_LEN} characters long.`
+  )
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter.")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter.")
+  .regex(/[0-9]/, "Password must contain at least one number.")
+  .regex(
+    /[\W_]/,
+    "Password must contain at least one special character (!@#$...)."
   );
-// .regex(/[A-Z]/, "Password must contain at least one uppercase letter.") // (Optional: ถ้าต้องการเข้มงวด)
-// .regex(/[0-9]/, "Password must contain at least one number.");         // (Optional)
 
+// -------------------------------------------------------------------
+// Schemas (แม่แบบตรวจสอบข้อมูล)
+// -------------------------------------------------------------------
 /**
  * Schema: สร้างลิงก์ใหม่ (Create Link)
  */
@@ -21,13 +30,19 @@ const createLinkSchema = z.object({
     .string()
     .trim()
     .min(1, "Target URL is required.")
-    .url("Invalid URL format (must verify http/https)."), // ต้องเป็น URL ที่ถูกต้อง
+    .url("Invalid URL format (must include http:// or https://)"), // ต้องเป็น URL ที่ถูกต้อง
 
   slug: z
     .string()
     .trim()
-    .min(VALIDATION.SLUG_MIN_LEN, `Slug must be at least ${VALIDATION.SLUG_MIN_LEN} characters.`)
-    .max(VALIDATION.SLUG_MAX_LEN, `Slug must be at most ${VALIDATION.SLUG_MAX_LEN} characters.`)
+    .min(
+      VALIDATION.SLUG_MIN_LEN,
+      `Slug must be at least ${VALIDATION.SLUG_MIN_LEN} characters.`
+    )
+    .max(
+      VALIDATION.SLUG_MAX_LEN,
+      `Slug must be at most ${VALIDATION.SLUG_MAX_LEN} characters.`
+    )
     .regex(
       /^[a-zA-Z0-9_-]+$/,
       "Slug can only contain letters, numbers, hyphens (-), and underscores (_)."
@@ -37,11 +52,12 @@ const createLinkSchema = z.object({
 
 /**
  * Schema: แก้ไขลิงก์ (Update Link)
+ * ทุก field เป็น .optional() เพราะ User อาจจะอยากแก้แค่บางค่า
  */
 const updateLinkSchema = z.object({
-  renew: z.boolean().optional(),
+  renew: z.boolean().optional(), // ต่ออายุลิงก์
   targetUrl: z.string().trim().url("Invalid URL format.").optional(),
-  qrOptions: z.record(z.any()).optional(), // รับ JSON Object (ยืดหยุ่นสำหรับ Config QR)
+  qrOptions: z.record(z.any()).optional(), // รับ JSON อะไรก็ได้ (ยืดหยุ่นสำหรับ Config QR จาก Frontend)
   disabled: z.boolean().optional(),
 });
 
@@ -49,7 +65,7 @@ const updateLinkSchema = z.object({
  * Schema: เข้าสู่ระบบ (Login)
  */
 const loginSchema = z.object({
-  email: z.string().email("Invalid email format."),
+  email: z.string().email("Invalid email format."), // ตรวจรูปแบบอีเมลอัตโนมัติ
   password: z.string().min(1, "Password is required."),
 });
 
@@ -59,12 +75,13 @@ const loginSchema = z.object({
 const changePasswordSchema = z
   .object({
     oldPassword: z.string().min(1, "Old password is required."),
-    newPassword: passwordRule,
+    newPassword: passwordRule, // ใช้กฎเดียวกับตอนสมัคร
     confirmPassword: z.string(),
   })
+  // .refine: ใช้สำหรับตรวจสอบความสัมพันธ์ระหว่าง field (Cross-field validation)
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: "New passwords do not match.",
-    path: ["confirmPassword"], // ชี้เป้า Error ไปที่ field นี้
+    path: ["confirmPassword"], // ถ้าไม่ตรง ให้แจ้ง Error ที่ช่อง confirmPassword
   });
 
 /**
@@ -81,10 +98,25 @@ const registerSchema = z
     path: ["confirmPassword"],
   });
 
+/**
+ * Schema: รีเซ็ตรหัสผ่านใหม่ (Reset Password)
+ * ใช้ passwordRule เดียวกันกับตอนสมัครสมาชิก เพื่อความปลอดภัยระดับเดียวกัน
+ */
+const resetPasswordSchema = z
+  .object({
+    password: passwordRule, // ใช้กฎเข้มงวด (ยาว 8+, มีตัวใหญ่/เล็ก/เลข/อักขระพิเศษ)
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
 module.exports = {
   createLinkSchema,
   updateLinkSchema,
   loginSchema,
   changePasswordSchema,
   registerSchema,
+  resetPasswordSchema,
 };

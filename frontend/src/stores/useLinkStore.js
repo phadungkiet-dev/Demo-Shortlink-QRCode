@@ -1,24 +1,34 @@
 import { defineStore } from "pinia";
 import api from "@/services/api";
 import Swal from "sweetalert2";
+import { APP_CONFIG } from "@/config/constants";
 
 export const useLinkStore = defineStore("links", {
   state: () => ({
     myLinks: [],
-    pagination: { page: 1, totalPages: 1, total: 0 }, // กำหนดค่าเริ่มต้นกัน Error
+    pagination: {
+      page: APP_CONFIG.PAGINATION.DEFAULT_PAGE,
+      totalPages: 1,
+      total: 0,
+    }, // กำหนดค่าเริ่มต้นกัน Error
     stats: {
       total: 0,
       active: 0,
       inactive: 0,
     },
     isLoading: false,
+    lastCreatedLink: null,
   }),
 
   actions: {
     // ----------------------------------------------------------------
     // Fetch Links (ดึงข้อมูลลิงก์ + Search + Pagination)
     // ----------------------------------------------------------------
-    async fetchMyLinks(page = 1, limit = 9, search = "") {
+    async fetchMyLinks(
+      page = APP_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = APP_CONFIG.PAGINATION.DEFAULT_LIMIT,
+      search = ""
+    ) {
       this.isLoading = true;
       try {
         const response = await api.get("/links/me", {
@@ -105,7 +115,9 @@ export const useLinkStore = defineStore("links", {
 
         // รีเฟรชข้อมูลใหม่เพื่อให้ Stats (Active/Inactive) อัปเดตถูกต้อง
         // (เพราะการ Renew อาจเปลี่ยนจาก Inactive -> Active)
-        this.fetchMyLinks(this.pagination?.page || 1);
+        this.fetchMyLinks(
+          this.pagination?.page || APP_CONFIG.PAGINATION.DEFAULT_PAGE
+        );
 
         Swal.fire({
           toast: true,
@@ -129,6 +141,34 @@ export const useLinkStore = defineStore("links", {
       const index = this.myLinks.findIndex((l) => l.id === updatedLink.id);
       if (index !== -1) {
         this.myLinks[index] = { ...this.myLinks[index], ...updatedLink };
+      }
+    },
+    async createShortlink(payload) {
+      this.isLoading = true;
+      try {
+        // เรียก API เพื่อสร้างลิงก์
+        const response = await api.post("/links", payload);
+        const newLink = response.data;
+
+        // เก็บผลลัพธ์ล่าสุดไว้ใน state (เผื่อใช้)
+        this.lastCreatedLink = newLink;
+
+        // ถ้า User ล็อกอินอยู่ และมีรายการลิงก์อยู่แล้ว (หน้า Dashboard)
+        // เพิ่มลิงก์ใหม่เข้าไปใน list ทันที (Optimistic Update)
+        // เพื่อให้หน้าจออัปเดตโดยไม่ต้องโหลดใหม่
+        if (this.myLinks.length > 0) {
+          this.myLinks.unshift(newLink); // เพิ่มไว้ตัวแรกสุด
+          this.stats.total++;
+          this.stats.active++;
+        }
+
+        return newLink; // ส่งข้อมูลลิงก์ที่สร้างได้กลับไปให้ Component (เพื่อแสดง Modal)
+      } catch (error) {
+        // จัดการ Error: แสดง Alert หรือโยน Error ต่อไปให้ Component จัดการเอง
+        // ในที่นี้เราจะโยน Error กลับไปเพื่อให้ HomeView แสดงข้อความใน UI
+        throw error;
+      } finally {
+        this.isLoading = false;
       }
     },
   },

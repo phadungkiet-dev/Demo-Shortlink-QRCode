@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import api from "@/services/api";
 import router from "@/router";
 import Swal from "sweetalert2";
+import { APP_CONFIG } from "@/config/constants";
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
@@ -11,7 +12,7 @@ export const useAuthStore = defineStore("auth", {
   }),
   getters: {
     isAuthenticated: (state) => !!state.user,
-    isAdmin: (state) => state.user?.role === "ADMIN",
+    isAdmin: (state) => state.user?.role === APP_CONFIG.USER_ROLES.ADMIN,
   },
 
   actions: {
@@ -105,7 +106,10 @@ export const useAuthStore = defineStore("auth", {
       } catch (error) {
         console.error("Registration failed:", error);
         // แสดง Error ที่ได้จาก Backend (เช่น Email ซ้ำ, รหัสไม่ตรง)
-        const displayMsg = error.response?.data?.message || error.message || "Registration failed.";
+        const displayMsg =
+          error.response?.data?.message ||
+          error.message ||
+          "Registration failed.";
         throw new Error(displayMsg);
       }
     },

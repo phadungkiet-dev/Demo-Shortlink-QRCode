@@ -3,6 +3,7 @@ const {
   changePasswordSchema,
   loginSchema,
   registerSchema,
+  resetPasswordSchema,
 } = require("../utils/validationSchemas");
 const authService = require("../services/authService");
 const AppError = require("../utils/AppError");
@@ -65,6 +66,7 @@ const logout = (req, res, next) => {
 const changePassword = catchAsync(async (req, res, next) => {
   const { oldPassword, newPassword } = changePasswordSchema.parse(req.body);
 
+  // ห้ามเปลี่ยนรหัสผ่าน ถ้า Login ด้วย Google (เพราะไม่มีรหัสผ่านในระบบ)
   if (req.user.provider !== "LOCAL") {
     throw new AppError("Cannot change password for OAuth users.", 400);
   }
@@ -88,24 +90,27 @@ const getMe = (req, res) => {
 // Google Auth
 // -------------------------------------------------------------------
 const googleAuth = passport.authenticate("google", {
-  scope: ["profile", "email"],
+  scope: ["profile", "email"], // ขอสิทธิ์เข้าถึง Profile และ Email
 });
 
 const googleCallback = (req, res, next) => {
   passport.authenticate("google", (err, user, info) => {
     if (err) return next(err);
 
+    // ใช้ FRONTEND_URL จาก .env (เผื่อ CORS_ORIGIN มีหลายค่า)
+    const frontendUrl = process.env.FRONTEND_URL || process.env.CORS_ORIGIN;
+
     if (!user) {
       logger.warn("Google Auth Failed:", info);
       const errorMsg = encodeURIComponent(
         info.message || "Google login failed."
       );
-      return res.redirect(`${process.env.CORS_ORIGIN}/login?error=${errorMsg}`);
+      return res.redirect(`${frontendUrl}/login?error=${errorMsg}`);
     }
 
     req.logIn(user, (err) => {
       if (err) return next(err);
-      res.redirect(`${process.env.CORS_ORIGIN}/dashboard`);
+      res.redirect(`${frontendUrl}/dashboard`);
     });
   })(req, res, next);
 };
@@ -160,14 +165,11 @@ const forgotPassword = catchAsync(async (req, res, next) => {
 const resetPassword = catchAsync(async (req, res, next) => {
   // Token มาจาก URL params (/api/auth/reset-password/:token)
   const { token } = req.params;
-  const { password, confirmPassword } = req.body;
 
-  if (password !== confirmPassword) {
-    throw new AppError("Passwords do not match.", 400);
-  }
-  if (!password || password.length < 8) {
-    throw new AppError("Password must be at least 8 characters.", 400);
-  }
+  // ใช้ Zod Schema ตรวจสอบแทนการเขียน if เอง
+  // ถ้าไม่ผ่าน Zod จะ throw Error ไปที่ Global Handler ให้เอง
+  // และจะได้กฎความยากของรหัสผ่านที่เหมือนกับตอนสมัครสมาชิกเป๊ะๆ
+  const { password } = resetPasswordSchema.parse(req.body);
 
   const result = await authService.resetPassword(token, password);
   res.status(200).json(result);

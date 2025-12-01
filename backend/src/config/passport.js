@@ -11,32 +11,34 @@ const { DEFAULTS, USER_ROLES } = require("./constants");
 passport.use(
   new LocalStrategy(
     {
-      usernameField: "email",
+      usernameField: "email", // บอก Passport ว่าเราใช้ field 'email' แทน username
       passwordField: "password",
     },
     async (email, password, done) => {
       try {
-        // 1. หา User จาก Email
+        // หา User จาก Email
         const user = await prisma.user.findUnique({ where: { email } });
 
-        // 2. ถ้าไม่เจอ User หรือเป็น User ที่สมัครผ่าน Google (ไม่มีรหัสผ่าน)
+        // ถ้าไม่เจอ หรือ user นี้ไม่มีรหัสผ่าน (เช่น สมัครผ่าน Google มา)
         if (!user || !user.passwordHash) {
+          // done(error, user, options) -> ส่ง false เพื่อบอกว่า Login ไม่ผ่าน
           return done(null, false, { message: "Invalid email or password." });
         }
 
-        // 3. ตรวจสอบรหัสผ่าน
+        // ตรวจสอบรหัสผ่าน (เทียบ Plain Text กับ Hash ใน DB)
         const isMatch = await bcrypt.compare(password, user.passwordHash);
         if (!isMatch) {
           return done(null, false, { message: "Invalid email or password." });
         }
 
-        // 4. เช็คสถานะโดนแบน
+        // เช็คสถานะโดนแบน (สำคัญมาก!)
         if (user.isBlocked) {
           return done(null, false, {
             message: "Your account has been suspended.",
           });
         }
 
+        // Login ผ่าน! ส่ง user object ไปให้ Passport
         return done(null, user);
       } catch (error) {
         return done(error);
@@ -54,7 +56,7 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: process.env.GOOGLE_CALLBACK_URL,
-      scope: ["profile", "email"],
+      scope: ["profile", "email"], // ขอข้อมูล Profile และ Email
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -63,25 +65,26 @@ passport.use(
           return done(new Error("No email found from Google profile."), null);
         }
 
-        // 1. เช็คว่ามี User นี้หรือยัง
+        // เช็คว่ามี User นี้หรือยัง
         let user = await prisma.user.findUnique({ where: { email } });
 
         if (user) {
-          // 2. ถ้ามีแล้ว -> เช็คว่า Login ถูกวิธีไหม
+          // Case: มี User อยู่แล้ว -> เช็คว่าเคยสมัครแบบไหน
           if (user.provider !== "GOOGLE") {
+            // ถ้าเคยสมัครด้วย Email/Password จะไม่ให้ Login ผ่าน Google (เพื่อความปลอดภัย)
             return done(null, false, {
               message:
                 "This email is registered with password. Please login normally.",
             });
           }
-          // 3. เช็คโดนแบน
+          // เช็คโดนแบน
           if (user.isBlocked) {
             return done(null, false, {
               message: "Your account has been suspended.",
             });
           }
         } else {
-          // 4. ถ้ายังไม่มี -> สร้าง User ใหม่ (Auto Register)
+          // Case: ยังไม่มี User -> สมัครสมาชิกให้อัตโนมัติ (Auto Register)
           user = await prisma.user.create({
             data: {
               email: email,
@@ -104,10 +107,14 @@ passport.use(
 // -------------------------------------------------------------------
 // Session Handling (Serialize / Deserialize)
 // -------------------------------------------------------------------
+// Serialize: ตอน Login สำเร็จ จะเก็บอะไรลงใน Session Cookie?
+// ตอบ: เก็บแค่ "User ID" ก็พอ (เพื่อประหยัดพื้นที่ Cookie)
 passport.serializeUser((user, done) => {
   done(null, user.id); // เก็บแค่ ID ลง Session Store
 });
 
+// Deserialize: เมื่อ User ยื่น Cookie มาใน Request ถัดไป จะแปลง ID กลับเป็น User Object ยังไง?
+// ตอบ: เอา ID ไป Query หา User ใน DB
 passport.deserializeUser(async (id, done) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
@@ -117,6 +124,7 @@ passport.deserializeUser(async (id, done) => {
       return done(null, false);
     }
 
+    // ตัด Password Hash ออกก่อนแปะลงใน req.user เพื่อความปลอดภัย
     const { passwordHash, ...userWithoutPass } = user;
     done(null, userWithoutPass);
   } catch (error) {

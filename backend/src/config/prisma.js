@@ -1,8 +1,10 @@
 const { PrismaClient } = require("@prisma/client");
 const logger = require("../utils/logger");
 
-// สร้าง Instance ของ Prisma Client
-// log: แสดง Query ใน Console เฉพาะตอน Dev เพื่อ Debug
+// -------------------------------------------------------------------
+// Prisma Client Instance
+// -------------------------------------------------------------------
+// เราสร้าง Instance เดียวแล้ว Export ไปใช้ทั่วทั้งแอป (Singleton โดยธรรมชาติของ Node.js Module Caching)
 const prisma = new PrismaClient({
   log:
     process.env.NODE_ENV === "development"

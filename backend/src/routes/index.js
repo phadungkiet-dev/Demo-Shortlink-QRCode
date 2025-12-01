@@ -1,21 +1,23 @@
 const express = require("express");
 const router = express.Router();
 
+// Import Sub-routers (แยกไฟล์ตามหน้าที่ เพื่อความเป็นระเบียบ)
 const authRouter = require("./auth");
 const linksRouter = require("./links");
 const adminRouter = require("./admin");
+
+// Middlewares
 const { apiLimiter } = require("../middlewares/rateLimit");
 const AppError = require("../utils/AppError");
 
-// Global API Rate Limit
+// -------------------------------------------------------------------
+// Global API Middleware
+// -------------------------------------------------------------------
 router.use(apiLimiter);
 
-// Health Check
-router.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok", message: "Server is healthy" });
-});
-
-// Mount Sub-routers
+// -------------------------------------------------------------------
+// Mount Sub-routers (เชื่อมต่อเส้นทางย่อย)
+// -------------------------------------------------------------------
 router.use("/auth", authRouter);
 router.use("/links", linksRouter);
 router.use("/admin", adminRouter);

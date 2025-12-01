@@ -89,7 +89,7 @@ const updateUserLimit = catchAsync(async (req, res, next) => {
   const { limit } = req.body;
 
   if (isNaN(userIdToUpdate) || typeof limit !== "number") {
-    throw new AppError("Invalid input.", 400);
+    throw new AppError("Invalid input. Limit must be a number.", 400);
   }
 
   const updatedUser = await adminService.updateUserLimit(

@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => {
   // process.cwd() คือตำแหน่ง root ของ frontend
   const env = loadEnv(mode, process.cwd(), "");
 
+  const API_TARGET = env.VITE_API_TARGET || "http://localhost:3001";
+
   return {
     plugins: [vue()],
     resolve: {
@@ -22,13 +24,19 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": {
           // อ่านจาก .env หรือใช้ Default
-          target: env.VITE_API_TARGET || "http://localhost:3001",
+          target: API_TARGET,
           changeOrigin: true,
           secure: false, // Dev มักไม่มี SSL Certificate ที่ถูกต้อง
         },
         // Proxy รูปภาพที่ Upload
         "/uploads": {
-          target: env.VITE_API_TARGET || "http://localhost:3001",
+          target: API_TARGET,
+          changeOrigin: true,
+          secure: false,
+        },
+        // Shortlink Redirect: ส่งต่อ /r/... ไปให้ Backend จัดการ
+        "/r": {
+          target: API_TARGET,
           changeOrigin: true,
           secure: false,
         },

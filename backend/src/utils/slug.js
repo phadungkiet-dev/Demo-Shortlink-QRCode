@@ -1,16 +1,27 @@
-const { nanoid } = require("nanoid");
+let nanoid;
+
+const loadNanoid = async () => {
+  if (!nanoid) {
+    const module = await import("nanoid");
+    nanoid = module.nanoid;
+  }
+  return nanoid;
+};
 
 /**
  * @function generateSlug
  * @description สร้างรหัสสุ่ม (Slug) สำหรับ Shortlink
- * ใช้ Library 'nanoid' ซึ่งมีความเร็วสูงและโอกาสซ้ำต่ำมาก (Collision Resistant)
- * * @param {number} [size=7] - ความยาวของ Slug ที่ต้องการ (ค่า Default คือ 7)
- * @returns {string} - รหัส Slug ที่สุ่มได้ (เช่น "Xy7_kP9")
+ * @param {number} [size=7] - ความยาวของ Slug ที่ต้องการ (ค่า Default คือ 7)
+ * @returns {Promise<string>} - รหัส Slug (ต้อง await เพราะเป็น Async)
  */
-const generateSlug = (size = 7) => {
-  // ตรวจสอบว่า size เป็นตัวเลขและมากกว่า 0
+const generateSlug = async (size = 7) => {
+  // ตรวจสอบความถูกต้องของ size
   const length = typeof size === "number" && size > 0 ? size : 7;
-  return nanoid(length);
+
+  // โหลดและเรียกใช้ nanoid
+  const _nanoid = await loadNanoid();
+  console.log(_nanoid);
+  return _nanoid(length);
 };
 
 module.exports = {

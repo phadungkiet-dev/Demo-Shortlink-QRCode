@@ -11,11 +11,11 @@ import "sweetalert2/dist/sweetalert2.min.css";
 
 const app = createApp(App);
 
-// 1. Setup State Management (Pinia)
+// Setup State Management (Pinia)
 const pinia = createPinia();
 app.use(pinia);
 
-// 2. Setup Router (หลังจาก Pinia เพราะ Router อาจเรียกใช้ Store ใน Guards)
+// Setup Router (หลังจาก Pinia เพราะ Router อาจเรียกใช้ Store ใน Guards)
 app.use(router);
 
 app.mount("#app");

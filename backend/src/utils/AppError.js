@@ -1,7 +1,8 @@
 /**
- * @class AppError
- * @description คลาสสำหรับจัดการ Operational Errors (Error ที่เรารู้จักและคาดการณ์ไว้)
- * ช่วยให้สามารถระบุ HTTP Status Code และ Message ได้อย่างเป็นระเบียบ
+ * Class: AppError
+ * หน้าที่: เป็น Error มาตรฐานของระบบเรา ที่สืบทอดมาจาก Error ปกติของ JS
+ * ประโยชน์: ช่วยให้เราระบุได้ว่า Error นี้ "เราตั้งใจให้เกิด" (เช่น กรอกรหัสผิด)
+ * หรือ "ระบบพังเอง" (เช่น Database ล่ม)
  */
 class AppError extends Error {
   /**
@@ -14,10 +15,10 @@ class AppError extends Error {
     this.statusCode = statusCode;
     // ถ้า Code ขึ้นต้นด้วย 4xx ให้สถานะเป็น 'fail' (User ผิด)
     // ถ้าไม่ใช่ (5xx) ให้เป็น 'error' (Server ผิด)
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
-    
-    // Flag นี้สำคัญมาก! ใช้บอก Error Handler ว่า "นี่คือ Error ที่เราตั้งใจ throw เอง"
-    // ทำให้เรากล้าส่ง Message กลับไปหา Client ได้ (ถ้าเป็น false คือ Programming Error เราจะปิดบังไว้)
+    this.status = `${statusCode}`.startsWith("4") ? "fail" : "error";
+
+    // isOperational = true หมายถึง Error ที่เรารู้จักและคาดการณ์ไว้แล้ว
+    // (เอาไว้แยกกับ Error ที่เกิดจาก Bug ของโปรแกรม)
     this.isOperational = true;
 
     // เก็บ Stack Trace ไว้ตรวจสอบ (แต่จะไม่แสดงให้ User เห็นใน Production)
