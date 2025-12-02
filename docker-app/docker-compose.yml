@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  # 1. Database
+  # Database
   postgres:
     image: postgres:15-alpine
     container_name: shortlink-db
@@ -10,8 +10,9 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-shortlinkqr}
+      TZ: Asia/Bangkok
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data
     networks:
       - app-network
     healthcheck:
@@ -20,7 +21,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # 2. Backend
+  # Backend
   backend:
     build:
       context: ../backend # ถอยออกไป 1 ขั้น เพื่อเข้า folder backend
@@ -38,6 +39,7 @@ services:
       SESSION_SECRET: "${SESSION_SECRET:-supersecretkey}"
       COOKIE_DOMAIN: "${COOKIE_DOMAIN:-localhost}"
       USE_HTTPS: "${USE_HTTPS:-false}"
+      TZ: Asia/Bangkok
       # External Services
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
@@ -53,20 +55,25 @@ services:
         condition: service_healthy
     volumes:
       # เก็บไฟล์ storage ไว้ใน folder backend เหมือนเดิม
-      - ../backend/storage:/app/storage
-      - ../backend/logs:/app/logs
+      - ./storage:/app/storage
+      - ./logs:/app/logs
     networks:
       - app-network
 
-  # 3. Frontend
+  # Frontend
   frontend:
     build:
       context: ../frontend # ถอยออกไป 1 ขั้น เพื่อเข้า folder frontend
       dockerfile: ../docker-app/frontend.Dockerfile # ชี้กลับมาที่ไฟล์ใน docker-app
+      args:
+        VITE_API_TARGET: "${BASE_URL:-http://localhost:3001}"
+        VITE_SHORT_LINK_PREFIX: "sl"
     container_name: shortlink-frontend
     restart: always
     ports:
       - "${FRONTEND_PORT:-8080}:80"
+    environment:
+      TZ: Asia/Bangkok
     volumes:
       # Mount nginx.conf จาก docker-app เข้าไปใน container
       - ./nginx.conf:/etc/nginx/conf.d/default.conf

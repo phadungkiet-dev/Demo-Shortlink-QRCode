@@ -3,6 +3,14 @@ FROM node:20-alpine as build-stage
 
 WORKDIR /app
 
+# รับค่า Argument
+ARG VITE_API_TARGET
+ARG VITE_SHORT_LINK_PREFIX
+
+# ตั้งค่า Environment Variable ให้ Vite เอาไปใช้
+ENV VITE_API_TARGET=$VITE_API_TARGET
+ENV VITE_SHORT_LINK_PREFIX=$VITE_SHORT_LINK_PREFIX
+
 # COPY ใช้ path ปกติ เพราะ context คือ ../frontend
 COPY package*.json ./
 RUN npm install

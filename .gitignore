@@ -17,6 +17,9 @@ dist
 # --- Logs & Storage (ที่เรา mount ออกมา) ---
 /backend/logs
 /backend/storage
+/docker-app/logs
+/docker-app/storage
+
 *.log
 
 # --- System ---
@@ -24,3 +27,8 @@ dist
 Thumbs.db
 .idea
 .vscode
+
+# --- database(docker) ---
+/docker-app/postgres-data
+
+

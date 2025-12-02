@@ -1,194 +1,92 @@
-Shortlink & QR Code - Backend (Phase 1)
+# Shortlink.QR - Backend API
+Backend Service สำหรับระบบย่อลิงก์และสร้าง QR Code พัฒนาด้วย Node.js และ PostgreSQL เน้นประสิทธิภาพ (Performance), ความปลอดภัย (Security) และความยืดหยุ่น (Flexibility)
 
-นี่คือ Backend API สำหรับระบบ Shortlink & QR Code พัฒนาด้วย Node.js, Express, Prisma, และ PostgreSQL
+## 🛠 Tech Stack
+- **Runtime:** Node.js
+- **Framework:** Express.js
+- **Database:** PostgreSQL
+- **ORM:** Prisma
+- **Authentication:** Passport.js (Local & Google OAuth), Session-based with Cookie
+- **Security:** Helmet, CORS, CSURF, Express Rate Limit, Zod Validation
+- **Logging:** Winston (Daily Rotate File)
+- **Utilities:** GeoIP-lite, Node-Cron, Nanoid
 
-Tech Stack
+## 🚀 Getting Started
+ทำตามขั้นตอนด้านล่างเพื่อรันโปรเจกต์ในเครื่องของคุณ (Local Development)
 
-Framework: Node.js, Express
+### 1. Prerequisites
+- Node.js (v18+)
+- PostgreSQL Database
 
-ORM: Prisma
-
-Database: PostgreSQL
-
-Authentication: express-session (Session-based), passport (Local + Google OAuth), csurf (CSRF Protection)
-
-Middleware: Helmet, CORS, Compression, Morgan, Express-Rate-Limit
-
-Validation: Zod
-
-Utilities: bcrypt, nanoid, node-cron, useragent
-
-1. Installation
-
-Clone Repository
-
-git clone ...
+### 2. Installation
+ติดตั้ง Dependencies ทั้งหมด
+```bash
 cd backend
-
-
-Install Dependencies
-
 npm install
+```
 
-
-Setup Environment Variables
-สร้างไฟล์ .env จาก .env.example
-
+### 3. Environment Configuration
+สร้างไฟล์ .env จากไฟล์ตัวอย่าง และแก้ไขค่า Config ที่จำเป็น (โดยเฉพาะ DATABASE_URL)
+```bash
 cp .env.example .env
+```
 
+### 4. Database Setup (Prisma)
+# สร้างตารางใน Database (Migration)
+```bash
+npx prisma migrate dev --name init
+```
+# ใส่ข้อมูลตัวอย่าง (Admin, Demo User, Links, Analytics Data)
+```bash
+npx prisma db prisma/seed.js
+```
 
-แก้ไขค่าใน .env โดยเฉพาะ:
-
-DATABASE_URL: Connection string ของ PostgreSQL
-
-SESSION_SECRET: คีย์ลับสำหรับ Session
-
-GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET: (ถ้าต้องการทดสอบ Google OAuth)
-
-Setup Database (Prisma)
-รัน migration เพื่อสร้างตารางในฐานข้อมูล
-
-npx prisma migrate dev
-
-
-Seed Database (Optional)
-สร้าง User (Admin/User) และ Link ตัวอย่าง
-
-npm run prisma:seed
-
-
-Admin: admin@local.dev / Admin#123
-
-User: user@local.dev / User#123
-
-Run Development Server
-
+### 5. Running the Application
+รัน Server ในโหมด Development (รองรับ Hot-reload)
+```bash
 npm run dev
+```
 
+Server จะรันที่: http://localhost:3001
 
-Server จะรันที่ http://localhost:3001 (หรือ Port ที่ตั้งใน .env)
+📂 Project Structure
+โครงสร้างโปรเจกต์ถูกออกแบบตามหลัก Separation of Concerns
 
-2. API Testing (cURL)
+backend/
+├── src/
+│   ├── app.js           # Entry point & Middleware setup
+│   ├── config/          # Configuration (Constants, Passport, Prisma)
+│   ├── controllers/     # Request handlers (รับ Request -> เรียก Service -> ส่ง Response)
+│   ├── services/        # Business logic & Database interaction
+│   ├── routes/          # API Routes definitions
+│   ├── middlewares/     # Auth guard, Rate limit, Error handling, Upload
+│   ├── utils/           # Helper functions (Logger, Slug, Time, Email)
+│   └── jobs/            # Cron jobs (Cleanup expired links)
+├── prisma/
+│   ├── schema.prisma    # Database schema definition
+│   └── seed.js          # Seed data script (Mock data generation)
+└── storage/             # Folder สำหรับเก็บไฟล์อัปโหลด (Logos)
 
-สำคัญ: ระบบนี้ใช้ Session (Cookie) และ CSRF Token
-คุณต้องดึง CSRF token ก่อน แล้วส่งไปใน Header x-csrf-token ของทุก Request (POST, PATCH, DELETE)
+🔗 Key Endpoints
+Method,Endpoint,Description,Auth Required
+GET,/sl/:slug,Redirect ไปยังลิงก์ปลายทาง (Public),❌
+POST,/api/auth/login,เข้าสู่ระบบ (Local),❌
+POST,/api/links,สร้าง Shortlink ใหม่,⚠️ (Optional)
+GET,/api/links/me,ดูรายการลิงก์ของฉัน,✅
+GET,/api/links/:id/stats,ดูสถิติการคลิก (Analytics),✅
+GET,/api/admin/users,ดูรายชื่อผู้ใช้ทั้งหมด (Admin Only),✅ (Admin)
 
-ตัวแปร (Bash)
+⚠️ Important Notes
+Authentication: ระบบใช้ Session-based Authentication ร่วมกับ HttpOnly Cookies
 
-BASE_URL="http://localhost:3001"
-COOKIE_JAR="cookie.txt"
+CSRF Protection: ทุก Request ที่เป็น State-changing (POST, PUT, DELETE) ไปยัง /api/* จำเป็นต้องแนบ CSRF Token ใน Header x-csrf-token
 
+Timezone: ระบบถูกตั้งค่าให้ Log และตัดรอบวัน Analytics ตามเวลา Asia/Bangkok
 
-1. ตรวจสอบสถานะ (Health Check)
+Rate Limiting:
 
-curl $BASE_URL/api/health
+Redirect (/sl/*): 600 req/min
 
+General API: 200 req/15min
 
-2. ขอ CSRF Token (สำคัญมาก)
-
-คำสั่งนี้จะดึง CSRF token และบันทึก Session Cookie ลงใน cookie.txt
-
-CSRF_TOKEN=$(curl -s -c $COOKIE_JAR $BASE_URL/api/auth/csrf | grep -o '"csrfToken":"[^"]*' | cut -d'"' -f4)
-echo "CSRF Token: $CSRF_TOKEN"
-
-
-(ถ้าใช้ jq: CSRF_TOKEN=$(curl ... | jq -r .csrfToken))
-
-3. ล็อกอิน (Local)
-
-ใช้ Cookie ที่บันทึกไว้ และส่ง CSRF Token
-
-curl -i -b $COOKIE_JAR -c $COOKIE_JAR \
--X POST $BASE_URL/api/auth/login \
--H "Content-Type: application/json" \
--H "x-csrf-token: $CSRF_TOKEN" \
--d '{
-    "email": "user@local.dev",
-    "password": "User#123"
-}'
-
-
-4. ดูข้อมูลตัวเอง (Get Me)
-
-ต้องล็อกอินก่อน
-
-curl -b $COOKIE_JAR $BASE_URL/api/auth/me
-
-
-5. สร้าง Shortlink (ขณะล็อกอิน)
-
-curl -i -b $COOKIE_JAR -c $COOKIE_JAR \
--X POST $BASE_URL/api/links \
--H "Content-Type: application/json" \
--H "x-csrf-token: $CSRF_TOKEN" \
--d '{
-    "targetUrl": "[https://www.google.com/search?q=prisma](https://www.google.com/search?q=prisma)"
-}'
-
-
-6. สร้าง Shortlink (แบบไม่ล็อกอิน - Anonymous)
-
-ลบ Cookie เก่าก่อน
-
-ขอ CSRF ใหม่ (สำหรับ Anonymous Session)
-
-rm $COOKIE_JAR
-ANON_CSRF=$(curl -s -c $COOKIE_JAR $BASE_URL/api/auth/csrf | grep -o '"csrfToken":"[^"]*' | cut -d'"' -f4)
-
-curl -i -b $COOKIE_JAR \
--X POST $BASE_URL/api/links \
--H "Content-Type: application/json" \
--H "x-csrf-token: $ANON_CSRF" \
--d '{
-    "targetUrl": "[https://github.com](https://github.com)"
-}'
-
-
-(ลิงก์นี้จะมีอายุ 7 วัน และถูกจำกัด Rate Limit)
-
-7. ทดสอบ Redirect (GET /r/:slug)
-
-(สมมติว่า slug google ถูกสร้างจาก seed)
-
-curl -I $BASE_URL/r/google
-
-
-(คุณจะเห็น HTTP/1.1 302 Found และ Location: https://google.com)
-
-3. Postman / Insomnia
-
-ดูไฟล์ Shortlink_API_Phase1.json
-
-วิธีใช้งาน:
-
-Import Collection
-
-ไปที่ Request "1. Get CSRF Token"
-
-รัน Request นี้ 1 ครั้ง
-
-Collection มี Script ที่จะดึง csrfToken จาก Response body และ _csrf จาก Cookie ไปเก็บใน Environment Variables ({{csrfToken}} และ {{csrfCookie}})
-
-Request อื่นๆ (เช่น Login, Create Link) ถูกตั้งค่าให้ดึงค่านี้ไปใช้ใน Header x-csrf-token และ Cookie อัตโนมัติ
-
-4. Phase 2 Plan (Frontend)
-
-Backend (Phase 1) พร้อมแล้วสำหรับ Phase 2
-
-Stack: Vue 3 (Vite), TailwindCSS, SweetAlert2, qr-code-styling, lucide-vue-next
-
-การเชื่อมต่อ:
-
-Frontend ต้องรันบน http://localhost:5173 (ตามค่า CORS_ORIGIN)
-
-Workflow การ Auth:
-
-Frontend (App.vue onMount) ต้อง GET /api/auth/csrf เพื่อรับ Token
-
-เก็บ Token นี้ไว้ (เช่นใน Pinia/Vuex store)
-
-ใช้ Axios Interceptor เพื่อแนบ Token นี้ไปใน Header x-csrf-token ของทุก Request (POST, PATCH, DELETE)
-
-Axios ต้องตั้งค่า withCredentials: true เพื่ออนุญาตการส่ง-รับ Cookies
-
-หน้า: Login, Register (Local), Dashboard (My Links), Link Creation Modal, Stats Page.
+Create Link: 5 req/hour (สำหรับ Guest)
