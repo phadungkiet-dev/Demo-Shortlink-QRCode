@@ -67,6 +67,7 @@ const updateLinkSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email("Invalid email format."), // ตรวจรูปแบบอีเมลอัตโนมัติ
   password: z.string().min(1, "Password is required."),
+  rememberMe: z.boolean().optional(),
 });
 
 /**

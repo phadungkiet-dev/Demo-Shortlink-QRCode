@@ -9,6 +9,7 @@ const authService = require("../services/authService");
 const AppError = require("../utils/AppError");
 const catchAsync = require("../utils/catchAsync");
 const logger = require("../utils/logger");
+const { COOKIE } = require("../config/constants");
 
 // -------------------------------------------------------------------
 // CSRF Token Endpoint
@@ -39,6 +40,16 @@ const loginLocal = (req, res, next) => {
 
     req.logIn(user, (err) => {
       if (err) return next(err);
+
+      if (req.body.rememberMe) {
+        // 7 days in milliseconds
+        req.session.cookie.maxAge = 7 * 24 * 60 * 60 * 1000;
+      } else {
+        // Default: 15 mins
+        req.session.cookie.maxAge = parseInt(
+          process.env.COOKIE_MAX_AGE_MS || COOKIE.MAX_AGE
+        );
+      }
       res.json(authService.getSafeUser(user));
     });
   })(req, res, next);
@@ -89,9 +100,19 @@ const getMe = (req, res) => {
 // -------------------------------------------------------------------
 // Google Auth
 // -------------------------------------------------------------------
-const googleAuth = passport.authenticate("google", {
-  scope: ["profile", "email"], // ขอสิทธิ์เข้าถึง Profile และ Email
-});
+const googleAuth = (req, res, next) => {
+  // ถ้า user ส่ง ?rememberMe=true มา ให้เก็บลง Session ชั่วคราว
+  if (req.query.rememberMe === "true") {
+    req.session.isRememberMe = true;
+  } else {
+    req.session.isRememberMe = false;
+  }
+
+  // เรียก Passport ตามปกติ
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+  })(req, res, next);
+};
 
 const googleCallback = (req, res, next) => {
   passport.authenticate("google", (err, user, info) => {
@@ -110,6 +131,21 @@ const googleCallback = (req, res, next) => {
 
     req.logIn(user, (err) => {
       if (err) return next(err);
+
+      // ตรวจสอบค่าที่ฝากไว้ใน Session
+      if (req.session.isRememberMe) {
+        // 7 วัน
+        req.session.cookie.maxAge = 7 * 24 * 60 * 60 * 1000;
+      } else {
+        // Default (15 นาที)
+        req.session.cookie.maxAge = parseInt(
+          process.env.COOKIE_MAX_AGE_MS || COOKIE.MAX_AGE
+        );
+      }
+
+      // ล้างค่าชั่วคราวทิ้ง (Clean up)
+      delete req.session.isRememberMe;
+
       res.redirect(`${frontendUrl}/dashboard`);
     });
   })(req, res, next);

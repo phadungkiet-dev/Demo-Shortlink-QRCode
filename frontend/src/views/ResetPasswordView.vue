@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { useRoute } from "vue-router";
 import api from "@/services/api";
+import { APP_CONFIG } from "@/config/constants";
 import {
   Lock,
   Loader2,
@@ -14,7 +15,7 @@ import {
 } from "lucide-vue-next";
 
 // Config
-const MIN_PASS_LEN = 8;
+const MIN_PASS_LEN = APP_CONFIG.VALIDATION.PASSWORD_MIN_LEN;
 
 const route = useRoute();
 const token = route.params.token;

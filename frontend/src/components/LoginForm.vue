@@ -8,13 +8,14 @@ const authStore = useAuthStore();
 
 const email = ref("");
 const password = ref("");
+const rememberMe = ref(false);
 const showPassword = ref(false);
 const isLoading = ref(false);
 
 const handleLogin = async () => {
   isLoading.value = true;
   try {
-    await authStore.login(email.value, password.value);
+    await authStore.login(email.value, password.value, rememberMe.value);
     emit("login-success");
   } catch (error) {
     // Error ถูกจัดการโดย Store (Swal) แล้ว แค่หยุด Loading พอ
@@ -27,7 +28,7 @@ const handleLogin = async () => {
 <template>
   <div class="space-y-6">
     <a
-      href="/api/auth/google"
+      :href="`/api/auth/google?rememberMe=${rememberMe}`"
       class="flex items-center justify-center gap-3 w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-[0.98] shadow-sm"
     >
       <img
@@ -62,19 +63,9 @@ const handleLogin = async () => {
       </div>
 
       <div class="space-y-1.5">
-        <div class="flex justify-between items-center">
-          <label class="block text-sm font-semibold text-gray-700 ml-1"
-            >Password</label
-          >
-          <router-link
-            to="/forgot-password"
-            class="text-xs font-semibold text-indigo-600 hover:text-indigo-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 rounded px-1"
-            @click="$emit('login-success')"
-            tabindex="-1"
-          >
-            Forgot password?
-          </router-link>
-        </div>
+        <label class="block text-sm font-semibold text-gray-700 ml-1"
+          >Password</label
+        >
         <div class="relative">
           <input
             v-model="password"
@@ -91,6 +82,32 @@ const handleLogin = async () => {
             <component :is="showPassword ? EyeOff : Eye" class="h-5 w-5" />
           </button>
         </div>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <div class="flex items-center ml-1">
+          <input
+            id="remember-me"
+            v-model="rememberMe"
+            type="checkbox"
+            class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+          />
+          <label
+            for="remember-me"
+            class="ml-2 block text-sm text-gray-600 cursor-pointer select-none"
+          >
+            Remember me
+          </label>
+        </div>
+
+        <router-link
+          to="/forgot-password"
+          class="text-sm font-semibold text-indigo-600 hover:text-indigo-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 rounded px-1"
+          @click="$emit('login-success')"
+          tabindex="-1"
+        >
+          Forgot password?
+        </router-link>
       </div>
 
       <button

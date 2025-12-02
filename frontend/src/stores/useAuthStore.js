@@ -45,10 +45,14 @@ export const useAuthStore = defineStore("auth", {
     // ----------------------------------------------------------------
     // Login
     // ----------------------------------------------------------------
-    async login(email, password) {
+    async login(email, password, rememberMe = false) {
       try {
         // ส่ง Password ไป Backend (API จะจัดการ Session ให้เอง)
-        const response = await api.post("/auth/login", { email, password });
+        const response = await api.post("/auth/login", {
+          email,
+          password,
+          rememberMe,
+        });
         this.user = response.data;
 
         Swal.fire({
