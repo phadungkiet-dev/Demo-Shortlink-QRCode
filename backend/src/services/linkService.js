@@ -197,6 +197,16 @@ const findLinksByOwner = async (
 };
 
 /**
+ * Helper: ดึง Relative Path จาก URL
+ * Input: http://localhost:3001/uploads/logos/slug/file.png
+ * Output: slug/file.png
+ */
+const getRelativePath = (fullUrl) => {
+  if (!fullUrl || !fullUrl.includes("/uploads/logos/")) return null;
+  return fullUrl.split("/uploads/logos/")[1];
+};
+
+/**
  * @function updateLink
  * @description แก้ไขลิงก์ (URL, QR Options, Status, Renew)
  */
@@ -222,17 +232,41 @@ const updateLink = async (linkId, ownerId, data) => {
 
   if (data.qrOptions) {
     let finalOptions = { ...data.qrOptions };
-    if (finalOptions.image && finalOptions.image.startsWith("data:image")) {
+
+    // ดึง URL เก่าจาก DB
+    const oldImage =
+      typeof link.qrOptions === "object" && link.qrOptions !== null
+        ? link.qrOptions.image
+        : null;
+
+    let newImage = finalOptions.image;
+
+    if (
+      newImage &&
+      typeof newImage === "string" &&
+      newImage.startsWith("data:image")
+    ) {
       try {
-        const logoUrl = await storageService.saveImage(
-          link.slug,
-          finalOptions.image
-        );
-        if (logoUrl) finalOptions.image = logoUrl;
+        // บันทึกรูปใหม่
+        const logoUrl = await storageService.saveImage(link.slug, newImage);
+
+        if (logoUrl) {
+          finalOptions.image = logoUrl; // ใช้ URL ใหม่
+
+          const oldPath = getRelativePath(oldImage);
+          if (oldPath) await storageService.deleteImage(oldPath);
+        }
       } catch (err) {
         logger.error(`Failed to save logo for link ${link.slug}:`, err);
+        // ถ้าเซฟรูปไม่ผ่าน ก็ใช้รูปเดิมไปก่อน หรือจะ throw error ก็ได้
       }
+    } else if (newImage === null) {
+      // [Cleanup] ลบรูปเก่าทิ้ง
+      const oldPath = getRelativePath(oldImage);
+      if (oldPath) await storageService.deleteImage(oldPath);
+      finalOptions.image = null; // เคลียร์ค่าใน DB
     }
+
     updateData.qrOptions = finalOptions;
   }
 
@@ -257,7 +291,17 @@ const deleteLink = async (linkId, ownerId) => {
     throw new AppError("Link not found or you do not have permission.", 404);
   }
 
+  if (
+    link.qrOptions &&
+    typeof link.qrOptions === "object" &&
+    link.qrOptions.image
+  ) {
+    const imagePath = getRelativePath(link.qrOptions.image);
+    if (imagePath) await storageService.deleteImage(imagePath);
+  }
+
   await prisma.link.delete({ where: { id: linkId } });
+
   return { message: "Link deleted successfully." };
 };
 

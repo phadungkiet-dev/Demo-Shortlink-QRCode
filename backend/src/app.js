@@ -132,8 +132,8 @@ app.use(compression());
 app.use(morgan("combined", { stream: logger.stream }));
 
 // Parsing: แปลง Body
-app.use(express.json({ limit: "10kb" })); // อ่าน JSON body
-app.use(express.urlencoded({ extended: false, limit: "10kb" })); // อ่าน Form body
+app.use(express.json({ limit: "10mb" })); // อ่าน JSON body
+app.use(express.urlencoded({ extended: false, limit: "10mb" })); // อ่าน Form body
 app.use(cookieParser(process.env.SESSION_SECRET)); // อ่าน Cookie
 
 // -------------------------------------------------------------------

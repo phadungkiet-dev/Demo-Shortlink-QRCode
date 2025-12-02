@@ -151,16 +151,21 @@ const downloadQR = () => {
 
 const handleFileSelect = (e) => {
   const file = e.target.files[0];
-  if (file && file.size <= 1024 * 1024) {
-    // 1MB limit
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      logoImage.value = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  } else {
+
+  if (!file) return;
+
+  if (file.size > 1024 * 1024) {
     Swal.fire("Error", "File too large (Max 1MB)", "warning");
+    e.target.value = ""; // ล้างค่า input เพื่อให้เลือกใหม่ได้
+    return;
   }
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    logoImage.value = event.target.result;
+    e.target.value = ""; // ล้างค่า input เพื่อให้เลือกไฟล์เดิมซ้ำได้ถ้าต้องการ
+  };
+  reader.readAsDataURL(file);
 };
 
 const copyToClipboard = () => {
