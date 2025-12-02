@@ -2,6 +2,7 @@ const adminService = require("../services/adminService");
 const linkService = require("../services/linkService");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/AppError");
+const { ROUTES } = require("../config/constants");
 
 // -------------------------------------------------------------------
 // Get All Users
@@ -46,11 +47,7 @@ const getAllUsers = catchAsync(async (req, res, next) => {
 // -------------------------------------------------------------------
 const updateUserStatus = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
-  const userIdToUpdate = parseInt(req.params.id);
-
-  if (isNaN(userIdToUpdate)) {
-    throw new AppError("Invalid User ID.", 400);
-  }
+  const userIdToUpdate = req.params.id;
 
   const { isBlocked } = req.body;
   if (typeof isBlocked !== "boolean") {
@@ -75,11 +72,7 @@ const updateUserStatus = catchAsync(async (req, res, next) => {
 // -------------------------------------------------------------------
 const deleteUser = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
-  const userIdToDelete = parseInt(req.params.id);
-
-  if (isNaN(userIdToDelete)) {
-    throw new AppError("Invalid User ID.", 400);
-  }
+  const userIdToDelete = req.params.id;
 
   const result = await adminService.deleteUser(userIdToDelete, adminId);
   res.json(result);
@@ -90,12 +83,8 @@ const deleteUser = catchAsync(async (req, res, next) => {
 // -------------------------------------------------------------------
 const changeUserRole = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
-  const userIdToUpdate = parseInt(req.params.id);
+  const userIdToUpdate = req.params.id;
   const { role } = req.body;
-
-  if (isNaN(userIdToUpdate)) {
-    throw new AppError("Invalid User ID.", 400);
-  }
 
   const updatedUser = await adminService.changeUserRole(
     userIdToUpdate,
@@ -110,7 +99,7 @@ const changeUserRole = catchAsync(async (req, res, next) => {
 // -------------------------------------------------------------------
 const updateUserLimit = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
-  const userIdToUpdate = parseInt(req.params.id);
+  const userIdToUpdate = req.params.id;
   const { limit } = req.body;
 
   if (isNaN(userIdToUpdate) || typeof limit !== "number") {
@@ -129,11 +118,7 @@ const updateUserLimit = catchAsync(async (req, res, next) => {
 // Get User Links (Admin View)
 // -------------------------------------------------------------------
 const getUserLinks = catchAsync(async (req, res, next) => {
-  const userId = parseInt(req.params.id);
-  if (isNaN(userId)) {
-    throw new AppError("Invalid User ID", 400);
-  }
-
+  const userId = req.params.id;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const search = req.query.search || "";
@@ -148,7 +133,7 @@ const getUserLinks = catchAsync(async (req, res, next) => {
 
   const linksWithUrl = result.links.map((link) => ({
     ...link,
-    shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
+    shortUrl: `${process.env.BASE_URL}/${ROUTES.SHORT_LINK_PREFIX}/${link.slug}`,
   }));
 
   res.json({

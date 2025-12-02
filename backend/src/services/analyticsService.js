@@ -9,8 +9,8 @@ const AppError = require("../utils/AppError");
  * @param {number} ownerId - ใช้ตรวจสอบสิทธิ์ความเป็นเจ้าของ
  */
 
-const getStatsForLink = async (linkId, ownerId) => {
-  // ตรวจสอบความเป็นเจ้าของ (Security Check)
+const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
+  // ตรวจสอบความเป็นเจ้าของ (linkId และ ownerId เป็น UUID String)
   const link = await prisma.link.findFirst({
     where: { id: linkId, ownerId },
   });
@@ -32,14 +32,14 @@ const getStatsForLink = async (linkId, ownerId) => {
 
       // กราฟ 7 วันย้อนหลัง (ใช้ SQL ตรงๆ เพื่อประสิทธิภาพสูงสุดในการตัดเวลา)
       prisma.$queryRaw`
-      SELECT 
-        TO_CHAR(created_at AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD') as date, 
-        COUNT(*)::int as count 
-      FROM clicks 
-      WHERE link_id = ${linkId} AND created_at >= ${sevenDaysAgo}
-      GROUP BY date 
-      ORDER BY date ASC
-    `,
+        SELECT 
+          TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${timezone}, 'YYYY-MM-DD') as date, 
+          COUNT(*)::int as count 
+        FROM clicks 
+        WHERE link_id = ${linkId} AND created_at >= ${sevenDaysAgo}
+        GROUP BY date 
+        ORDER BY date ASC
+      `,
 
       // Top Referrers (10 อันดับ)
       prisma.click.groupBy({

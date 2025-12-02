@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "User" ADD COLUMN     "linkLimit" INTEGER NOT NULL DEFAULT 10;

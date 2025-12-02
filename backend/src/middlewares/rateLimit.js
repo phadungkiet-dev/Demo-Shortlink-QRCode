@@ -42,7 +42,22 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
   handler: limitHandler,
 });
+
+/**
+ * Limiter สำหรับ "Redirect Link" (/sl/:slug)
+ * ใช้ค่า Config จาก constants.js แล้ว
+ */
+const redirectLimiter = rateLimit({
+  windowMs: RATE_LIMIT.REDIRECT.WINDOW_MS,
+  max: isDev ? RATE_LIMIT.REDIRECT.MAX_DEV : RATE_LIMIT.REDIRECT.MAX_PROD,
+  message: "Too many requests, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: limitHandler,
+});
+
 module.exports = {
   createLinkLimiter,
   apiLimiter,
+  redirectLimiter,
 };

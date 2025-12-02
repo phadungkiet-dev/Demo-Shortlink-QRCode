@@ -5,7 +5,6 @@ const { addDays, getNow } = require("../utils/time");
 const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
 const geoip = require("geoip-lite");
-
 const storageService = require("./storageService");
 const { DEFAULTS, USER_ROLES } = require("../config/constants");
 
@@ -68,7 +67,6 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
         targetUrl,
         ownerId,
         expiredAt,
-        isPublic: false,
       },
     });
   }
@@ -78,7 +76,7 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
   let retries = 0;
 
   while (retries < MAX_SLUG_RETRIES) {
-    slug = await generateSlug(isAnonymous ? 5 : 7);
+    slug = await generateSlug(isAnonymous ? 6 : 7);
     retries++;
 
     try {
@@ -88,7 +86,6 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
           targetUrl,
           ownerId,
           expiredAt,
-          isPublic: false,
         },
       });
       return link;
@@ -293,11 +290,11 @@ const getAndRecordClick = async (slug, ip, uaString, referrer) => {
     .create({
       data: {
         linkId: link.id,
-        ip: ip,
+        ip,
         userAgent: uaString,
         referrer: referrer || null,
-        country: country, // บันทึกประเทศ
-        city: city, // บันทึกเมือง
+        country, // บันทึกประเทศ
+        city, // บันทึกเมือง
       },
     })
     .catch((err) => {

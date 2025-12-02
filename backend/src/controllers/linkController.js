@@ -5,6 +5,7 @@ const {
 } = require("../utils/validationSchemas");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/AppError");
+const { ROUTES } = require("../config/constants");
 
 // -------------------------------------------------------------------
 // Create Shortlink
@@ -35,7 +36,7 @@ const createLink = catchAsync(async (req, res, next) => {
   // Send Response
   res.status(201).json({
     ...link,
-    shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
+    shortUrl: `${process.env.BASE_URL}/${ROUTES.SHORT_LINK_PREFIX}/${link.slug}`,
   });
 });
 
@@ -60,7 +61,7 @@ const getMyLinks = catchAsync(async (req, res, next) => {
   // Map URL เต็มให้ Frontend ใช้งานง่าย
   const linksWithUrl = links.map((link) => ({
     ...link,
-    shortUrl: `${process.env.BASE_URL}/r/${link.slug}`,
+    shortUrl: `${process.env.BASE_URL}/${ROUTES.SHORT_LINK_PREFIX}/${link.slug}`,
   }));
 
   res.json({
@@ -74,10 +75,7 @@ const getMyLinks = catchAsync(async (req, res, next) => {
 // Update Link
 // -------------------------------------------------------------------
 const updateLink = catchAsync(async (req, res, next) => {
-  const linkId = parseInt(req.params.id);
-  if (isNaN(linkId)) {
-    throw new AppError("Invalid Link ID.", 400);
-  }
+  const linkId = req.params.id;
 
   const ownerId = req.user.id;
 
@@ -89,7 +87,7 @@ const updateLink = catchAsync(async (req, res, next) => {
 
   res.json({
     ...updatedLink,
-    shortUrl: `${process.env.BASE_URL}/r/${updatedLink.slug}`,
+    shortUrl: `${process.env.BASE_URL}/${ROUTES.SHORT_LINK_PREFIX}/${updatedLink.slug}`,
   });
 });
 
@@ -97,11 +95,7 @@ const updateLink = catchAsync(async (req, res, next) => {
 // Delete Link
 // -------------------------------------------------------------------
 const deleteLink = catchAsync(async (req, res, next) => {
-  const linkId = parseInt(req.params.id);
-  if (isNaN(linkId)) {
-    throw new AppError("Invalid Link ID.", 400);
-  }
-
+  const linkId = req.params.id;
   const ownerId = req.user.id;
 
   const result = await linkService.deleteLink(linkId, ownerId);

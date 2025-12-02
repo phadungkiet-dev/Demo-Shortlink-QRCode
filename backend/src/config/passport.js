@@ -117,7 +117,7 @@ passport.serializeUser((user, done) => {
 // ตอบ: เอา ID ไป Query หา User ใน DB
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
+    const user = await prisma.user.findUnique({ where: { id: id } });
 
     // Double Check: ถ้า User โดนลบหรือโดนแบนระหว่างที่ Session ยังค้างอยู่ ให้ดีดออก
     if (!user || user.isBlocked) {

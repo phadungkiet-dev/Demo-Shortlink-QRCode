@@ -11,8 +11,15 @@ if (!fs.existsSync(logDir)) {
 
 // กำหนด Timezone ให้ตรงกับ System (Asia/Bangkok)
 const timezoned = () => {
-  return new Date().toLocaleString("en-US", {
+  return new Date().toLocaleString("ja-JP", {
     timeZone: process.env.TZ || "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false, // ใช้ 24 ชั่วโมง
   });
 };
 
@@ -51,7 +58,7 @@ const logger = winston.createLogger({
     new winston.transports.DailyRotateFile({
       filename: path.join("logs", "app-%DATE%.log"), // เก็บในโฟลเดอร์ logs/
       datePattern: "YYYY-MM-DD",
-      zippedArchive: true, // บีบอัดไฟล์เก่าเป็น .gz
+      zippedArchive: false, // บีบอัดไฟล์เก่าเป็น .gz
       maxSize: "20m", // ขนาดสูงสุดต่อไฟล์ 20MB
       maxFiles: "14d", // เก็บย้อนหลัง 14 วัน (ปรับจาก 90 วัน เพื่อประหยัดที่)
       level: "info", // เก็บตั้งแต่ Info ขึ้นไป
@@ -61,7 +68,7 @@ const logger = winston.createLogger({
     new winston.transports.DailyRotateFile({
       filename: path.join("logs", "error-%DATE%.log"),
       datePattern: "YYYY-MM-DD",
-      zippedArchive: true,
+      zippedArchive: false,
       maxSize: "20m",
       maxFiles: "30d",
       level: "error", // เก็บเฉพาะ Error เท่านั้น

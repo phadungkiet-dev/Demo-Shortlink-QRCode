@@ -1,15 +1,15 @@
 const cron = require("node-cron");
 const linkService = require("../services/linkService");
 const logger = require("../utils/logger");
+const { CRON } = require("../config/constants");
 
 const initCronJobs = () => {
   // -------------------------------------------------------------------
   // Cleanup Expired Anonymous Links
   // -------------------------------------------------------------------
-  // Cron Syntax:  วินาที(optional) นาที ชั่วโมง วัน เดือน วันในสัปดาห์
-  // "0 1 * * *" แปลว่า "รันตอนนาทีที่ 0 ของชั่วโมงที่ 1 ของทุกวัน" (ตี 1 ตรง)
+  // ใช้ Schedule จาก Config (ค่า Default: "0 1 * * *" = ตี 1 ทุกวัน)
   cron.schedule(
-    "0 1 * * *",
+    CRON.CLEANUP_SCHEDULE,
     async () => {
       logger.info("🕒 Cron Job Started: Cleaning expired links...");
       try {

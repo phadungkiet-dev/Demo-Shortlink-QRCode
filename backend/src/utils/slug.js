@@ -20,7 +20,6 @@ const generateSlug = async (size = 7) => {
 
   // โหลดและเรียกใช้ nanoid
   const _nanoid = await loadNanoid();
-  console.log(_nanoid);
   return _nanoid(length);
 };
 

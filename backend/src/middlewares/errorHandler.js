@@ -29,6 +29,15 @@ const handleZodError = (err) => {
   return new AppError(message, 400); // 400 Bad Request
 };
 
+const handleJWTError = () =>
+  new AppError("Invalid token. Please log in again.", 401);
+
+const handleCSRFError = () =>
+  new AppError(
+    "Session invalid or expired. Please refresh and try again.",
+    403
+  );
+
 // -------------------------------------------------------------------
 // Response Generators: ส่ง Response กลับตาม Environment
 // -------------------------------------------------------------------
@@ -68,10 +77,7 @@ const sendErrorProd = (err, req, res) => {
   // Rendered Website Error (ถ้ามี Server-Side Rendering)
   // กรณีนี้เราทำ API เป็นหลัก แต่เผื่อไว้สำหรับ Redirect
   logger.error("ERROR 💥", err);
-  return res.status(err.statusCode).render("error", {
-    title: "Something went wrong!",
-    msg: err.message,
-  });
+  return res.status(err.statusCode).send("Something went wrong!");
 };
 
 // -------------------------------------------------------------------
@@ -88,10 +94,13 @@ module.exports = (err, req, res, next) => {
     // Copy Error Object เพื่อนำมาปรับแต่ง (ระวัง: Error object บางที copy ไม่ติด property พิเศษ)
     let error = Object.create(err);
     error.message = err.message;
+    error.code = err.code;
+    error.name = err.name;
+    error.meta = err.meta;
 
     // --- แปลง Error ประเภทต่างๆ ให้เป็น AppError ---
 
-    // 1. Prisma Errors
+    // Prisma Errors
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
       // Prisma: Unique Constraint (P2002)
       if (err.code === "P2002") error = handlePrismaUniqueError(err);
@@ -102,13 +111,9 @@ module.exports = (err, req, res, next) => {
     // Zod Validation Errors
     if (err instanceof ZodError) error = handleZodError(err);
 
-    // CSRF Token ผิดพลาด
-    if (err.code === "EBADCSRFTOKEN") {
-      error = new AppError(
-        "Invalid or missing CSRF Token. Please refresh the page.",
-        403
-      );
-    }
+    // CSRF & JWT Errors
+    if (err.code === "EBADCSRFTOKEN") error = handleCSRFError();
+    if (err.name === "JsonWebTokenError") error = handleJWTError();
 
     sendErrorProd(error, req, res);
   }

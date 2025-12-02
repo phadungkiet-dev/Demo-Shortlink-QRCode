@@ -3,8 +3,7 @@
 // -------------------------------------------------------------------
 require("dotenv").config();
 
-// บังคับ Timezone ให้เป็นเวลาไทย (สำคัญมากสำหรับ Log และ Cron Job)
-// เพื่อให้เวลาที่บันทึกลง Database หรือ Log file ตรงกับเวลาประเทศไทยเสมอ
+// บังคับ Timezone ให้เป็นเวลาไทย
 process.env.TZ = process.env.TIMEZONE || "Asia/Bangkok";
 
 const express = require("express");
@@ -16,16 +15,16 @@ const cookieParser = require("cookie-parser");
 const session = require("express-session"); // จัดการ Session ฝั่ง Server
 const passport = require("passport"); // Authentication Middleware
 const csurf = require("csurf"); // ป้องกัน CSRF Attack
-// const cron = require("node-cron"); // ตั้งเวลาทำงานอัตโนมัติ (Cron Job)
 const path = require("path");
 const pg = require("pg");
 const ConnectPgSimple = require("connect-pg-simple")(session); // ตัวเก็บ Session ลง PostgreSQL
 
 // Internal Modules
 const { prisma } = require("./config/prisma");
-const { COOKIE } = require("./config/constants");
+const { COOKIE, ROUTES } = require("./config/constants");
 const logger = require("./utils/logger");
 const globalErrorHandler = require("./middlewares/errorHandler");
+const { apiLimiter, redirectLimiter } = require("./middlewares/rateLimit");
 const initCronJobs = require("./jobs/cron");
 
 // Load Passport Config (เพื่อให้ Strategy ทำงาน)
@@ -61,7 +60,6 @@ const cookieConfig = {
 // -------------------------------------------------------------------
 // Database & Session Store Setup
 // -------------------------------------------------------------------
-// ใช้ Connection Pool แยกสำหรับ Session Store เพื่อประสิทธิภาพ
 const pgPool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -70,7 +68,7 @@ const pgPool = new pg.Pool({
 const sessionStore = new ConnectPgSimple({
   pool: pgPool,
   tableName: "user_sessions", // ข้อควรระวัง: [สร้างโดย prisma เรียบร้อยแล้ว]
-  createTableIfMissing: false, // เราใช้ Prisma สร้างตารางแล้ว
+  createTableIfMissing: false, // ใช้ Prisma สร้างตารางแล้ว
 });
 
 // -------------------------------------------------------------------
@@ -107,11 +105,23 @@ app.use(
 // Helmet: Security Headers
 app.use(
   helmet({
-    // อนุญาตให้โหลดรูปข้าม Domain ได้ (สำหรับ QR Code)
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    
-    // [FIX] ปิด CSP ในโหมด Development ไปเลย เพื่อแก้ปัญหา DevTools/Vite
-    contentSecurityPolicy: IS_PRODUCTION ? undefined : false,
+    // [Config] Content Security Policy (CSP)
+    contentSecurityPolicy: IS_PRODUCTION
+      ? {
+          directives: {
+            defaultSrc: ["'self'"],
+            // อนุญาตให้โหลด Script/Style จากตัวเองและ Inline (จำเป็นสำหรับ Vue/Tailwind บางส่วน)
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            // [สำคัญ] อนุญาตโหลดรูปจาก https: (เช่น Google Favicon, User Profile Image)
+            imgSrc: ["'self'", "data:", "https:"],
+            // อนุญาตให้เชื่อมต่อ API ภายนอกได้ (ถ้ามี)
+            connectSrc: ["'self'", "https:"],
+            upgradeInsecureRequests: [], // ปิดบังคับ HTTPS ถ้าเราจัดการ SSL ที่ Gateway
+          },
+        }
+      : false, // ปิด CSP ใน Dev เพื่อความสะดวกของ Vite
   })
 );
 
@@ -122,8 +132,8 @@ app.use(compression());
 app.use(morgan("combined", { stream: logger.stream }));
 
 // Parsing: แปลง Body
-app.use(express.json()); // อ่าน JSON body
-app.use(express.urlencoded({ extended: false })); // อ่าน Form body
+app.use(express.json({ limit: "10kb" })); // อ่าน JSON body
+app.use(express.urlencoded({ extended: false, limit: "10kb" })); // อ่าน Form body
 app.use(cookieParser(process.env.SESSION_SECRET)); // อ่าน Cookie
 
 // -------------------------------------------------------------------
@@ -154,7 +164,7 @@ app.use("/uploads", express.static(path.join(__dirname, "../storage")));
 
 // Redirect Route (Public - No CSRF)
 // *ต้องอยู่ก่อน CSRF Protection*
-app.use("/r", redirectRouter);
+app.use(`/${ROUTES.SHORT_LINK_PREFIX}`, redirectLimiter, redirectRouter);
 
 // Health Check: ย้ายมาตรงนี้เพื่อให้ Cloud Service (Render/Fly.io) ยิง Ping ตรวจสอบได้
 // โดยไม่ต้องติด CSRF Token (ถ้าติด 403 Deploy จะไม่ผ่าน)

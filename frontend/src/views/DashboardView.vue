@@ -2,6 +2,7 @@
 import { onMounted, computed, ref, watch } from "vue";
 import { useLinkStore } from "@/stores/useLinkStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { APP_CONFIG } from "@/config/constants";
 import {
   Loader2,
   Link2,
@@ -252,7 +253,6 @@ onMounted(() => {
             Manage your links and view analytics.
           </p>
         </div>
-
         <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
           <div class="relative min-w-[160px] z-20" ref="filterDropdownRef">
             <button
@@ -260,8 +260,10 @@ onMounted(() => {
               class="w-full h-[46px] flex items-center justify-between px-4 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 shadow-sm hover:border-indigo-300 hover:ring-4 hover:ring-indigo-500/10 transition-all focus:outline-none focus:border-indigo-500 active:scale-[0.98]"
             >
               <div class="flex items-center gap-2.5 truncate">
-                <Filter class="h-4 w-4 text-gray-400 shrink-0" />
-                <span class="truncate">{{ currentFilterLabel }}</span>
+                <Filter class="h-4 w-4 text-gray-400 shrink-0" /><span
+                  class="truncate"
+                  >{{ currentFilterLabel }}</span
+                >
               </div>
               <ChevronDown
                 :class="[
@@ -270,7 +272,6 @@ onMounted(() => {
                 ]"
               />
             </button>
-
             <transition
               enter-active-class="transition duration-200 ease-out"
               enter-from-class="translate-y-1 opacity-0 scale-95"
@@ -310,7 +311,6 @@ onMounted(() => {
               </div>
             </transition>
           </div>
-
           <div class="relative group flex-1 md:w-64 z-10">
             <div
               class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
@@ -326,7 +326,6 @@ onMounted(() => {
               class="block w-full h-[46px] pl-10 pr-4 bg-white border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 shadow-sm transition-all placeholder-gray-400 text-gray-900"
             />
           </div>
-
           <div class="flex gap-2 z-10">
             <button
               @click="handleRefresh"
@@ -339,9 +338,8 @@ onMounted(() => {
             <router-link
               to="/"
               class="h-[46px] px-6 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap hover:ring-4 hover:ring-indigo-500/20"
+              ><Plus class="h-5 w-5" /> <span>New Link</span></router-link
             >
-              <Plus class="h-5 w-5" /> <span>New Link</span>
-            </router-link>
           </div>
         </div>
       </div>
@@ -413,7 +411,6 @@ onMounted(() => {
         <Loader2 class="h-10 w-10 text-indigo-600 animate-spin mb-3" />
         <p class="text-gray-500">Loading links...</p>
       </div>
-
       <div
         v-else-if="!linkStore.myLinks.length"
         class="py-16 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
@@ -426,9 +423,8 @@ onMounted(() => {
             @click="searchQuery = ''"
             class="text-indigo-600 hover:underline font-medium"
           >
-            Clear search
-          </button>
-          <button
+            Clear search</button
+          ><button
             v-if="filterStatus !== 'ALL'"
             @click="filterStatus = 'ALL'"
             class="text-indigo-600 hover:underline font-medium"
@@ -451,7 +447,6 @@ onMounted(() => {
           >
             Disabled
           </div>
-
           <div class="flex items-start justify-between gap-3 mb-4">
             <div class="flex items-center gap-3 min-w-0">
               <div
@@ -495,7 +490,7 @@ onMounted(() => {
               target="_blank"
               class="text-lg font-bold text-indigo-600 truncate hover:underline flex items-center gap-1"
             >
-              /{{ link.slug }}
+              /{{ APP_CONFIG.ROUTES.SHORT_LINK_PREFIX }}/{{ link.slug }}
               <ExternalLink
                 class="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity"
               />
@@ -573,7 +568,6 @@ onMounted(() => {
             >
               <RefreshCw class="h-4 w-4" />
             </button>
-
             <button
               @click="handleToggleDisable(link)"
               :class="[
@@ -587,7 +581,6 @@ onMounted(() => {
             >
               <component :is="link.disabled ? EyeOff : Eye" class="h-4 w-4" />
             </button>
-
             <button
               @click="linkStore.deleteLink(link.id)"
               :class="[

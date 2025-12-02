@@ -4,6 +4,10 @@ export const APP_CONFIG = {
     TIMEOUT: 15000, // 15 วินาที
     BASE_URL: "/api",
   },
+  // --- ตั้งค่าเส้นทาง (ต้องตรงกับ Backend) ---
+  ROUTES: {
+    SHORT_LINK_PREFIX: "sl", 
+  },
   // Roles
   USER_ROLES: {
     ADMIN: "ADMIN",

@@ -1,29 +1,6 @@
-/*
-  Warnings:
-
-  - You are about to drop the `Click` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Link` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `User` table. If the table is not empty, all the data it contains will be lost.
-
-*/
--- DropForeignKey
-ALTER TABLE "Click" DROP CONSTRAINT "Click_linkId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Link" DROP CONSTRAINT "Link_ownerId_fkey";
-
--- DropTable
-DROP TABLE "Click";
-
--- DropTable
-DROP TABLE "Link";
-
--- DropTable
-DROP TABLE "User";
-
 -- CreateTable
 CREATE TABLE "users" (
-    "id" SERIAL NOT NULL,
+    "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "password_hash" TEXT,
     "provider" TEXT NOT NULL DEFAULT 'LOCAL',
@@ -31,6 +8,8 @@ CREATE TABLE "users" (
     "role" TEXT NOT NULL DEFAULT 'USER',
     "is_blocked" BOOLEAN NOT NULL DEFAULT false,
     "link_limit" INTEGER NOT NULL DEFAULT 10,
+    "reset_password_token" TEXT,
+    "reset_password_expires" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -39,30 +18,40 @@ CREATE TABLE "users" (
 
 -- CreateTable
 CREATE TABLE "links" (
-    "id" SERIAL NOT NULL,
+    "id" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "target_url" TEXT NOT NULL,
-    "is_public" BOOLEAN NOT NULL DEFAULT false,
     "disabled" BOOLEAN NOT NULL DEFAULT false,
     "expired_at" TIMESTAMP(3) NOT NULL,
     "qr_options" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
-    "owner_id" INTEGER,
+    "owner_id" TEXT,
 
     CONSTRAINT "links_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "clicks" (
-    "id" SERIAL NOT NULL,
+    "id" TEXT NOT NULL,
     "ip" TEXT NOT NULL,
     "user_agent" TEXT,
     "referrer" TEXT,
+    "country" TEXT,
+    "city" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "link_id" INTEGER NOT NULL,
+    "link_id" TEXT NOT NULL,
 
     CONSTRAINT "clicks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_sessions" (
+    "sid" TEXT NOT NULL,
+    "sess" JSONB NOT NULL,
+    "expire" TIMESTAMP(6) NOT NULL,
+
+    CONSTRAINT "user_sessions_pkey" PRIMARY KEY ("sid")
 );
 
 -- CreateIndex
@@ -82,6 +71,9 @@ CREATE INDEX "clicks_link_id_idx" ON "clicks"("link_id");
 
 -- CreateIndex
 CREATE INDEX "clicks_created_at_idx" ON "clicks"("created_at");
+
+-- CreateIndex
+CREATE INDEX "IDX_session_expire" ON "user_sessions"("expire");
 
 -- AddForeignKey
 ALTER TABLE "links" ADD CONSTRAINT "links_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

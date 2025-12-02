@@ -8,8 +8,8 @@ const logger = require("../utils/logger");
 const prisma = new PrismaClient({
   log:
     process.env.NODE_ENV === "development"
-      ? ["query", "error", "warn"]
-      : ["error"],
+      ? ["query", "error", "warn"] // Dev: ดู Query SQL ได้เพื่อ Debug
+      : ["error"], // Prod: ดูแค่ Error พอ (ประหยัด Log Space)
 });
 
 module.exports = { prisma };

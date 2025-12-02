@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router"; // เรียกใช้ Router
+import { useRoute, useRouter } from "vue-router";
 import api from "@/services/api";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useLinkStore } from "@/stores/useLinkStore";
+import { APP_CONFIG } from "@/config/constants";
 import {
   Loader2,
   Link2,
@@ -164,7 +165,7 @@ const closeResultModal = () => {
               >
                 <span
                   class="text-gray-400 font-medium text-lg group-focus-within:text-indigo-500 transition-colors"
-                  >/</span
+                  >{{ APP_CONFIG.ROUTES.SHORT_LINK_PREFIX }}/</span
                 >
               </div>
               <input

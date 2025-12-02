@@ -5,6 +5,10 @@ module.exports = {
     ADMIN: "ADMIN",
     USER: "USER",
   },
+  // --- การตั้งค่าเส้นทาง (Routes Configuration) ---
+  ROUTES: {
+    SHORT_LINK_PREFIX: "sl", // กำหนด Prefix ของ Shortlink ที่นี่ที่เดียว!
+  },
   // --- ค่าเริ่มต้นของระบบ (System Defaults) ---
   DEFAULTS: {
     LINK_LIMIT: 10, // ผู้ใช้ทั่วไปสร้างได้ไม่เกิน 10 ลิงก์ (ป้องกัน DB บวม)
@@ -36,6 +40,12 @@ module.exports = {
       MAX_DEV: 5000,
       MAX_PROD: 200, // 200 Requests (เฉลี่ย 13 req/นาที)
     },
+    // Redirect Link (/sl/:slug)
+    REDIRECT: {
+      WINDOW_MS: 1 * 60 * 1000, // 1 นาที
+      MAX_DEV: 10000, // Dev: ปล่อยฟรี
+      MAX_PROD: 600, // Prod: 600 ครั้ง/นาที (เฉลี่ย 10 req/วิ)
+    },
   },
   // --- กฎการตรวจสอบข้อมูล (Validation Rules) ---
   // ใช้ร่วมกับ Zod Schema
@@ -43,5 +53,11 @@ module.exports = {
     PASSWORD_MIN_LEN: 8,
     SLUG_MIN_LEN: 3, // สั้นสุดเช่น /r/abc
     SLUG_MAX_LEN: 30, // ยาวสุดไม่เกินนี้
+  },
+
+  // --- การตั้งค่า Cron Job ---
+  CRON: {
+    // ลบลิงก์ขยะ: รันทุกวัน เวลา 01:00 น.
+    CLEANUP_SCHEDULE: "0 * * * *", 
   },
 };

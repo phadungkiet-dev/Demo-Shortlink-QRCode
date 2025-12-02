@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from "lucide-vue-next";
 import api from "@/services/api";
+import { APP_CONFIG } from "@/config/constants";
 
 const props = defineProps({
   modelValue: Boolean,
@@ -23,9 +24,8 @@ const isLoading = ref(false);
 const searchQuery = ref("");
 let searchTimeout = null;
 
-// [Modified] Watch ทั้ง User และ สถานะเปิด/ปิด Modal
+// Watch ทั้ง User และ สถานะเปิด/ปิด Modal
 watch([() => props.user, () => props.modelValue], ([newUser, isOpen]) => {
-  // ถ้า Modal เปิดอยู่ และมี User ให้โหลดข้อมูลทันที
   if (isOpen && newUser) {
     fetchLinks(1);
   }
@@ -55,7 +55,6 @@ const fetchLinks = async (page = 1) => {
 
 const closeModal = () => {
   emit("update:modelValue", false);
-  // รอให้ Animation ปิดจบก่อนค่อยเคลียร์ข้อมูล (UX จะเนียนกว่า)
   setTimeout(() => {
     links.value = [];
     searchQuery.value = "";
@@ -133,7 +132,8 @@ const formatDate = (date) => new Date(date).toLocaleDateString("en-GB");
                   target="_blank"
                   class="text-indigo-600 font-bold hover:underline flex items-center gap-1"
                 >
-                  /{{ link.slug }} <ExternalLink class="h-3 w-3" />
+                  /{{ APP_CONFIG.ROUTES.SHORT_LINK_PREFIX }}/{{ link.slug }}
+                  <ExternalLink class="h-3 w-3" />
                 </a>
                 <p class="text-xs text-gray-500 truncate mt-1">
                   {{ link.targetUrl }}

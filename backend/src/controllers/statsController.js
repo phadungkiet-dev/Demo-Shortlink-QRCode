@@ -3,14 +3,18 @@ const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/AppError");
 
 const getLinkStats = catchAsync(async (req, res, next) => {
-  const linkId = parseInt(req.params.id);
-  if (isNaN(linkId)) {
-    throw new AppError("Invalid Link ID.", 400);
-  }
-
+  const linkId = req.params.id;
   const ownerId = req.user.id;
 
-  const stats = await analyticsService.getStatsForLink(linkId, ownerId);
+  // รับ Timezone จาก Frontend (ถ้าไม่ส่งมา ให้ใช้ค่า Default ของ Server หรือ 'Asia/Bangkok')
+  // ตัวอย่างค่าที่ส่งมา: 'Asia/Tokyo', 'America/New_York', 'UTC'
+  const timezone = req.query.timezone || process.env.TZ || "Asia/Bangkok";
+
+  const stats = await analyticsService.getStatsForLink(
+    linkId,
+    ownerId,
+    timezone
+  );
   res.json(stats);
 });
 
