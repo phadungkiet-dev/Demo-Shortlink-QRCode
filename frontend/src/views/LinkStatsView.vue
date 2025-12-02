@@ -47,7 +47,7 @@ const stats = ref(null);
 const isLoading = ref(true);
 const errorMsg = ref(null);
 
-// [Modified] ฟังก์ชันแปลงวันที่เป็น ค.ศ. (DD MMM YYYY)
+// [Helper] แปลงวันที่เป็น ค.ศ. แบบอ่านง่าย (e.g. 28 Nov 2023)
 const formatDate = (dateString) => {
   if (!dateString) return "-";
   return new Date(dateString).toLocaleDateString("en-GB", {
@@ -88,7 +88,6 @@ const commonOptions = {
       displayColors: false,
       callbacks: {
         title: (items) => {
-          // แปลงวันที่ใน Tooltip เป็น ค.ศ. ด้วย
           return new Date(items[0].label).toLocaleDateString("en-GB", {
             year: "numeric",
             month: "short",
@@ -103,9 +102,8 @@ const commonOptions = {
       grid: { display: false },
       ticks: {
         font: { family: "Inter" },
-        maxTicksLimit: 7, // โชว์วันที่ไม่เกิน 7 ป้ายกันรก
-        callback: function (value, index, values) {
-          // แปลง Label แกน X เป็นแบบย่อ (เช่น 27 Nov)
+        maxTicksLimit: 7,
+        callback: function (value) {
           const date = new Date(this.getLabelForValue(value));
           return date.toLocaleDateString("en-GB", {
             day: "numeric",
@@ -123,7 +121,6 @@ const commonOptions = {
   },
   elements: {
     line: { tension: 0.4 },
-    // [Modified] ปรับ radius เป็น 4 เพื่อให้เห็นจุด แม้จะมีข้อมูลแค่วันเดียว
     point: {
       radius: 4,
       hitRadius: 20,
@@ -131,14 +128,11 @@ const commonOptions = {
       backgroundColor: "#ffffff",
       borderWidth: 2,
     },
-    bar: {
-      borderRadius: 6, // ทำมุมมนให้แท่งกราฟ
-    },
+    bar: { borderRadius: 6 },
   },
 };
 
 // [Critical Fix] Helper สำหรับสร้าง Date String (YYYY-MM-DD) ตาม Timezone ไทย
-// เพื่อให้ Key ตรงกับที่ Backend ส่งมา (Backend ใช้ 'Asia/Bangkok')
 const getBangkokDateKey = (dateObj) => {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Bangkok", // บังคับใช้เวลาไทย
@@ -149,7 +143,8 @@ const getBangkokDateKey = (dateObj) => {
 };
 
 // --- Chart Data Computeds ---
-// Traffic Chart (Last 7 Days)
+
+// 1. Traffic Chart (Last 7 Days)
 const dailyChartData = computed(() => {
   if (!stats.value) return { labels: [], datasets: [] };
 
@@ -157,17 +152,16 @@ const dailyChartData = computed(() => {
   const data = [];
   const rawData = stats.value.dailyCounts || {};
 
-  // วนลูปย้อนหลัง 6 วันจนถึงวันนี้ (รวม 7 วัน)
+  // วนลูปย้อนหลัง 6 วันจนถึงวันนี้
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-
+    
     // ใช้ Helper เพื่อให้ได้วันที่แบบไทย (YYYY-MM-DD)
     const dateStr = getBangkokDateKey(d);
 
     labels.push(dateStr);
-    // ถ้าวันนั้นมีข้อมูลให้ใส่ค่า ถ้าไม่มีใส่ 0
-    data.push(rawData[dateStr] || 0);
+    data.push(rawData[dateStr] || 0); // ถ้าไม่มีข้อมูลในวันนั้น ให้ใส่ 0
   }
 
   return {
@@ -191,12 +185,10 @@ const dailyChartData = computed(() => {
   };
 });
 
-// Referrers Chart
+// 2. Referrers Chart
 const referrerChartData = computed(() => {
   if (!stats.value?.topReferrers) return { labels: [], datasets: [] };
-  const labels = stats.value.topReferrers.map(
-    (r) => r.referrer || "Direct / Unknown"
-  );
+  const labels = stats.value.topReferrers.map((r) => r.referrer);
   const data = stats.value.topReferrers.map((r) => r.count);
 
   return {
@@ -205,26 +197,6 @@ const referrerChartData = computed(() => {
       {
         label: "Visits",
         backgroundColor: "#818cf8",
-        borderRadius: 8,
-        data,
-      },
-    ],
-  };
-});
-
-// Countries Chart
-const countryChartData = computed(() => {
-  if (!stats.value?.topCountries) return { labels: [], datasets: [] };
-  // ถ้าไม่มีข้อมูล ให้แสดงเป็น 'Unknown'
-  const labels = stats.value.topCountries.map((c) => c.country || "Unknown");
-  const data = stats.value.topCountries.map((c) => c.count);
-
-  return {
-    labels,
-    datasets: [
-      {
-        label: "Visits",
-        backgroundColor: "#34d399", // สีเขียวมรกต
         borderRadius: 4,
         barPercentage: 0.6,
         data,
@@ -233,14 +205,32 @@ const countryChartData = computed(() => {
   };
 });
 
-// User Agents / Browsers Chart
+// 3. Countries Chart
+const countryChartData = computed(() => {
+  if (!stats.value?.topCountries) return { labels: [], datasets: [] };
+  const labels = stats.value.topCountries.map((c) => c.country);
+  const data = stats.value.topCountries.map((c) => c.count);
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: "Visits",
+        backgroundColor: "#34d399",
+        borderRadius: 4,
+        barPercentage: 0.6,
+        data,
+      },
+    ],
+  };
+});
+
+// 4. User Agents / Browsers Chart
 const uaChartData = computed(() => {
   if (!stats.value?.topUserAgents) return { labels: [], datasets: [] };
-  // ตัดชื่อให้สั้นลงอีกนิดถ้ามันยาวไป เพื่อการแสดงผลกราฟที่ดี
+  // ตัดชื่อให้สั้นลง
   const labels = stats.value.topUserAgents.map((u) => {
-    return u.userAgent.length > 20
-      ? u.userAgent.substring(0, 20) + "..."
-      : u.userAgent;
+    return u.userAgent.length > 20 ? u.userAgent.substring(0, 20) + '...' : u.userAgent;
   });
   const data = stats.value.topUserAgents.map((u) => u.count);
 
@@ -284,7 +274,7 @@ const uaChartData = computed(() => {
         <p class="text-gray-500 mb-8">{{ errorMsg }}</p>
         <router-link
           to="/dashboard"
-          class="inline-flex items-center px-6 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+          class="inline-flex items-center px-6 h-[46px] bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm active:scale-[0.98]"
         >
           <ArrowLeft class="h-5 w-5 mr-2" />
           Back to Dashboard
@@ -292,13 +282,11 @@ const uaChartData = computed(() => {
       </div>
 
       <div v-else class="max-w-6xl mx-auto space-y-8 animate-fade-in-up">
-        <div
-          class="flex flex-col md:flex-row md:items-center justify-between gap-6"
-        >
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div class="flex items-center gap-4">
             <router-link
               to="/dashboard"
-              class="p-3 bg-white border border-gray-200 rounded-xl text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
+              class="p-3 bg-white border border-gray-200 rounded-xl text-gray-500 hover:text-indigo-600 hover:border-indigo-300 hover:ring-4 hover:ring-indigo-500/10 transition-all shadow-sm active:scale-95"
             >
               <ArrowLeft class="h-5 w-5" />
             </router-link>
@@ -314,7 +302,7 @@ const uaChartData = computed(() => {
               <a
                 :href="stats.link.targetUrl"
                 target="_blank"
-                class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 mt-1 transition-colors group"
+                class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 mt-1 transition-colors group truncate max-w-md"
               >
                 {{ stats.link.targetUrl }}
                 <ExternalLink
@@ -327,7 +315,7 @@ const uaChartData = computed(() => {
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div
-            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5 relative overflow-hidden group hover:shadow-md transition-shadow"
+            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-md flex items-center gap-5 relative overflow-hidden group hover:shadow-lg transition-shadow"
           >
             <div
               class="absolute -right-6 -top-6 w-32 h-32 bg-indigo-50/50 rounded-full blur-3xl group-hover:bg-indigo-100/50 transition-colors"
@@ -350,7 +338,7 @@ const uaChartData = computed(() => {
           </div>
 
           <div
-            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5 group hover:shadow-md transition-shadow"
+            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-md flex items-center gap-5 group hover:shadow-lg transition-shadow"
           >
             <div class="p-4 bg-emerald-50 text-emerald-600 rounded-2xl">
               <Calendar class="h-8 w-8" />
@@ -368,7 +356,7 @@ const uaChartData = computed(() => {
           </div>
 
           <div
-            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5 group hover:shadow-md transition-shadow"
+            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-md flex items-center gap-5 group hover:shadow-lg transition-shadow"
           >
             <div class="p-4 bg-purple-50 text-purple-600 rounded-2xl">
               <BarChart3 class="h-8 w-8" />
@@ -393,39 +381,33 @@ const uaChartData = computed(() => {
           </div>
         </div>
 
+        <div
+          class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-md h-[400px] flex flex-col"
+        >
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <BarChart3 class="h-5 w-5 text-gray-400" /> Traffic Trend
+            </h3>
+            <span class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full">
+              Last 7 Days
+            </span>
+          </div>
+          <div class="flex-1 min-h-0 w-full">
+            <Line :data="dailyChartData" :options="commonOptions" />
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div
-            class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col"
+            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-md h-[400px] flex flex-col"
           >
             <div class="flex items-center justify-between mb-6">
-              <h3
-                class="text-lg font-bold text-gray-900 flex items-center gap-2"
-              >
-                <BarChart3 class="h-5 w-5 text-gray-400" /> Traffic Trend
-              </h3>
-              <span
-                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
-                >Last 7 Days</span
-              >
-            </div>
-            <div class="flex-1 min-h-0 w-full">
-              <Line :data="dailyChartData" :options="commonOptions" />
-            </div>
-          </div>
-
-          <div
-            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col"
-          >
-            <div class="flex items-center justify-between mb-6">
-              <h3
-                class="text-lg font-bold text-gray-900 flex items-center gap-2"
-              >
+              <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Globe class="h-5 w-5 text-gray-400" /> Top Referrers
               </h3>
-              <span
-                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
-                >Top Sources</span
-              >
+              <span class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full">
+                Source
+              </span>
             </div>
             <div class="flex-1 min-h-0 w-full">
               <Bar :data="referrerChartData" :options="commonOptions" />
@@ -433,42 +415,32 @@ const uaChartData = computed(() => {
           </div>
 
           <div
-            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col"
+            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-md h-[400px] flex flex-col"
           >
             <div class="flex items-center justify-between mb-6">
-              <h3
-                class="text-lg font-bold text-gray-900 flex items-center gap-2"
-              >
+              <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <MapPin class="h-5 w-5 text-gray-400" /> Top Locations
               </h3>
-              <span
-                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
-                >By Country</span
-              >
+              <span class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full">
+                Country
+              </span>
             </div>
             <div class="flex-1 min-h-0 w-full">
               <Bar
                 :data="countryChartData"
-                :options="{
-                  ...commonOptions,
-                  indexAxis: 'y', // กราฟแนวนอน
-                }"
+                :options="{ ...commonOptions, indexAxis: 'y' }"
               />
             </div>
           </div>
 
           <div
-            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-sm h-[400px] flex flex-col lg:col-span-2"
+            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-md h-[400px] flex flex-col lg:col-span-2"
           >
             <div class="flex items-center justify-between mb-6">
-              <h3
-                class="text-lg font-bold text-gray-900 flex items-center gap-2"
-              >
+              <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Smartphone class="h-5 w-5 text-gray-400" /> Browsers & Devices
               </h3>
-              <span
-                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
-              >
+              <span class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full">
                 User Agents
               </span>
             </div>

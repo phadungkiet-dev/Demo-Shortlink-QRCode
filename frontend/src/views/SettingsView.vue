@@ -29,10 +29,10 @@ const handleDeleteAccount = () => {
       </div>
 
       <div
-        class="bg-white rounded-[2rem] shadow-sm border border-red-100 overflow-hidden"
+        class="bg-white rounded-[2rem] shadow-xl shadow-red-100/50 border border-gray-100 overflow-hidden"
       >
         <div
-          class="px-8 py-6 border-b border-red-50 bg-red-50/30 flex items-center gap-3"
+          class="px-8 py-6 border-b border-red-100 bg-red-50/50 flex items-center gap-3"
         >
           <div class="p-2.5 bg-red-100 rounded-xl text-red-600">
             <AlertTriangle class="w-6 h-6" />
@@ -61,7 +61,7 @@ const handleDeleteAccount = () => {
 
             <button
               @click="handleDeleteAccount"
-              class="shrink-0 w-full sm:w-auto inline-flex items-center justify-center self-center gap-2 px-6 py-4 bg-white border-2 border-red-100 text-red-600 font-bold rounded-2xl hover:bg-red-50 hover:border-red-200 transition-all active:scale-95"
+              class="shrink-0 w-full sm:w-auto inline-flex items-center justify-center self-center gap-2 px-8 h-[46px] bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 hover:border-red-300 hover:shadow-lg hover:shadow-red-500/30 transition-all active:scale-[0.98]"
             >
               <Trash2 class="w-5 h-5" />
               <span>Delete My Account</span>

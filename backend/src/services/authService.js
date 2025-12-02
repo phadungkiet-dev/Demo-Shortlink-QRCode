@@ -6,6 +6,52 @@ const sendEmail = require("../utils/email");
 const { DEFAULTS, USER_ROLES } = require("../config/constants");
 
 /**
+ * @function buildResetHtmlTemplate
+ * @description สร้าง HTML Template สำหรับอีเมล Reset Password ที่มีดีไซน์
+ */
+const buildResetHtmlTemplate = (resetUrl) => `
+  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 20px;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <tr>
+        <td style="padding: 30px; text-align: center;">
+          
+          <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0 0 20px 0;">
+            Shortlink<span style="color: #4f46e5;">.QR</span>
+          </h1>
+
+          <p style="font-size: 16px; color: #374151; margin-bottom: 25px; line-height: 1.5;">
+            You have requested a password reset for your account. Click the button below to proceed.
+          </p>
+
+          <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
+            <tr>
+              <td align="center" style="border-radius: 12px; background-color: #4f46e5; padding: 0;">
+                <a href="${resetUrl}" target="_blank" style="font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; padding: 14px 28px; display: inline-block; border-radius: 12px; border: 1px solid #4f46e5;">
+                  Reset My Password
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <p style="font-size: 14px; color: #6b7280; line-height: 1.5; margin-top: 0;">
+            This link will expire in 1 hour. If you did not request this, please ignore this email.
+          </p>
+          
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 30px 20px; text-align: center;">
+          <p style="font-size: 12px; color: #9ca3af;">
+            If the button above doesn't work, copy and paste this link:
+            <br><a href="${resetUrl}" style="word-break: break-all; color: #4f46e5;">${resetUrl}</a>
+          </p>
+        </td>
+      </tr>
+    </table>
+  </div>
+`;
+
+/**
  * @function getSafeUser
  * @description ตัดข้อมูล Sensitive (เช่น Password Hash) ออกจาก User Object ก่อนส่งกลับไปให้ Client
  * @param {Object} user - ข้อมูล User ดิบจาก Database
@@ -145,7 +191,7 @@ const forgotPassword = async (email) => {
   // หมายเหตุ: FRONTEND_URL ต้องตั้งใน .env (เช่น http://localhost:5173)
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-  const message = `
+  const textMessage = `
     You are receiving this email because you (or someone else) have requested the reset of the password for your account.
     Please click on the following link, or paste this into your browser to complete the process:
     \n\n
@@ -155,13 +201,16 @@ const forgotPassword = async (email) => {
     Link expires in 1 hour.
   `;
 
+  // Generate HTML version of the email
+  const htmlMessage = buildResetHtmlTemplate(resetUrl);
+
   // ส่งเมล
   try {
     await sendEmail({
       to: user.email,
       subject: "Password Reset Request",
-      text: message,
-      // html: `<p>Click <a href="${resetUrl}">here</a> to reset your password.</p>` // ถ้าอยากทำ HTML สวยๆ
+      text: textMessage, // Send the plain text version
+      html: htmlMessage, // Send the beautiful HTML version
     });
 
     return { message: "Email sent successfully." };

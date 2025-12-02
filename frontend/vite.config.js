@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
   const API_TARGET = env.VITE_API_TARGET || "http://localhost:3001";
 
   return {
+    appType: "spa",
     plugins: [vue()],
     resolve: {
       // ตั้ง Alias '@' แทนโฟลเดอร์ 'src' เพื่อให้ import ไฟล์ง่าย (เช่น @/components/...)
@@ -35,7 +36,7 @@ export default defineConfig(({ mode }) => {
           secure: false,
         },
         // Shortlink Redirect: ส่งต่อ /r/... ไปให้ Backend จัดการ
-        "/r": {
+        "^/r/": {
           target: API_TARGET,
           changeOrigin: true,
           secure: false,

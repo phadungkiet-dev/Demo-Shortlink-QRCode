@@ -107,8 +107,10 @@ app.use(
 // Helmet: Security Headers
 app.use(
   helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }, // โหลดรูปข้าม domain ได้
-    // ใน Dev ปิด CSP เพื่อความสะดวก, Prod เปิดไว้เพื่อความปลอดภัย
+    // อนุญาตให้โหลดรูปข้าม Domain ได้ (สำหรับ QR Code)
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    
+    // [FIX] ปิด CSP ในโหมด Development ไปเลย เพื่อแก้ปัญหา DevTools/Vite
     contentSecurityPolicy: IS_PRODUCTION ? undefined : false,
   })
 );

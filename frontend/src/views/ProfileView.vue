@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Mail,
   KeyRound,
+  AlertCircle, // [NEW] Icon สำหรับ Error
 } from "lucide-vue-next";
 import { APP_CONFIG } from "@/config/constants";
 
@@ -191,7 +192,7 @@ const handleChangePassword = async () => {
                   v-model="formData.oldPassword"
                   :type="showOldPassword ? 'text' : 'password'"
                   required
-                  class="block w-full pl-4 pr-12 py-3 bg-gray-50 border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                  class="block w-full h-[46px] pl-4 pr-12 bg-gray-50 border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-gray-900 placeholder-gray-400"
                   placeholder="Enter current password"
                 />
                 <button
@@ -217,9 +218,9 @@ const handleChangePassword = async () => {
                     v-model="formData.newPassword"
                     :type="showNewPassword ? 'text' : 'password'"
                     required
-                    minlength="8"
-                    class="block w-full pl-4 pr-12 py-3 bg-gray-50 border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
-                    placeholder="Min 8 chars"
+                    :minlength="minPassLen"
+                    class="block w-full h-[46px] pl-4 pr-12 bg-gray-50 border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-gray-900 placeholder-gray-400"
+                    :placeholder="`Min ${minPassLen} chars`"
                   />
                   <button
                     type="button"
@@ -243,7 +244,7 @@ const handleChangePassword = async () => {
                     v-model="formData.confirmPassword"
                     :type="showConfirmPassword ? 'text' : 'password'"
                     required
-                    class="block w-full pl-4 pr-12 py-3 bg-gray-50 border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                    class="block w-full h-[46px] pl-4 pr-12 bg-gray-50 border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-gray-900 placeholder-gray-400"
                     placeholder="Repeat password"
                   />
                   <button
@@ -267,9 +268,9 @@ const handleChangePassword = async () => {
             >
               <div
                 v-if="passwordMatchError"
-                class="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-xl text-sm font-medium"
+                class="flex items-center gap-3 text-red-600 bg-red-50 px-4 py-3 rounded-xl text-sm font-medium border border-red-100 shadow-sm"
               >
-                <AlertCircle class="w-4 h-4" /> Passwords do not match
+                <AlertCircle class="w-5 h-5 shrink-0" /> Passwords do not match.
               </div>
             </transition>
 
@@ -280,9 +281,9 @@ const handleChangePassword = async () => {
             >
               <div
                 v-if="apiError"
-                class="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-xl text-sm font-medium"
+                class="flex items-center gap-3 text-red-600 bg-red-50 px-4 py-3 rounded-xl text-sm font-medium border border-red-100 shadow-sm"
               >
-                <AlertCircle class="w-4 h-4" /> {{ apiError }}
+                <AlertCircle class="w-5 h-5 shrink-0" /> {{ apiError }}
               </div>
             </transition>
 
@@ -290,7 +291,7 @@ const handleChangePassword = async () => {
               <button
                 type="submit"
                 :disabled="isLoading || passwordMatchError"
-                class="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-indigo-500/30 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
+                class="w-full sm:w-auto h-[46px] px-8 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 hover:shadow-indigo-500/40 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 <Loader2 v-if="isLoading" class="h-5 w-5 animate-spin" />
                 <span>Update Password</span>
