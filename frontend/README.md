@@ -36,7 +36,7 @@ npm install
 cp .env.example .env
 ```
 
-# ค่า Config ที่สำคัญ:
+ค่า Config ที่สำคัญ:
 - VITE_API_TARGET: URL ของ Backend API (Default: http://localhost:3001)
 - VITE_SHORT_LINK_PREFIX: Prefix ของลิงก์ย่อ ต้องตรงกับ Backend (Default: sl)
 
