@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-vue-next";
+import { Loader2, AlertCircle, Eye, EyeOff, Check } from "lucide-vue-next";
 import { APP_CONFIG } from "@/config/constants";
 
 const emit = defineEmits(["register-success"]);
@@ -17,18 +17,54 @@ const errorMsg = ref(null);
 
 const minPassLen = APP_CONFIG.VALIDATION.PASSWORD_MIN_LEN;
 
+// --- Password Validation Logic (Sync with Backend Zod Schema) ---
+const passwordRules = computed(() => {
+  const pwd = password.value;
+  return [
+    {
+      label: `At least ${minPassLen} characters`,
+      valid: pwd.length >= minPassLen,
+    },
+    {
+      label: "1 Uppercase letter (A-Z)",
+      valid: /[A-Z]/.test(pwd), // ตรงกับ .regex(/[A-Z]/)
+    },
+    {
+      label: "1 Lowercase letter (a-z)",
+      valid: /[a-z]/.test(pwd), // ตรงกับ .regex(/[a-z]/)
+    },
+    {
+      label: "1 Number (0-9)",
+      valid: /[0-9]/.test(pwd), // ตรงกับ .regex(/[0-9]/)
+    },
+    {
+      label: "1 Special character (!@#...)",
+      // [\W_] หมายถึง non-word characters (สัญลักษณ์ต่างๆ) หรือ _
+      valid: /[\W_]/.test(pwd), // ตรงกับ .regex(/[\W_]/)
+    },
+  ];
+});
+
+// ตรวจสอบว่าผ่านครบทุกข้อหรือยัง
+const isPasswordValid = computed(() => {
+  return passwordRules.value.every((rule) => rule.valid);
+});
+
 const handleRegister = async () => {
+  errorMsg.value = null;
+
   if (password.value !== confirmPassword.value) {
     errorMsg.value = "Passwords do not match.";
     return;
   }
-  if (password.value.length < minPassLen) {
-    errorMsg.value = `Password must be at least ${minPassLen} characters.`;
+
+  // ป้องกันการยิง API ถ้า Password ยังไม่ผ่านเกณฑ์หน้าบ้าน
+  if (!isPasswordValid.value) {
+    errorMsg.value = "Please meet all password requirements.";
     return;
   }
 
   isLoading.value = true;
-  errorMsg.value = null;
 
   try {
     await authStore.register(
@@ -85,7 +121,12 @@ const handleRegister = async () => {
             :type="showPassword ? 'text' : 'password'"
             required
             placeholder="Create a password"
-            class="block w-full px-4 py-3 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all pr-12"
+            class="block w-full px-4 py-3 bg-gray-50 border-transparent rounded-xl text-gray-900 placeholder-gray-400 focus:ring-4 transition-all pr-12"
+            :class="
+              isPasswordValid && password
+                ? 'focus:bg-white focus:border-emerald-500 focus:ring-emerald-500/10'
+                : 'focus:bg-white focus:border-indigo-500 focus:ring-indigo-500/10'
+            "
           />
           <button
             type="button"
@@ -95,9 +136,35 @@ const handleRegister = async () => {
             <component :is="showPassword ? EyeOff : Eye" class="h-5 w-5" />
           </button>
         </div>
-        <p class="text-xs text-gray-500 ml-1">
-          At least {{ minPassLen }} characters.
-        </p>
+
+        <div
+          class="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100 transition-all"
+        >
+          <p class="text-xs font-bold text-gray-500 mb-2 ml-1">Must contain:</p>
+          <ul class="space-y-1">
+            <li
+              v-for="(rule, index) in passwordRules"
+              :key="index"
+              class="flex items-center gap-2 text-xs transition-colors duration-300"
+              :class="
+                rule.valid ? 'text-emerald-600 font-medium' : 'text-gray-400'
+              "
+            >
+              <div
+                class="w-4 h-4 rounded-full flex items-center justify-center border transition-all duration-300 shrink-0"
+                :class="
+                  rule.valid
+                    ? 'bg-emerald-100 border-emerald-200 scale-110'
+                    : 'border-gray-200 bg-white'
+                "
+              >
+                <Check v-if="rule.valid" class="w-2.5 h-2.5 text-emerald-600" />
+                <div v-else class="w-1 h-1 rounded-full bg-gray-300"></div>
+              </div>
+              {{ rule.label }}
+            </li>
+          </ul>
+        </div>
       </div>
 
       <div class="space-y-1.5">

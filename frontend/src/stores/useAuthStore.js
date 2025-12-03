@@ -43,6 +43,19 @@ export const useAuthStore = defineStore("auth", {
       }
     },
     // ----------------------------------------------------------------
+    // Get Csrf
+    // ----------------------------------------------------------------
+    async getCsrfToken() {
+      try {
+        const response = await api.get("/auth/csrf");
+        this.csrfToken = response.data.csrfToken;
+        console.log("CSRF Token Refreshed:", this.csrfToken);
+      } catch (error) {
+        console.error("Failed to refresh CSRF token:", error);
+        throw error;
+      }
+    },
+    // ----------------------------------------------------------------
     // Login
     // ----------------------------------------------------------------
     async login(email, password, rememberMe = false) {

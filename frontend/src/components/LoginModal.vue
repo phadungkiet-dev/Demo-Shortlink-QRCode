@@ -1,14 +1,30 @@
 <script setup>
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import LoginForm from "./LoginForm.vue";
 import RegisterForm from "./RegisterForm.vue";
 import { X } from "lucide-vue-next";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 const viewMode = ref("login"); // 'login' | 'register'
+const authStore = useAuthStore();
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
 });
+
+watch(
+  () => props.modelValue,
+  async (isOpen) => {
+    if (isOpen) {
+      console.log("Login modal opened, refreshing session...");
+      try {
+        await authStore.getCsrfToken();
+      } catch (e) {
+        console.error("Failed to refresh CSRF token", e);
+      }
+    }
+  }
+);
 
 const emit = defineEmits(["update:modelValue"]);
 

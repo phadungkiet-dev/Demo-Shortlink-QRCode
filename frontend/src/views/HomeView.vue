@@ -100,11 +100,11 @@ const closeResultModal = () => {
           class="inline-flex items-center justify-center p-1 pr-3 rounded-full bg-white border border-gray-200 shadow-sm mb-4"
         >
           <span
-            class="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide mr-2"
-            >New</span
+            class="bg-indigo-600 text-white px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide mr-2"
+            >Update</span
           >
           <span class="text-xs sm:text-sm text-gray-600 font-medium"
-            >Create custom QR codes instantly</span
+            >Design custom QR codes in seconds</span
           >
         </div>
 
@@ -112,11 +112,11 @@ const closeResultModal = () => {
         <h1
           class="text-4xl sm:text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight leading-tight"
         >
-          Shorten links. <br class="hidden sm:block" />
+          Streamline Links. <br class="hidden sm:block" />
           <span
             class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600"
           >
-            Generate QRs.
+            Elevate Your Brand.
           </span>
         </h1>
 
@@ -124,9 +124,9 @@ const closeResultModal = () => {
         <p
           class="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed px-4 sm:px-0"
         >
-          The link management tool for modern creators.
+          The ultimate link management platform for modern creators.
           <br class="hidden md:inline" />
-          Create short links, track analytics, and share them easily.
+          Shorten URLs, visualize performance, and share with confidence.
         </p>
       </div>
 
@@ -180,13 +180,13 @@ const closeResultModal = () => {
             <!-- CTA: Login Prompt (เฉพาะ Guest) -->
             <div v-else class="flex items-center justify-between px-2 py-1">
               <p class="text-xs sm:text-sm text-gray-500">
-                Want a custom alias?
+                Looking for a branded alias?
                 <button
                   type="button"
                   class="text-indigo-600 hover:text-indigo-700 font-semibold hover:underline"
                   @click="openLoginModal"
                 >
-                  Sign in to customize
+                  Sign in to personalize
                 </button>
               </p>
             </div>
@@ -225,49 +225,47 @@ const closeResultModal = () => {
         class="mt-8 lg:mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto px-4"
       >
         <div
-          class="group p-8 bg-white rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:-translate-y-1"
+          class="group p-8 bg-white rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:-translate-y-1 flex flex-col items-center text-center md:items-start md:text-left"
         >
           <div
             class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-blue-100 transition-colors"
           >
             <Zap class="h-7 w-7 text-blue-600" />
           </div>
-          <h3 class="text-xl font-bold text-gray-900 mb-3">Lightning Fast</h3>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">Instant & Secure</h3>
           <p class="text-gray-500 leading-relaxed">
-            Create anonymous links instantly. Logged-in users get extended
-            validity and management tools.
+            Generate secure links instantly. Unlock permanent storage and
+            advanced management tools by signing in.
           </p>
         </div>
 
         <div
-          class="group p-8 bg-white rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:-translate-y-1"
+          class="group p-8 bg-white rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:-translate-y-1 flex flex-col items-center text-center md:items-start md:text-left"
         >
           <div
             class="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-purple-100 transition-colors"
           >
             <QrCode class="h-7 w-7 text-purple-600" />
           </div>
-          <h3 class="text-xl font-bold text-gray-900 mb-3">Smart QR Codes</h3>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">Branded QR Codes</h3>
           <p class="text-gray-500 leading-relaxed">
-            Generate fully customizable QR codes with colors, logos, and styles
-            that match your brand identity.
+            Go beyond black and white. Customize QR codes with your brand
+            colors, logos, and unique styles.
           </p>
         </div>
 
         <div
-          class="group p-8 bg-white rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:-translate-y-1"
+          class="group p-8 bg-white rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:-translate-y-1 flex flex-col items-center text-center md:items-start md:text-left"
         >
           <div
             class="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-indigo-100 transition-colors"
           >
             <BarChart3 class="h-7 w-7 text-indigo-600" />
           </div>
-          <h3 class="text-xl font-bold text-gray-900 mb-3">
-            Analytics Tracking
-          </h3>
+          <h3 class="text-xl font-bold text-gray-900 mb-3">Deep Analytics</h3>
           <p class="text-gray-500 leading-relaxed">
-            Monitor link performance. Track clicks, referrers, and devices to
-            optimize your reach.
+            Make data-driven decisions. Monitor real-time clicks, geographic
+            locations, and device types to optimize reach.
           </p>
         </div>
       </div>
