@@ -4,7 +4,7 @@ const authController = require("../controllers/authController");
 const { isAuthenticated } = require("../middlewares/authGuard");
 
 // ===================================================================
-// PUBLIC ROUTES (ใครเข้าก็ได้ ไม่ต้อง Login)
+// PUBLIC ROUTES (Anyone can access)
 // ===================================================================
 router.get("/csrf", authController.getCsrfToken);
 
@@ -20,12 +20,13 @@ router.get("/google", authController.googleAuth);
 router.get("/google/callback", authController.googleCallback);
 
 // ===================================================================
-// SECURITY GATE (ด่านตรวจคนเข้าเมือง)
+// SECURITY GATE (Authentication Required)
 // ===================================================================
-router.use(isAuthenticated); // บังคับ Login ตั้งแต่บรรทัดนี้เป็นต้นไป
+// บังคับ Login ตั้งแต่บรรทัดนี้เป็นต้นไป
+router.use(isAuthenticated);
 
 // ===================================================================
-// PROTECTED ROUTES (ต้อง Login แล้วเท่านั้น)
+// PROTECTED ROUTES (Authenticated users only)
 // ===================================================================
 router.get("/me", authController.getMe);
 router.post("/change-password", authController.changePassword);

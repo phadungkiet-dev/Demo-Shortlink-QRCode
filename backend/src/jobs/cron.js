@@ -7,7 +7,7 @@ const initCronJobs = () => {
   // -------------------------------------------------------------------
   // Cleanup Expired Anonymous Links
   // -------------------------------------------------------------------
-  // ใช้ Schedule จาก Config (ค่า Default: "0 1 * * *" = ตี 1 ทุกวัน)
+  // ใช้ Schedule จาก Config "0 * * * *" ทุก ชั่วโมง
   cron.schedule(
     CRON.CLEANUP_SCHEDULE,
     async () => {

@@ -3,10 +3,10 @@ const { USER_ROLES } = require("../config/constants");
 
 /**
  * Middleware: ตรวจสอบว่า User ล็อกอินหรือยัง? (Authentication)
- * * หลักการทำงาน:
- * -Passport จะเช็ค Session Cookie ที่ส่งมา
- * -ถ้าถูกต้อง จะ Deserialize User จาก DB มาใส่ใน `req.user`
- * -ถ้า `req.isAuthenticated()` เป็น true แปลว่าผ่าน
+ * หลักการทำงาน:
+ * - Passport จะเช็ค Session Cookie ที่ส่งมา
+ * - ถ้าถูกต้อง จะ Deserialize User จาก DB มาใส่ใน `req.user`
+ * - ถ้า `req.isAuthenticated()` เป็น true แปลว่าผ่าน
  */
 const isAuthenticated = (req, res, next) => {
   if (req.isAuthenticated()) {

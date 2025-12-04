@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-// Import Sub-routers (แยกไฟล์ตามหน้าที่ เพื่อความเป็นระเบียบ)
+// Import Sub-routers
 const authRouter = require("./auth");
 const linksRouter = require("./links");
 const adminRouter = require("./admin");
@@ -13,6 +13,7 @@ const AppError = require("../utils/AppError");
 // -------------------------------------------------------------------
 // Global API Middleware
 // -------------------------------------------------------------------
+// บังคับใช้ Rate Limit กับทุก Request ที่เข้ามาทาง /api/*
 router.use(apiLimiter);
 
 // -------------------------------------------------------------------
@@ -25,8 +26,8 @@ router.use("/admin", adminRouter);
 // -------------------------------------------------------------------
 // 404 Not Found for API
 // -------------------------------------------------------------------
-// ใช้ Regex /.*/ แทน "*" เพื่อแก้ Error: Missing parameter name at index 1
-// สาเหตุ: Express 5 (path-to-regexp) ไม่รองรับ "*" แบบเดี่ยวๆ อีกต่อไป
+// ดักจับทุก Request ที่หลุดรอดมาจาก Router ข้างบน (แปลว่าหา Path ไม่เจอใน /api)
+// ใช้ Regex /.*/ แทน "*" เพื่อรองรับ Express 5
 router.all(/.*/, (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });

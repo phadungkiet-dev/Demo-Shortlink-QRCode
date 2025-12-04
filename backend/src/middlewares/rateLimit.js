@@ -24,7 +24,7 @@ const createLinkLimiter = rateLimit({
     "You have created too many links recently. Please log in for unlimited access.",
   handler: limitHandler,
   standardHeaders: true, // ส่ง Header `RateLimit-*` บอก User
-  legacyHeaders: false,
+  legacyHeaders: false, // ปิด Header X-RateLimit-* แบบเก่า
   // ถ้า Login แล้ว ให้ข้าม Limiter นี้ไปเลย (Unlimited for Users)
   skip: (req, res) => req.isAuthenticated(),
 });
@@ -45,7 +45,6 @@ const apiLimiter = rateLimit({
 
 /**
  * Limiter สำหรับ "Redirect Link" (/sl/:slug)
- * ใช้ค่า Config จาก constants.js แล้ว
  */
 const redirectLimiter = rateLimit({
   windowMs: RATE_LIMIT.REDIRECT.WINDOW_MS,
