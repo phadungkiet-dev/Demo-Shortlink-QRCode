@@ -9,7 +9,7 @@
       "destination": "https://shortlink-backend-1opc.onrender.com/uploads/:path*"
     },
     {
-      "source": "/r/:path*",
+      "source": "/sl/:path*",
       "destination": "https://shortlink-backend-1opc.onrender.com/sl/:path*"
     },
     {
