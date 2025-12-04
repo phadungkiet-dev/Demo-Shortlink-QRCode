@@ -3,13 +3,21 @@
   "version": "1.0.0",
   "description": "Backend for Shortlink & QR Code Generator",
   "main": "src/app.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
     "prisma:gen": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev",
+    "prisma:deploy": "npx prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
-    "prisma:studio": "npx prisma studio"
+    "prisma:studio": "npx prisma studio",
+    "postinstall": "npx prisma generate"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "keywords": [
     "shortlink",
@@ -17,7 +25,7 @@
     "express",
     "prisma"
   ],
-  "author": "System Architect",
+  "author": "System Architect LOL",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
