@@ -65,7 +65,7 @@ const logout = (req, res, next) => {
     req.session.destroy((err) => {
       if (err) logger.error("Failed to destroy session:", err);
 
-      res.clearCookie(COOKIE.NAME, { path: "/" })
+      res.clearCookie(COOKIE.NAME, { path: "/" });
       res.status(200).json({ message: "Logged out successfully." });
     });
   });
@@ -118,8 +118,11 @@ const googleCallback = (req, res, next) => {
   passport.authenticate("google", (err, user, info) => {
     if (err) return next(err);
 
-    // ใช้ FRONTEND_URL จาก .env (เผื่อ CORS_ORIGIN มีหลายค่า)
-    const frontendUrl = process.env.FRONTEND_URL || process.env.CORS_ORIGIN;
+    // Get the primary frontend URL (handle comma-separated list)
+    const rawFrontendUrl = process.env.FRONTEND_URL || process.env.CORS_ORIGIN;
+    const frontendUrl = rawFrontendUrl
+      ? rawFrontendUrl.split(",")[0]
+      : "http://localhost:5173";
 
     if (!user) {
       logger.warn("Google Auth Failed:", info);
@@ -177,7 +180,7 @@ const deleteAccount = catchAsync(async (req, res, next) => {
   req.logout((err) => {
     if (err) return next(err);
     req.session.destroy();
-    res.clearCookie("connect.sid");
+    res.clearCookie(COOKIE.NAME);
     res.json({ message: "Account deleted successfully." });
   });
 });

@@ -1,6 +1,5 @@
 const analyticsService = require("../services/analyticsService");
 const catchAsync = require("../utils/catchAsync");
-const AppError = require("../utils/AppError");
 
 const getLinkStats = catchAsync(async (req, res, next) => {
   const linkId = req.params.id;

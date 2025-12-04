@@ -16,13 +16,15 @@ const createLink = catchAsync(async (req, res, next) => {
 
   // Business Logic Validation
   // ป้องกันการย่อลิงก์ของตัวเอง (Self-loop)
+  // เช่น เอา domain.com มาย่อเป็น domain.com/sl/xyz (ซึ่งจะเกิด Infinite Loop)
   if (targetUrl.includes(process.env.BASE_URL)) {
     throw new AppError("Cannot create a shortlink that points to itself.", 400);
   }
 
   const ownerId = req.user ? req.user.id : null;
 
-  // ป้องกัน Anonymous พยายามส่ง Slug มาเอง (ต้อง Login ก่อน)
+  // Rule: Custom slugs are for members only
+  // ป้องกัน Anonymous พยายามส่ง Slug มาเอง
   if (slug && !ownerId) {
     throw new AppError(
       "Custom slugs are for logged-in users only. Please login.",
@@ -33,7 +35,7 @@ const createLink = catchAsync(async (req, res, next) => {
   // Call Service
   const link = await linkService.createLink(targetUrl, ownerId, slug);
 
-  // Send Response
+  // Send Response (Construct full URL for frontend convenience)
   res.status(201).json({
     ...link,
     shortUrl: `${process.env.BASE_URL}/${ROUTES.SHORT_LINK_PREFIX}/${link.slug}`,
@@ -79,7 +81,7 @@ const updateLink = catchAsync(async (req, res, next) => {
 
   const ownerId = req.user.id;
 
-  // Validate ข้อมูลที่จะแก้ไข (อนุญาตเฉพาะบาง field ที่กำหนดใน Schema)
+  // Validate ข้อมูลที่จะแก้ไข
   const updateData = updateLinkSchema.parse(req.body);
 
   // Service จะ throw AppError(404/403) ให้เองถ้าไม่ใช่เจ้าของ

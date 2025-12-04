@@ -5,24 +5,23 @@ const AppError = require("../utils/AppError");
 const { ROUTES } = require("../config/constants");
 
 // -------------------------------------------------------------------
-// Get All Users
+// Get All Users (with Filtering & Pagination)
 // -------------------------------------------------------------------
 const getAllUsers = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const search = req.query.search || "";
-  const status = req.query.status || "ALL"; // Get status from frontend
+  const status = req.query.status || "ALL";
 
-  // Map frontend status to backend isBlocked boolean/undefined
+  // Map frontend status to backend logic
   let isBlockedFilter;
   if (status === "ACTIVE") {
     isBlockedFilter = false;
   } else if (status === "BLOCKED") {
     isBlockedFilter = true;
   } else {
-    // ALL
-    isBlockedFilter = undefined;
+    isBlockedFilter = undefined; // ALL
   }
 
   // Service returns { users, meta, stats }
@@ -43,13 +42,13 @@ const getAllUsers = catchAsync(async (req, res, next) => {
 });
 
 // -------------------------------------------------------------------
-// Update User Status
+// Update User Status (Block/Unblock)
 // -------------------------------------------------------------------
 const updateUserStatus = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
   const userIdToUpdate = req.params.id;
-
   const { isBlocked } = req.body;
+
   if (typeof isBlocked !== "boolean") {
     throw new AppError(
       "Invalid request body. 'isBlocked' (boolean) is required.",
@@ -102,8 +101,8 @@ const updateUserLimit = catchAsync(async (req, res, next) => {
   const userIdToUpdate = req.params.id;
   const { limit } = req.body;
 
-  if (isNaN(userIdToUpdate) || typeof limit !== "number") {
-    throw new AppError("Invalid input. Limit must be a number.", 400);
+  if (typeof limit !== "number" || limit < 0) {
+    throw new AppError("Invalid input. Limit must be a positive number.", 400);
   }
 
   const updatedUser = await adminService.updateUserLimit(
@@ -115,7 +114,7 @@ const updateUserLimit = catchAsync(async (req, res, next) => {
 });
 
 // -------------------------------------------------------------------
-// Get User Links (Admin View)
+// Get User Links (View as Admin)
 // -------------------------------------------------------------------
 const getUserLinks = catchAsync(async (req, res, next) => {
   const userId = req.params.id;
@@ -123,7 +122,7 @@ const getUserLinks = catchAsync(async (req, res, next) => {
   const limit = parseInt(req.query.limit) || 10;
   const search = req.query.search || "";
 
-  // Reuse Service ของ Link ได้เลย
+  // Reuse logic จาก Link Service
   const result = await linkService.findLinksByOwner(
     userId,
     page,

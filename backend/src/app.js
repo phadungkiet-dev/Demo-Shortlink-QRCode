@@ -28,6 +28,7 @@ const logger = require("./utils/logger");
 const globalErrorHandler = require("./middlewares/errorHandler");
 const { redirectLimiter } = require("./middlewares/rateLimit");
 const initCronJobs = require("./jobs/cron");
+const auditLogger = require("./middlewares/auditLogger");
 
 // Load Passport Configuration (Strategy Setup)
 require("./config/passport");
@@ -119,8 +120,29 @@ app.use(
 // Compression: บีบอัด Response (Gzip)
 app.use(compression());
 
+// กำหนด Token 'date-local' ให้ Morgan ใช้เวลาตามเครื่อง (ซึ่งเราตั้ง TZ เป็น Asia/Bangkok ไว้แล้ว)
+morgan.token("date-local", () => {
+  return new Date()
+    .toLocaleString("en-CA", {
+      timeZone: process.env.TZ || "Asia/Bangkok",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    })
+    .replace(",", "");
+});
+
+// ใช้ Custom Format แทน "combined" เดิม
+// Format เดิมของ combined คือ: :remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"
+// เราจะเปลี่ยน [:date[clf]] เป็น [:date-local]
+const morganFormat =
+  ':remote-addr - :remote-user [:date-local] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"';
 // Logging: ต่อท่อ Morgan เข้ากับ Winston Logger
-app.use(morgan("combined", { stream: logger.stream }));
+app.use(morgan(morganFormat, { stream: logger.stream }));
 
 // Body Parser: แปลง Request Body
 app.use(express.json({ limit: "10mb" })); // รองรับ JSON (เพิ่ม Limit เผื่อส่งรูป Base64)
@@ -166,6 +188,8 @@ app.use(
 // Initialize Passport (Authentication)
 app.use(passport.initialize());
 app.use(passport.session());
+// เพื่อให้ req.user มีค่าพร้อมใช้งาน
+app.use(auditLogger);
 
 // -------------------------------------------------------------------
 // Route Handling
