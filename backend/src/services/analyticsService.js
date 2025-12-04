@@ -1,15 +1,29 @@
 const { prisma } = require("../config/prisma");
 const AppError = require("../utils/AppError");
+const { addDays, getNow } = require("../utils/time");
+
+/**
+ * Helper: ตรวจสอบว่า Timezone ถูกต้องหรือไม่ (ป้องกัน SQL Injection)
+ */
+const isValidTimezone = (tz) => {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return true;
+  } catch (ex) {
+    return false;
+  }
+};
 
 /**
  * @function getStatsForLink
  * @description ดึงข้อมูลสถิติเชิงลึกของลิงก์ (High Performance Version)
- * เปลี่ยนจากการดึง Raw Data มา Process เอง เป็นการใช้ DB Aggregation เพื่อลดภาระ RAM
- * @param {number} linkId
- * @param {number} ownerId - ใช้ตรวจสอบสิทธิ์ความเป็นเจ้าของ
  */
-
 const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
+  // Validate Timezone (Safety Check)
+  if (!isValidTimezone(timezone)) {
+    timezone = "Asia/Bangkok"; // Fallback to default if invalid
+  }
+
   // ตรวจสอบความเป็นเจ้าของ (linkId และ ownerId เป็น UUID String)
   const link = await prisma.link.findFirst({
     where: { id: linkId, ownerId },
@@ -20,17 +34,20 @@ const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
   }
 
   // กำหนดช่วงเวลา (7 วันย้อนหลัง)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // ใช้ getNow() และ addDays() เพื่อความ consistency
+  const now = getNow();
+  const sevenDaysAgo = addDays(now, -7);
   sevenDaysAgo.setHours(0, 0, 0, 0);
 
-  // Parallel Queries (ยิง Query ไป Database พร้อมกัน 5 ทาง เพื่อความเร็วสูงสุด)
+  // Parallel Queries
   const [totalClicks, dailyStatsRaw, topReferrers, topCountries, topBrowsers] =
     await Promise.all([
-      // ยอดรวมคลิกทั้งหมด
+      // Total Clicks
       prisma.click.count({ where: { linkId } }),
 
-      // กราฟ 7 วันย้อนหลัง (ใช้ SQL ตรงๆ เพื่อประสิทธิภาพสูงสุดในการตัดเวลา)
+      // Daily Graph (7 Days) - Raw SQL for Timezone conversion
+      // หมายเหตุ: Prisma ป้องกัน SQL Injection สำหรับ parameter ${...} ทั่วไป
+      // แต่ชื่อ Timezone อาจต้องระวัง เราจึง validate ข้างบนแล้ว
       prisma.$queryRaw`
         SELECT 
           TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${timezone}, 'YYYY-MM-DD') as date, 
@@ -41,7 +58,7 @@ const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
         ORDER BY date ASC
       `,
 
-      // Top Referrers (10 อันดับ)
+      // Top Referrers
       prisma.click.groupBy({
         by: ["referrer"],
         where: { linkId, referrer: { not: null } },
@@ -50,7 +67,7 @@ const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
         take: 10,
       }),
 
-      // Top Countries (5 อันดับ)
+      // Top Countries
       prisma.click.groupBy({
         by: ["country"],
         where: { linkId, country: { not: null } },
@@ -69,7 +86,7 @@ const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
       }),
     ]);
 
-  // จัดรูปแบบข้อมูลก่อนส่งให้ Frontend
+  // Format Data
   const dailyCounts = {};
   dailyStatsRaw.forEach((item) => {
     dailyCounts[item.date] = item.count;

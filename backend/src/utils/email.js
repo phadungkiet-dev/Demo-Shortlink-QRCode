@@ -7,25 +7,44 @@ const logger = require("./logger");
  * -------------------------------------------------------------------
  */
 const resetPasswordTemplate = (resetUrl) => `
-  <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
-    <div style="background-color: #4f46e5; padding: 20px; text-align: center;">
-      <h1 style="color: white; margin: 0; font-size: 24px;">Shortlink.QR</h1>
-    </div>
-    <div style="padding: 40px 20px; text-align: center;">
-      <h2 style="color: #1f2937; margin-bottom: 20px;">Password Reset Request</h2>
-      <p style="color: #4b5563; line-height: 1.6; margin-bottom: 30px;">
-        You (or someone else) have requested to reset your password. <br>
-        Click the button below to complete the process.
-      </p>
-      <a href="${resetUrl}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
-      <p style="color: #9ca3af; font-size: 14px; margin-top: 30px;">
-        This link allows you to reset your password within 1 hour. <br>
-        If you didn't ask for this, please ignore this email.
-      </p>
-    </div>
-    <div style="background-color: #f9fafb; padding: 15px; text-align: center; border-top: 1px solid #e5e7eb;">
-      <p style="color: #6b7280; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} Shortlink.QR Service</p>
-    </div>
+  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 20px;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <tr>
+        <td style="padding: 30px; text-align: center;">
+          
+          <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0 0 20px 0;">
+            Shortlink<span style="color: #4f46e5;">.QR</span>
+          </h1>
+
+          <p style="font-size: 16px; color: #374151; margin-bottom: 25px; line-height: 1.5;">
+            You have requested a password reset for your account. Click the button below to proceed.
+          </p>
+
+          <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
+            <tr>
+              <td align="center" style="border-radius: 12px; background-color: #4f46e5; padding: 0;">
+                <a href="${resetUrl}" target="_blank" style="font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; padding: 14px 28px; display: inline-block; border-radius: 12px; border: 1px solid #4f46e5;">
+                  Reset My Password
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <p style="font-size: 14px; color: #6b7280; line-height: 1.5; margin-top: 0;">
+            This link will expire in 1 hour. If you did not request this, please ignore this email.
+          </p>
+          
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 30px 20px; text-align: center;">
+          <p style="font-size: 12px; color: #9ca3af;">
+            If the button above doesn't work, copy and paste this link:
+            <br><a href="${resetUrl}" style="word-break: break-all; color: #4f46e5;">${resetUrl}</a>
+          </p>
+        </td>
+      </tr>
+    </table>
   </div>
 `;
 

@@ -8,15 +8,10 @@ const geoip = require("geoip-lite");
 const storageService = require("./storageService");
 const { DEFAULTS, USER_ROLES } = require("../config/constants");
 
-const MAX_SLUG_RETRIES = 5;
-
 // --- Main Service Functions ---
 /**
  * @function createLink
  * @description สร้าง Short Link ใหม่
- * @param {string} targetUrl - URL ปลายทาง
- * @param {number|null} ownerId - ID เจ้าของ (null = Anonymous)
- * @param {string|null} customSlug - Slug ที่ผู้ใช้ตั้งเอง (Optional)
  */
 const createLink = async (targetUrl, ownerId, customSlug = null) => {
   const now = getNow();
@@ -75,8 +70,8 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
   let slug;
   let retries = 0;
 
-  while (retries < MAX_SLUG_RETRIES) {
-    slug = await generateSlug(isAnonymous ? 6 : 7);
+  while (retries < DEFAULTS.SLUG_RETRIES) {
+    slug = await generateSlug();
     retries++;
 
     try {
@@ -198,8 +193,6 @@ const findLinksByOwner = async (
 
 /**
  * Helper: ดึง Relative Path จาก URL
- * Input: http://localhost:3001/uploads/logos/slug/file.png
- * Output: slug/file.png
  */
 const getRelativePath = (fullUrl) => {
   if (!fullUrl || !fullUrl.includes("/uploads/logos/")) return null;
@@ -261,7 +254,7 @@ const updateLink = async (linkId, ownerId, data) => {
         // ถ้าเซฟรูปไม่ผ่าน ก็ใช้รูปเดิมไปก่อน หรือจะ throw error ก็ได้
       }
     } else if (newImage === null) {
-      // [Cleanup] ลบรูปเก่าทิ้ง
+      // ลบรูปเก่าทิ้ง
       const oldPath = getRelativePath(oldImage);
       if (oldPath) await storageService.deleteImage(oldPath);
       finalOptions.image = null; // เคลียร์ค่าใน DB
@@ -307,7 +300,7 @@ const deleteLink = async (linkId, ownerId) => {
 
 /**
  * @function getAndRecordClick
- * @description ดึง URL ปลายทาง และบันทึกสถิติการคลิก (ใช้โดย Redirect Controller)
+ * @description ดึง URL ปลายทาง และบันทึกสถิติการคลิก
  */
 const getAndRecordClick = async (slug, ip, uaString, referrer) => {
   const now = getNow();
@@ -350,7 +343,7 @@ const getAndRecordClick = async (slug, ip, uaString, referrer) => {
 
 /**
  * @function deleteExpiredAnonymousLinks
- * @description Cron Job function เพื่อลบลิงก์ขยะ
+ * @description Cron Job function
  */
 const deleteExpiredAnonymousLinks = async () => {
   const now = getNow();

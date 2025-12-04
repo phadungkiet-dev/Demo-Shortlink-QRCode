@@ -2,7 +2,10 @@ const fs = require("fs/promises");
 const path = require("path");
 const { STORAGE } = require("../config/constants");
 
-// ตรวจสอบและสร้างโฟลเดอร์ปลายทาง (เก็บใน storage/logos ตาม config)
+/**
+ * Helper: ตรวจสอบและสร้างโฟลเดอร์ถ้ายังไม่มี
+ */
+// กำหนด Path ปลายทาง (อ้างอิงจาก Constants)
 const LOGO_DIR = path.join(__dirname, "../../", STORAGE.LOCAL_PATH);
 
 const ensureDir = async (dirPath) => {
@@ -14,10 +17,8 @@ const ensureDir = async (dirPath) => {
 };
 
 /**
- * Save Base64 Image to Storage
- * @param {string} slug - ชื่อ slug ของลิงก์ (ใช้ตั้งชื่อไฟล์)
- * @param {string} base64String - ข้อมูลรูปภาพแบบ Base64
- * @returns {Promise<string|null>} - URL path ของรูปภาพที่เข้าถึงได้
+ * @function saveImage
+ * @description เก็บรูปภาพ
  */
 const saveImage = async (slug, base64String) => {
   if (!base64String || !base64String.startsWith("data:image")) return null;
@@ -46,7 +47,7 @@ const saveImage = async (slug, base64String) => {
     return null;
   }
 
-  const extension = mimeType.split("/")[1].replace("+xml", "");
+  const extension = mimeType.split("/")[1].replace("+xml", ""); // svg+xml -> svg
   const imageBuffer = Buffer.from(data, "base64");
 
   // ตั้งชื่อไฟล์: slug-timestamp.ext (ป้องกัน Cache และชื่อซ้ำ)
@@ -61,7 +62,8 @@ const saveImage = async (slug, base64String) => {
 };
 
 /**
- * Delete Image (เผื่อใช้ตอนลบลิงก์ - Optional)
+ * @function deleteImage
+ * @description ลบรูปภาพ
  */
 const deleteImage = async (relativePath) => {
   if (!relativePath) return;
@@ -78,15 +80,15 @@ const deleteImage = async (relativePath) => {
     // ลบไฟล์
     await fs.unlink(filePath);
 
-    // [Optional] ลองลบโฟลเดอร์ Slug ทิ้งด้วยถ้ามันว่างเปล่าแล้ว (Cleanup)
+    // ลบโฟลเดอร์ Slug ทิ้งด้วยถ้ามันว่างเปล่าแล้ว (Empty Directory Cleanup)
     const dirPath = path.dirname(filePath);
     const files = await fs.readdir(dirPath);
     if (files.length === 0) {
-        await fs.rmdir(dirPath);
+      await fs.rmdir(dirPath);
     }
   } catch (err) {
     // ไฟล์อาจจะไม่มีอยู่จริง หรือลบไปแล้ว ไม่ต้อง throw error
-    console.warn(`Failed to delete image: ${filename}`, err.message);
+    console.warn(`Failed to delete image: ${relativePath}`, err.message);
   }
 };
 

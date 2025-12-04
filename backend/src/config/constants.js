@@ -22,6 +22,11 @@ module.exports = {
     USER_LINK_EXPIRY_DAYS: 30, // ลิงก์จากสมาชิก อยู่ได้ 30 วัน
 
     SLUG_SIZE: 7, // ขนาดความยาวของ Slug (Default)
+
+    // เวลาหมดอายุของ Reset Password Token (1 ชั่วโมง = 3600000 ms)
+    PASSWORD_RESET_EXPIRY_MS: 60 * 60 * 1000,
+    // จำนวนครั้งสูงสุดในการสุ่ม Slug ใหม่ถ้าซ้ำ
+    SLUG_RETRIES: 5,
   },
 
   // --- การตั้งค่า Cookie & Session ---

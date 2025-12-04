@@ -6,11 +6,6 @@ const { USER_ROLES } = require("../config/constants");
 /**
  * @function getAllUsers
  * @description ดึงรายชื่อ User ทั้งหมดสำหรับหน้า Admin Dashboard
- * @param {number} adminId
- * @param {number} [page=1]
- * @param {number} [limit=10]
- * @param {string} [search=""]
- * @param {boolean|undefined} [isBlockedFilter=undefined] - กรองตามสถานะ Blocked
  */
 const getAllUsers = async (
   adminId,
@@ -150,6 +145,9 @@ const updateUserLimit = async (userId, adminId, newLimit) => {
     select: { id: true, email: true, linkLimit: true },
   });
 
+  logger.info(
+    `Admin ${adminId} updated user ${userId} link limit to ${newLimit}`
+  );
   return updatedUser;
 };
 
@@ -161,9 +159,6 @@ const changeUserRole = async (userId, adminId, newRole) => {
   if (userId === adminId)
     throw new AppError("Cannot change your own role.", 400);
 
-  // if (!["ADMIN", "USER"].includes(newRole))
-  //   throw new AppError("Invalid role.", 400);
-
   if (!Object.values(USER_ROLES).includes(newRole)) {
     throw new AppError("Invalid role.", 400);
   }
@@ -174,6 +169,7 @@ const changeUserRole = async (userId, adminId, newRole) => {
     select: { id: true, email: true, role: true },
   });
 
+  logger.info(`Admin ${adminId} changed user ${userId} role to ${newRole}`);
   return updatedUser;
 };
 
