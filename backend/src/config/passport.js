@@ -4,6 +4,7 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const bcrypt = require("bcrypt");
 const { prisma } = require("./prisma");
 const { DEFAULTS, USER_ROLES } = require("./constants");
+const AppError = require("../utils/AppError");
 
 // -------------------------------------------------------------------
 // Local Strategy (Login ด้วย Email/Password)
@@ -11,17 +12,16 @@ const { DEFAULTS, USER_ROLES } = require("./constants");
 passport.use(
   new LocalStrategy(
     {
-      usernameField: "email", // บอก Passport ว่าเราใช้ field 'email' แทน username
+      usernameField: "email",
       passwordField: "password",
     },
     async (email, password, done) => {
       try {
-        // หา User จาก Email
         const user = await prisma.user.findUnique({ where: { email } });
 
         // ถ้าไม่เจอ หรือ user นี้ไม่มีรหัสผ่าน (เช่น สมัครผ่าน Google มา)
         if (!user || !user.passwordHash) {
-          // done(error, user, options) -> ส่ง false เพื่อบอกว่า Login ไม่ผ่าน
+          // ใช้ Generic Message เพื่อป้องกัน User Enumeration Attack
           return done(null, false, { message: "Invalid email or password." });
         }
 
@@ -31,7 +31,7 @@ passport.use(
           return done(null, false, { message: "Invalid email or password." });
         }
 
-        // เช็คสถานะโดนแบน (สำคัญมาก!)
+        // เช็คสถานะโดนแบน
         if (user.isBlocked) {
           return done(null, false, {
             message: "Your account has been suspended.",
@@ -56,20 +56,25 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: process.env.GOOGLE_CALLBACK_URL,
-      scope: ["profile", "email"], // ขอข้อมูล Profile และ Email
+      scope: ["profile", "email"],
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        const email = profile.emails?.[0]?.value;
+        const email =
+          profile.emails && profile.emails[0] ? profile.emails[0].value : null;
+
         if (!email) {
-          return done(new Error("No email found from Google profile."), null);
+          return done(
+            new AppError("No email found from Google profile.", 400),
+            null
+          );
         }
 
         // เช็คว่ามี User นี้หรือยัง
         let user = await prisma.user.findUnique({ where: { email } });
 
         if (user) {
-          // Case: มี User อยู่แล้ว -> เช็คว่าเคยสมัครแบบไหน
+          // ถ้ามี User -> เช็ค Provider
           if (user.provider !== "GOOGLE") {
             // ถ้าเคยสมัครด้วย Email/Password จะไม่ให้ Login ผ่าน Google (เพื่อความปลอดภัย)
             return done(null, false, {
@@ -84,18 +89,28 @@ passport.use(
             });
           }
         } else {
-          // Case: ยังไม่มี User -> สมัครสมาชิกให้อัตโนมัติ (Auto Register)
-          user = await prisma.user.create({
-            data: {
-              email: email,
-              provider: "GOOGLE",
-              providerId: profile.id,
-              role: USER_ROLES.USER,
-              linkLimit: DEFAULTS.LINK_LIMIT,
-            },
-          });
+          // ถ้าไม่มี User -> สร้างใหม่ (Auto Register)
+          // [Refinement] ห่อ create ด้วย try-catch ย่อย เพื่อดักจับ Unique Constraint (เผื่อ Race Condition)
+          try {
+            user = await prisma.user.create({
+              data: {
+                email: email,
+                provider: "GOOGLE",
+                providerId: profile.id,
+                role: USER_ROLES.USER,
+                linkLimit: DEFAULTS.LINK_LIMIT,
+              },
+            });
+          } catch (createError) {
+            // ถ้า Error เพราะ Email ซ้ำ (P2002) แปลว่ามี request อื่นสร้างตัดหน้าไปแล้ว
+            // ให้ลองดึงข้อมูลอีกรอบ
+            if (createError.code === "P2002") {
+              user = await prisma.user.findUnique({ where: { email } });
+            } else {
+              throw createError; // Error อื่นโยนทิ้งไป
+            }
+          }
         }
-
         return done(null, user);
       } catch (error) {
         return done(error);
@@ -105,26 +120,22 @@ passport.use(
 );
 
 // -------------------------------------------------------------------
-// Session Handling (Serialize / Deserialize)
+// Session Handling
 // -------------------------------------------------------------------
-// Serialize: ตอน Login สำเร็จ จะเก็บอะไรลงใน Session Cookie?
-// ตอบ: เก็บแค่ "User ID" ก็พอ (เพื่อประหยัดพื้นที่ Cookie)
 passport.serializeUser((user, done) => {
-  done(null, user.id); // เก็บแค่ ID ลง Session Store
+  done(null, user.id);
 });
 
-// Deserialize: เมื่อ User ยื่น Cookie มาใน Request ถัดไป จะแปลง ID กลับเป็น User Object ยังไง?
-// ตอบ: เอา ID ไป Query หา User ใน DB
 passport.deserializeUser(async (id, done) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: id } });
 
-    // Double Check: ถ้า User โดนลบหรือโดนแบนระหว่างที่ Session ยังค้างอยู่ ให้ดีดออก
     if (!user || user.isBlocked) {
+      // ถ้าหาไม่เจอ หรือโดนแบน ให้ invalidate session
       return done(null, false);
     }
 
-    // ตัด Password Hash ออกก่อนแปะลงใน req.user เพื่อความปลอดภัย
+    // Remove sensitive data
     const { passwordHash, ...userWithoutPass } = user;
     done(null, userWithoutPass);
   } catch (error) {

@@ -4,7 +4,7 @@ const { VALIDATION } = require("../config/constants");
 // -------------------------------------------------------------------
 // Reusable Rules (กฎที่ใช้ซ้ำได้)
 // -------------------------------------------------------------------
-// 1 upper, 1 lower, 1 number, 1 special char, >= 8 char
+// Password Strength: 1 upper, 1 lower, 1 number, 1 special char, min length
 const passwordRule = z
   .string()
   .min(
@@ -47,17 +47,16 @@ const createLinkSchema = z.object({
       /^[a-zA-Z0-9_-]+$/,
       "Slug can only contain letters, numbers, hyphens (-), and underscores (_)."
     )
-    .optional(), // ถ้าไม่ส่งมา ระบบจะ Auto Generate ให้
+    .optional(), // Optional: ถ้าไม่ส่งมา ระบบจะ Auto Generate ให้
 });
 
 /**
  * Schema: แก้ไขลิงก์ (Update Link)
- * ทุก field เป็น .optional() เพราะ User อาจจะอยากแก้แค่บางค่า
  */
 const updateLinkSchema = z.object({
-  renew: z.boolean().optional(), // ต่ออายุลิงก์
+  renew: z.boolean().optional(),
   targetUrl: z.string().trim().url("Invalid URL format.").optional(),
-  qrOptions: z.record(z.any()).optional(), // รับ JSON อะไรก็ได้ (ยืดหยุ่นสำหรับ Config QR จาก Frontend)
+  qrOptions: z.record(z.any()).optional(), // รับ JSON Config ของ QR Code
   disabled: z.boolean().optional(),
 });
 
@@ -65,7 +64,7 @@ const updateLinkSchema = z.object({
  * Schema: เข้าสู่ระบบ (Login)
  */
 const loginSchema = z.object({
-  email: z.string().email("Invalid email format."), // ตรวจรูปแบบอีเมลอัตโนมัติ
+  email: z.string().email("Invalid email format."),
   password: z.string().min(1, "Password is required."),
   rememberMe: z.boolean().optional(),
 });
@@ -76,13 +75,12 @@ const loginSchema = z.object({
 const changePasswordSchema = z
   .object({
     oldPassword: z.string().min(1, "Old password is required."),
-    newPassword: passwordRule, // ใช้กฎเดียวกับตอนสมัคร
+    newPassword: passwordRule,
     confirmPassword: z.string(),
   })
-  // .refine: ใช้สำหรับตรวจสอบความสัมพันธ์ระหว่าง field (Cross-field validation)
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: "New passwords do not match.",
-    path: ["confirmPassword"], // ถ้าไม่ตรง ให้แจ้ง Error ที่ช่อง confirmPassword
+    path: ["confirmPassword"],
   });
 
 /**
@@ -101,11 +99,10 @@ const registerSchema = z
 
 /**
  * Schema: รีเซ็ตรหัสผ่านใหม่ (Reset Password)
- * ใช้ passwordRule เดียวกันกับตอนสมัครสมาชิก เพื่อความปลอดภัยระดับเดียวกัน
  */
 const resetPasswordSchema = z
   .object({
-    password: passwordRule, // ใช้กฎเข้มงวด (ยาว 8+, มีตัวใหญ่/เล็ก/เลข/อักขระพิเศษ)
+    password: passwordRule,
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {

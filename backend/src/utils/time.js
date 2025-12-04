@@ -5,7 +5,7 @@
  * @function addDays
  * @description คำนวณวันที่ในอนาคต โดยบวกจำนวนวันเพิ่มจากวันที่กำหนด
  * ใช้สำหรับคำนวณวันหมดอายุ (ExpiredAt) ของลิงก์
- * * @param {Date} date - วันที่ตั้งต้น
+ * @param {Date} date - วันที่ตั้งต้น
  * @param {number} days - จำนวนวันที่ต้องการบวกเพิ่ม
  * @returns {Date} - วันที่ผลลัพธ์
  */
@@ -26,7 +26,7 @@ const addDays = (date, days) => {
  * @function getNow
  * @description ดึงเวลาปัจจุบัน (Wrapper Function)
  * สร้างไว้เพื่อให้ง่ายต่อการ Mock เวลาตอนเขียน Unit Test ในอนาคต
- * * @returns {Date} - เวลาปัจจุบัน
+ * @returns {Date} - เวลาปัจจุบัน
  */
 const getNow = () => {
   return new Date();

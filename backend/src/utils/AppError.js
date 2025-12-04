@@ -1,8 +1,12 @@
 /**
- * Class: AppError
- * หน้าที่: เป็น Error มาตรฐานของระบบเรา ที่สืบทอดมาจาก Error ปกติของ JS
- * ประโยชน์: ช่วยให้เราระบุได้ว่า Error นี้ "เราตั้งใจให้เกิด" (เช่น กรอกรหัสผิด)
- * หรือ "ระบบพังเอง" (เช่น Database ล่ม)
+ * ============================================================================
+ * AppError - Custom Error Class
+ * ============================================================================
+ * หน้าที่: เป็น Error Object มาตรฐานของระบบที่สืบทอดมาจาก Error ปกติของ JS
+ * ประโยชน์:
+ * 1. ใช้ส่ง HTTP Status Code ได้ (เช่น 404, 400)
+ * 2. ระบุได้ว่าเป็น "Operational Error" (Error ที่เราคาดการณ์ไว้ เช่น กรอกผิด)
+ * เพื่อแยกออกจาก "Programming Error" (Bug ของระบบ)
  */
 class AppError extends Error {
   /**
@@ -10,18 +14,23 @@ class AppError extends Error {
    * @param {number} statusCode - รหัส HTTP Status (เช่น 400, 404, 401)
    */
   constructor(message, statusCode) {
-    super(message); // เรียก Constructor ของ Parent Class (Error)
+    // เรียก Constructor ของ Parent Class (Error) เพื่อเซ็ต message
+    super(message);
 
     this.statusCode = statusCode;
-    // ถ้า Code ขึ้นต้นด้วย 4xx ให้สถานะเป็น 'fail' (User ผิด)
-    // ถ้าไม่ใช่ (5xx) ให้เป็น 'error' (Server ผิด)
+
+    // คำนวณสถานะ (status):
+    // - ถ้า code ขึ้นต้นด้วย 4xx -> 'fail' (User ส่งมาผิด)
+    // - ถ้าไม่ใช่ (เช่น 5xx) -> 'error' (Server พังเอง)
     this.status = `${statusCode}`.startsWith("4") ? "fail" : "error";
 
-    // isOperational = true หมายถึง Error ที่เรารู้จักและคาดการณ์ไว้แล้ว
-    // (เอาไว้แยกกับ Error ที่เกิดจาก Bug ของโปรแกรม)
+    // isOperational = true:
+    // เป็น Flag บอก Global Error Handler ว่า "นี่คือ Error ที่เรารู้จักและจัดการได้"
+    // (ถ้าเป็น false แปลว่าเป็น Bug ที่ไม่ได้ตั้งใจให้เกิด)
     this.isOperational = true;
 
-    // เก็บ Stack Trace ไว้ตรวจสอบ (แต่จะไม่แสดงให้ User เห็นใน Production)
+    // เก็บ Stack Trace ไว้ตรวจสอบ (มีประโยชน์ตอน Debug ว่า Error เกิดที่บรรทัดไหน)
+    // Error.captureStackTrace เป็นฟังก์ชันเฉพาะของ V8 Engine (Node.js)
     Error.captureStackTrace(this, this.constructor);
   }
 }

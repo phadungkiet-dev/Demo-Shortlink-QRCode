@@ -2,7 +2,7 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const { prisma } = require("../config/prisma");
 const AppError = require("../utils/AppError");
-const sendEmail = require("../utils/email");
+const { sendEmail, resetPasswordTemplate } = require("../utils/email");
 const { DEFAULTS, USER_ROLES } = require("../config/constants");
 
 /**
@@ -210,7 +210,7 @@ const forgotPassword = async (email) => {
       to: user.email,
       subject: "Password Reset Request",
       text: textMessage, // Send the plain text version
-      html: htmlMessage, // Send the beautiful HTML version
+      html: resetPasswordTemplate(resetUrl) // Send the beautiful HTML version
     });
 
     return { message: "Email sent successfully." };

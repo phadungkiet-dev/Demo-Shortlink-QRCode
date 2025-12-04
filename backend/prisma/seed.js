@@ -1,6 +1,8 @@
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcrypt");
-const { USER_ROLES, DEFAULTS } = require("../src/config/constants");
+const { USER_ROLES, DEFAULTS, SECURITY } = require("../src/config/constants");
+const { generateSlug } = require("../src/utils/slug");
+const { addDays } = require("../src/utils/time");
 
 const prisma = new PrismaClient();
 
@@ -8,17 +10,6 @@ const prisma = new PrismaClient();
 const randomInt = (min, max) =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 const randomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-// ฟังก์ชันสุ่มตัวอักษร 6 หลัก
-const generateRandomString = (length = 6) => {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
 
 // ข้อมูลจำลองสำหรับสุ่ม
 const USER_AGENTS = [
@@ -56,9 +47,8 @@ const TARGET_URLS = [
 async function main() {
   console.log(`🌱 Start seeding (Big Data Mode - Users + Anonymous Links)...`);
 
-  const saltRounds = 10;
   const password = "User#123";
-  const passwordHash = await bcrypt.hash(password, saltRounds);
+  const passwordHash = await bcrypt.hash(password, SECURITY.SALT_ROUNDS);
 
   // Clear Old Data
   await prisma.click.deleteMany({});
@@ -66,7 +56,7 @@ async function main() {
   await prisma.user.deleteMany({});
 
   // -----------------------------------------------------------------------
-  // 1. Create Main Users
+  // Create Main Users
   // -----------------------------------------------------------------------
   const admin = await prisma.user.create({
     data: {
@@ -90,15 +80,16 @@ async function main() {
   console.log(`✅ Created Main Users: Admin & Demo User`);
 
   // -----------------------------------------------------------------------
-  // 2. Create Random Users & Links
+  // Create Random Users & Links
   // -----------------------------------------------------------------------
   const users = [demoUser];
   const allLinks = [];
 
   // Create 10 Random Users
+  // ใช้ Loop แบบเดิม (Sequential) เพราะจำนวนน้อยและเพื่อความง่ายในการ debug
   for (let i = 1; i <= 10; i++) {
     const isBlocked = Math.random() < 0.2; // 20% Blocked
-    const u = await prisma.user.create({
+    const userCreate = await prisma.user.create({
       data: {
         email: `user${i}@test.com`,
         passwordHash,
@@ -107,7 +98,7 @@ async function main() {
         isBlocked: isBlocked,
       },
     });
-    users.push(u);
+    users.push(userCreate);
   }
 
   // Generate User Links
@@ -115,17 +106,19 @@ async function main() {
     const linkCount = randomInt(3, 8);
     for (let j = 0; j < linkCount; j++) {
       const isExpired = Math.random() > 0.9;
-      const now = new Date();
 
-      // ใช้ USER_LINK_EXPIRY_DAYS (30 วัน)
+      // คำนวณวันหมดอายุ
       const expiryDays = isExpired ? -1 : DEFAULTS.USER_LINK_EXPIRY_DAYS;
+      const expiredAt = addDays(new Date(), expiryDays);
+
+      const slug = await generateSlug();
 
       const link = await prisma.link.create({
         data: {
-          slug: generateRandomString(6),
+          slug,
           targetUrl: randomElement(TARGET_URLS),
           ownerId: user.id,
-          expiredAt: new Date(now.setDate(now.getDate() + expiryDays)),
+          expiredAt: expiredAt,
           disabled: Math.random() > 0.9,
         },
       });
@@ -134,12 +127,15 @@ async function main() {
   }
 
   // Admin QR Link
+
+  const slugAdmin = await generateSlug();
+
   const qrLink = await prisma.link.create({
     data: {
-      slug: "prisma-qr",
+      slug: slugAdmin,
       targetUrl: "https://prisma.io",
       ownerId: admin.id,
-      expiredAt: new Date(new Date().setDate(new Date().getDate() + 365)),
+      expiredAt: addDays(new Date(), 365), // 1 Year
       qrOptions: {
         dotsOptions: { color: "#E11D48", type: "dots" },
         backgroundOptions: { color: "#ffffff" },
@@ -149,24 +145,26 @@ async function main() {
   allLinks.push(qrLink);
 
   // -----------------------------------------------------------------------
-  // 3. [NEW] Create Anonymous Links
+  // Create Anonymous Links
   // -----------------------------------------------------------------------
   console.log(`🔹 Creating Anonymous Links...`);
   const anonLinkCount = 20; // จำลองสัก 20 ลิงก์
 
   for (let i = 0; i < anonLinkCount; i++) {
     const isExpired = Math.random() > 0.5; // 50% ให้หมดอายุไปแล้ว (เพื่อเทส Cron Job ลบ)
-    const now = new Date();
 
     // ใช้ ANON_LINK_EXPIRY_DAYS (7 วัน) ตาม Config
     const expiryDays = isExpired ? -2 : DEFAULTS.ANON_LINK_EXPIRY_DAYS;
+    const expiredAt = addDays(new Date(), expiryDays);
+
+    const slug = await generateSlug();
 
     const link = await prisma.link.create({
       data: {
-        slug: generateRandomString(6),
+        slug,
         targetUrl: randomElement(TARGET_URLS),
         ownerId: null, // ไม่มีเจ้าของ
-        expiredAt: new Date(now.setDate(now.getDate() + expiryDays)),
+        expiredAt: expiredAt,
         disabled: false,
       },
     });
@@ -178,9 +176,9 @@ async function main() {
   );
 
   // -----------------------------------------------------------------------
-  // 4. Generate Clicks (Analytics Data)
+  // Generate Clicks (Analytics Data)
   // -----------------------------------------------------------------------
-  console.log(`⏳ Generating analytics data (This might take a moment)...`);
+  console.log(`⏳ Generating analytics data...`);
 
   const clicksData = [];
   const TOTAL_CLICKS = 2000;
@@ -205,11 +203,12 @@ async function main() {
     });
   }
 
+  // ใช้ createMany เพื่อประสิทธิภาพ (Batch Insert)
   await prisma.click.createMany({
     data: clicksData,
   });
 
-  console.log(`✅ Generated ${clicksData.length} clicks across all links.`);
+  console.log(`✅ Generated ${clicksData.length} clicks.`);
   console.log(`🌱 Seeding finished.`);
 }
 

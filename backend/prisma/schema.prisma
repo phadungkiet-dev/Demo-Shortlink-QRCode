@@ -16,8 +16,8 @@ model User {
   email        String  @unique
   passwordHash String? @map("password_hash") // Map ชื่อ column ใน DB
   provider     String  @default("LOCAL") // 'LOCAL', 'GOOGLE'
-  providerId   String? @map("provider_id")
-  role         String  @default("USER")
+  providerId   String? @map("provider_id") // From google oauth
+  role         String  @default("USER") // 'USER', 'ADMIN'
   isBlocked    Boolean @default(false) @map("is_blocked")
   linkLimit    Int     @default(10) @map("link_limit")
 

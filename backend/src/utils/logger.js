@@ -3,7 +3,7 @@ require("winston-daily-rotate-file");
 const path = require("path");
 const fs = require("fs");
 
-// สร้างโฟลเดอร์ logs ถ้ายังไม่มี (ป้องกัน Error ตอนเริ่มโปรแกรม)
+// สร้างโฟลเดอร์ logs ถ้ายังไม่มี
 const logDir = "logs";
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir);
@@ -11,80 +11,81 @@ if (!fs.existsSync(logDir)) {
 
 // กำหนด Timezone ให้ตรงกับ System (Asia/Bangkok)
 const timezoned = () => {
-  return new Date().toLocaleString("ja-JP", {
-    timeZone: process.env.TZ || "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false, // ใช้ 24 ชั่วโมง
-  });
+  return new Date()
+    .toLocaleString("en-CA", {
+      timeZone: process.env.TZ || "Asia/Bangkok",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    })
+    .replace(",", ""); // ลบลูกน้ำออก (บาง Environment อาจมี)
 };
 
 /**
- * Format การแสดงผลของ Log
- * รูปแบบ: [TIMESTAMP] LEVEL: MESSAGE {METADATA}
+ * Custom Format สำหรับการแสดงผล
+ * รองรับการปริ้น Stack Trace กรณีเกิด Error
  */
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: timezoned }),
-  winston.format.printf(({ timestamp, level, message, ...args }) => {
-    const argsString = Object.keys(args).length
-      ? `\n${JSON.stringify(args, null, 2)}` // ถ้ามีข้อมูลเสริม ให้ขึ้นบรรทัดใหม่และ Pretty Print
+  winston.format.errors({ stack: true }), // ให้ Winston จัดการ Error Stack Trace
+  winston.format.printf(({ timestamp, level, message, stack, ...meta }) => {
+    // ถ้ามี Stack Trace (กรณี Error) ให้แสดง Stack แทน Message ปกติ
+    const logMessage = stack || message;
+
+    // ถ้ามี Metadata อื่นๆ (เช่น Object ที่แนบมา) ให้ Pretty Print ต่อท้าย
+    const metaString = Object.keys(meta).length
+      ? `\n${JSON.stringify(meta, null, 2)}`
       : "";
-    return `[${timestamp}] ${level.toUpperCase()}: ${message} ${argsString}`;
+
+    return `[${timestamp}] ${level.toUpperCase()}: ${logMessage} ${metaString}`;
   })
 );
 
 /**
- * Logger Instance หลักของระบบ
- * - Development: แสดง Debug Log สีสันสวยงามใน Console
- * - Production: บันทึกลงไฟล์ แยกตามวัน (Rotate) เพื่อประหยัดพื้นที่และดูย้อนหลังได้
+ * Logger Instance
  */
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === "production" ? "info" : "debug",
   format: logFormat,
   transports: [
-    // Console Transport (แสดงผลหน้าจอ)
+    // Console: แสดงผลหน้าจอ (มีสี)
     new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(), // ใส่สีตามระดับความรุนแรง
-        logFormat
-      ),
+      format: winston.format.combine(winston.format.colorize(), logFormat),
     }),
 
-    // File Transport (บันทึกลงไฟล์) - ทำ Daily Rotate
+    // File: บันทึกทุกอย่างลงไฟล์ (Rotate รายวัน)
     new winston.transports.DailyRotateFile({
-      filename: path.join("logs", "app-%DATE%.log"), // เก็บในโฟลเดอร์ logs/
-      datePattern: "YYYY-MM-DD",
-      zippedArchive: false, // บีบอัดไฟล์เก่าเป็น .gz
-      maxSize: "20m", // ขนาดสูงสุดต่อไฟล์ 20MB
-      maxFiles: "14d", // เก็บย้อนหลัง 14 วัน (ปรับจาก 90 วัน เพื่อประหยัดที่)
-      level: "info", // เก็บตั้งแต่ Info ขึ้นไป
-    }),
-
-    // Error File Transport (แยก Error หนักๆ ไว้อีกไฟล์เพื่อง่ายต่อการตรวจสอบ)
-    new winston.transports.DailyRotateFile({
-      filename: path.join("logs", "error-%DATE%.log"),
+      filename: path.join(logDir, "app-%DATE%.log"),
       datePattern: "YYYY-MM-DD",
       zippedArchive: false,
       maxSize: "20m",
-      maxFiles: "30d",
-      level: "error", // เก็บเฉพาะ Error เท่านั้น
+      maxFiles: "14d",
+      level: "info",
+    }),
+
+    // Error File: แยก Error หนักๆ ไว้อีกไฟล์ (หาง่ายเวลาเว็บล่ม)
+    new winston.transports.DailyRotateFile({
+      filename: path.join(logDir, "error-%DATE%.log"),
+      datePattern: "YYYY-MM-DD",
+      zippedArchive: false,
+      maxSize: "20m",
+      maxFiles: "30d", // เก็บ Error ไว้นานหน่อย (1 เดือน)
+      level: "error",
     }),
   ],
 });
 
 /**
- * Logger Adapter สำหรับใช้งานร่วมกับ Morgan (HTTP Request Logger)
- * แปลงข้อความจาก Morgan ให้มาลงที่ Winston แทน Console.log
+ * Logger Adapter สำหรับ Morgan และการเรียกใช้ทั่วไป
  */
 const loggerAdapter = {
   stream: {
     write: (message) => logger.info(message.trim()),
   },
-  // Shortcut method ให้เรียกใช้ได้ง่ายๆ เหมือน console.log
   info: (msg, meta) => logger.info(msg, meta),
   warn: (msg, meta) => logger.warn(msg, meta),
   error: (msg, meta) => logger.error(msg, meta),
