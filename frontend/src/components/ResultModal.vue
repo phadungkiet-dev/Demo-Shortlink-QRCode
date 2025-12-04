@@ -66,6 +66,7 @@ const downloadExtension = ref("png");
 
 const qrCodeRef = ref(null);
 const qrCodeInstance = ref(null);
+const isLogoBroken = ref(false);
 
 const saveIconClasses = computed(() => ({
   "animate-bounce": isSaving.value,
@@ -87,6 +88,26 @@ const closeDropdowns = () => {
   isFormatDropdownOpen.value = false;
   isDotsDropdownOpen.value = false;
   isCornersDropdownOpen.value = false;
+};
+
+const toggleDropdown = (target) => {
+  // 1. เก็บสถานะเดิมของตัวที่จะกดไว้ก่อน (ว่าเปิดอยู่หรือเปล่า)
+  const wasOpen =
+    (target === "size" && isSizeDropdownOpen.value) ||
+    (target === "format" && isFormatDropdownOpen.value) ||
+    (target === "dots" && isDotsDropdownOpen.value) ||
+    (target === "corners" && isCornersDropdownOpen.value);
+
+  // 2. สั่งปิดทุกตัวทันที (Reset)
+  closeDropdowns();
+
+  // 3. ถ้าของเดิมปิดอยู่ -> ให้เปิด (ถ้าของเดิมเปิดอยู่ ก็จะถูกปิดไปในขั้นตอนที่ 2 แล้วจบเลย)
+  if (!wasOpen) {
+    if (target === "size") isSizeDropdownOpen.value = true;
+    if (target === "format") isFormatDropdownOpen.value = true;
+    if (target === "dots") isDotsDropdownOpen.value = true;
+    if (target === "corners") isCornersDropdownOpen.value = true;
+  }
 };
 
 const closeModal = () => {
@@ -114,11 +135,16 @@ watch(
       cornersSquareOptionsType.value = "extra-rounded";
       logoImage.value = null;
     }
+    isLogoBroken.value = false;
     qrSize.value = 300;
     downloadExtension.value = "png";
   },
   { immediate: true }
 );
+
+watch(logoImage, () => {
+  isLogoBroken.value = false;
+});
 
 watch(isTransparent, (val) => {
   if (val && downloadExtension.value === "jpeg") {
@@ -140,7 +166,7 @@ const getQrOptions = (width) => ({
   height: width,
   type: "canvas",
   data: props.link?.shortUrl || "",
-  image: logoImage.value,
+  image: isLogoBroken.value ? null : logoImage.value,
   dotsOptions: { color: mainColor.value, type: dotsOptionsType.value },
   cornersSquareOptions: {
     color: mainColor.value,
@@ -382,17 +408,14 @@ const copyToClipboard = () => {
                         >Dots Style</label
                       >
                       <button
-                        @click.stop="
-                          isDotsDropdownOpen = !isDotsDropdownOpen;
-                          isCornersDropdownOpen = false;
-                        "
+                        @click.stop="toggleDropdown('dots')"
                         class="w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-indigo-300 transition-all focus:ring-2 focus:ring-indigo-500/20"
                       >
-                        <div class="flex items-center gap-2">
-                          <Circle class="h-4 w-4 text-gray-400" />
-                          {{ currentDotsLabel }}
+                        <div class="flex items-center gap-2 truncate">
+                          <Circle class="h-4 w-4 text-gray-400 shrink-0" />
+                          <span class="truncate">{{ currentDotsLabel }}</span>
                         </div>
-                        <ChevronDown class="h-4 w-4 text-gray-400" />
+                        <ChevronDown class="h-4 w-4 text-gray-400 shrink-0" />
                       </button>
 
                       <transition
@@ -439,17 +462,16 @@ const copyToClipboard = () => {
                         >Corner Style</label
                       >
                       <button
-                        @click.stop="
-                          isCornersDropdownOpen = !isCornersDropdownOpen;
-                          isDotsDropdownOpen = false;
-                        "
+                        @click.stop="toggleDropdown('corners')"
                         class="w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-indigo-300 transition-all focus:ring-2 focus:ring-indigo-500/20"
                       >
-                        <div class="flex items-center gap-2">
-                          <Square class="h-4 w-4 text-gray-400" />
-                          {{ currentCornersLabel }}
+                        <div class="flex items-center gap-2 truncate">
+                          <Square class="h-4 w-4 text-gray-400 shrink-0" />
+                          <span class="truncate">{{
+                            currentCornersLabel
+                          }}</span>
                         </div>
-                        <ChevronDown class="h-4 w-4 text-gray-400" />
+                        <ChevronDown class="h-4 w-4 text-gray-400 shrink-0" />
                       </button>
 
                       <transition
@@ -512,6 +534,8 @@ const copyToClipboard = () => {
                     <div class="flex items-center gap-3">
                       <img
                         :src="logoImage"
+                        @error="isLogoBroken = true"
+                        @load="isLogoBroken = false"
                         class="w-10 h-10 object-contain rounded border border-gray-100"
                       />
                       <span class="text-sm text-gray-600">Logo selected</span>
@@ -547,10 +571,7 @@ const copyToClipboard = () => {
               <div class="flex gap-2">
                 <div class="relative w-1/3">
                   <button
-                    @click.stop="
-                      isSizeDropdownOpen = !isSizeDropdownOpen;
-                      isFormatDropdownOpen = false;
-                    "
+                    @click.stop="toggleDropdown('size')"
                     class="w-full flex items-center justify-between px-3 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-indigo-300 hover:ring-4 hover:ring-indigo-500/10 transition-all active:scale-[0.98]"
                   >
                     <div class="flex items-center gap-2">
@@ -600,10 +621,7 @@ const copyToClipboard = () => {
 
                 <div class="relative w-1/3">
                   <button
-                    @click.stop="
-                      isFormatDropdownOpen = !isFormatDropdownOpen;
-                      isSizeDropdownOpen = false;
-                    "
+                    @click.stop="toggleDropdown('format')"
                     class="w-full flex items-center justify-between px-3 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-indigo-300 hover:ring-4 hover:ring-indigo-500/10 transition-all active:scale-[0.98]"
                   >
                     <div class="flex items-center gap-2">

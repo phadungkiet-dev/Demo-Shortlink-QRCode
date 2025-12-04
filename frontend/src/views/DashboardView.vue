@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, ref, watch } from "vue";
+import { onMounted, onUnmounted, computed, ref, watch } from "vue";
 import { useLinkStore } from "@/stores/useLinkStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { APP_CONFIG } from "@/config/constants";
@@ -225,6 +225,11 @@ onMounted(() => {
   if (authStore.user) {
     loadData();
   }
+  document.addEventListener("click", closeFilterDropdown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("click", closeFilterDropdown);
 });
 </script>
 
@@ -253,7 +258,7 @@ onMounted(() => {
             Manage your links and view analytics.
           </p>
         </div>
-        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+        <div class="flex flex-col sm:flex-row flex-wrap gap-3 w-full md:w-auto">
           <div class="relative min-w-[160px] z-20" ref="filterDropdownRef">
             <button
               @click="isFilterOpen = !isFilterOpen"
@@ -311,7 +316,7 @@ onMounted(() => {
               </div>
             </transition>
           </div>
-          <div class="relative group flex-1 md:w-64 z-10">
+          <div class="relative group flex-1 md:w-auto md:min-w-[200px] z-10">
             <div
               class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
             >
@@ -527,7 +532,7 @@ onMounted(() => {
           </div>
 
           <div
-            class="grid grid-cols-6 gap-1 mt-auto border-t border-gray-50 pt-3"
+            class="flex flex-wrap justify-between gap-1 mt-auto border-t border-gray-50 pt-3"
           >
             <router-link
               :to="`/dashboard/link/${link.id}/stats`"

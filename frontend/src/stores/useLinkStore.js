@@ -82,12 +82,26 @@ export const useLinkStore = defineStore("links", {
       try {
         await api.delete(`/links/${linkId}`);
 
+        // 1. หาลิงก์ที่จะลบก่อน เพื่อเช็คสถานะ
+        const linkToDelete = this.myLinks.find((l) => l.id === linkId);
+
         // Update UI ทันที (Optimistic Update)
         this.myLinks = this.myLinks.filter((link) => link.id !== linkId);
 
         // ลดจำนวนใน Stats ด้วย เพื่อความสมจริง
-        if (this.stats.total > 0) this.stats.total--;
-        // (หมายเหตุ: Active/Inactive อาจจะไม่เป๊ะ ต้องโหลดใหม่ถึงจะชัวร์ แต่แบบนี้ UX ดีกว่า)
+        // 3. อัปเดต Stats ให้ครบทุกค่า
+        if (linkToDelete) {
+          if (this.stats.total > 0) this.stats.total--;
+          
+          if (linkToDelete.disabled) {
+            // ถ้าลิงก์ที่ลบเป็น Inactive -> ลดค่า Inactive
+            if (this.stats.inactive > 0) this.stats.inactive--;
+          } else {
+            // ถ้าลิงก์ที่ลบเป็น Active -> ลดค่า Active
+            if (this.stats.active > 0) this.stats.active--;
+          }
+        }
+        
 
         Swal.fire({
           toast: true,
