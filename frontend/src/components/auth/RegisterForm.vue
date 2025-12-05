@@ -1,15 +1,25 @@
 <script setup>
+// Core vue
 import { ref, computed } from "vue";
-import { useAuthStore } from "@/stores/useAuthStore";
-import { Loader2, AlertCircle, Eye, EyeOff, Check } from "lucide-vue-next";
+// Config
 import { APP_CONFIG } from "@/config/constants";
+// Stores
+import { useAuthStore } from "@/stores/useAuthStore";
+// Icons
+import { Loader2, AlertCircle, Eye, EyeOff, Check } from "lucide-vue-next";
 
-const emit = defineEmits(["register-success"]);
+// -------------------------------------------------------------------
+// Setup & State
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
+const emit = defineEmits(["register-success"]);
 
+// Form Data
 const email = ref("");
 const password = ref("");
 const confirmPassword = ref("");
+
+// UI State
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const isLoading = ref(false);
@@ -17,7 +27,10 @@ const errorMsg = ref(null);
 
 const minPassLen = APP_CONFIG.VALIDATION.PASSWORD_MIN_LEN;
 
-// --- Password Validation Logic (Sync with Backend Zod Schema) ---
+// -------------------------------------------------------------------
+// Computed Properties (Validation)
+// -------------------------------------------------------------------
+// Password Rules List (Sync with Backend Zod Schema)
 const passwordRules = computed(() => {
   const pwd = password.value;
   return [
@@ -50,6 +63,9 @@ const isPasswordValid = computed(() => {
   return passwordRules.value.every((rule) => rule.valid);
 });
 
+// -------------------------------------------------------------------
+// Methods & Actions
+// -------------------------------------------------------------------
 const handleRegister = async () => {
   errorMsg.value = null;
 
@@ -58,7 +74,7 @@ const handleRegister = async () => {
     return;
   }
 
-  // ป้องกันการยิง API ถ้า Password ยังไม่ผ่านเกณฑ์หน้าบ้าน
+  // Client-side Validation
   if (!isPasswordValid.value) {
     errorMsg.value = "Please meet all password requirements.";
     return;

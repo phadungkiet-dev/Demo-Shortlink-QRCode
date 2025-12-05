@@ -154,6 +154,21 @@ export const useAuthStore = defineStore("auth", {
         router.push("/");
       }
     },
+    // ----------------------------------------------------------------
+    // Reset Password
+    // ----------------------------------------------------------------
+    async resetPassword(token, password, confirmPassword) {
+      try {
+        const response = await api.post(`/auth/reset-password/${token}`, {
+          password,
+          confirmPassword,
+        });
+        return response.data;
+      } catch (error) {
+        // ให้ Component จัดการ Error Message เอง หรือจะจัดการที่นี่ก็ได้
+        throw error;
+      }
+    },
 
     // ----------------------------------------------------------------
     // Delete Account

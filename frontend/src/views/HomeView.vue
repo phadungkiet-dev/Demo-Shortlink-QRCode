@@ -9,7 +9,7 @@ import { useLinkStore } from "@/stores/useLinkStore";
 import { APP_CONFIG } from "@/config/constants";
 // Components
 import ResultModal from "@/components/ResultModal.vue";
-import LoginModal from "@/components/LoginModal.vue";
+import LoginModal from "@/components/auth/LoginModal.vue";
 // Icons
 import {
   Loader2,

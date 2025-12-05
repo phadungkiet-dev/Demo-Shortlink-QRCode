@@ -1,17 +1,29 @@
 <script setup>
+// Core vue
 import { ref } from "vue";
+// Stores
 import { useAuthStore } from "@/stores/useAuthStore";
+// Icons
 import { Loader2, Eye, EyeOff } from "lucide-vue-next";
 
-const emit = defineEmits(["login-success"]);
+// -------------------------------------------------------------------
+// Setup & State
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
+const emit = defineEmits(["login-success"]);
 
+// Form Data
 const email = ref("");
 const password = ref("");
 const rememberMe = ref(false);
+
+// UI State
 const showPassword = ref(false);
 const isLoading = ref(false);
 
+// -------------------------------------------------------------------
+// Methods & Actions
+// -------------------------------------------------------------------
 const handleLogin = async () => {
   isLoading.value = true;
   try {

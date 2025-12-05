@@ -6,6 +6,7 @@ import { APP_CONFIG } from "@/config/constants";
 export const useLinkStore = defineStore("links", {
   state: () => ({
     myLinks: [],
+    currentStats: null,
     pagination: {
       page: APP_CONFIG.PAGINATION.DEFAULT_PAGE,
       totalPages: 1,
@@ -212,6 +213,28 @@ export const useLinkStore = defineStore("links", {
       } catch (error) {
         // จัดการ Error: แสดง Alert หรือโยน Error ต่อไปให้ Component จัดการเอง
         // ในที่นี้เราจะโยน Error กลับไปเพื่อให้ HomeView แสดงข้อความใน UI
+        throw error;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    // Fetch Link Stats (ย้ายมาจาก View)
+    async fetchLinkStats(linkId, timezone) {
+      this.isLoading = true;
+      this.currentStats = null; // Clear old data
+      try {
+        const response = await api.get(`/links/${linkId}/stats`, {
+          params: { timezone },
+        });
+        this.currentStats = response.data;
+        return response.data;
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Unavailable",
+          text: error.message || "Could not load analytics data.",
+        });
         throw error;
       } finally {
         this.isLoading = false;

@@ -4,7 +4,7 @@ import { ref, onMounted, onUnmounted } from "vue";
 // Stores
 import { useAuthStore } from "@/stores/useAuthStore";
 // Components
-import LoginModal from "@/components/LoginModal.vue";
+import LoginModal from "@/components/auth/LoginModal.vue";
 import UserDropdown from "@/components/UserDropdown.vue";
 // Icons
 import { Link, Menu, X, LogIn } from "lucide-vue-next";

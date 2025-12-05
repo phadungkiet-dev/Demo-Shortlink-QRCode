@@ -50,10 +50,7 @@ const handleSubmit = async () => {
   isLoading.value = true;
 
   try {
-    await api.post(`/auth/reset-password/${token}`, {
-      password: password.value,
-      confirmPassword: confirmPassword.value,
-    });
+    await authStore.resetPassword(token, password.value, confirmPassword.value);
     isSuccess.value = true;
   } catch (error) {
     errorMsg.value =

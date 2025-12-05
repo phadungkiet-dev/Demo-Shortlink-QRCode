@@ -1,17 +1,29 @@
 <script setup>
+// Core vue
 import { ref, watch } from "vue";
+// Stores
+import { useAuthStore } from "@/stores/useAuthStore";
+// Components
 import LoginForm from "./LoginForm.vue";
 import RegisterForm from "./RegisterForm.vue";
+// Icons
 import { X } from "lucide-vue-next";
-import { useAuthStore } from "@/stores/useAuthStore";
 
-const viewMode = ref("login"); // 'login' | 'register'
+// -------------------------------------------------------------------
+// Setup & State
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
+const viewMode = ref("login"); // 'login' | 'register'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
 });
 
+const emit = defineEmits(["update:modelValue"]);
+
+// -------------------------------------------------------------------
+// Watchers
+// -------------------------------------------------------------------
 watch(
   () => props.modelValue,
   async (isOpen) => {
@@ -26,7 +38,9 @@ watch(
   }
 );
 
-const emit = defineEmits(["update:modelValue"]);
+// -------------------------------------------------------------------
+// Methods
+// -------------------------------------------------------------------
 
 const closeModal = () => {
   emit("update:modelValue", false);

@@ -1,4 +1,5 @@
 <script setup>
+// Icons
 import { Home, Unplug } from "lucide-vue-next";
 </script>
 
@@ -15,7 +16,7 @@ import { Home, Unplug } from "lucide-vue-next";
     ></div>
 
     <div
-      class="max-w-lg w-full bg-white shadow-2xl shadow-indigo-100/50 rounded-[2.5rem] p-10 text-center border border-gray-100 relative z-10"
+      class="max-w-lg w-full bg-white shadow-2xl shadow-indigo-100/50 rounded-[2.5rem] p-6 sm:p-10 text-center border border-gray-100 relative z-10"
     >
       <div
         class="mb-8 inline-flex p-6 bg-red-50 rounded-3xl rotate-3 hover:rotate-0 transition-transform duration-300 shadow-inner"

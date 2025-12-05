@@ -1,19 +1,30 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
-import api from "@/services/api";
+// Core
+import { onMounted, computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import Swal from "sweetalert2";
+// Stores
+import { useLinkStore } from "@/stores/useLinkStore";
+// Config
 import { APP_CONFIG } from "@/config/constants";
+
+// Icons
 import {
   Loader2,
   ArrowLeft,
-  AlertCircle,
-  BarChart3,
-  MousePointer2,
-  Globe,
+  Link2,
   Calendar,
+  Globe,
+  Monitor,
+  MousePointer2,
   ExternalLink,
-  MapPin,
-  Smartphone,
+  Copy,
+  CheckCircle2,
+  AlertCircle,
+  EyeOff,
 } from "lucide-vue-next";
+
+// Chart.js
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -24,172 +35,85 @@ import {
   Title,
   Tooltip,
   Legend,
+  ArcElement,
   Filler,
 } from "chart.js";
-import { Line, Bar } from "vue-chartjs";
+import { Line, Doughnut } from "vue-chartjs";
 
+// -------------------------------------------------------------------
+// Chart Registration
+// -------------------------------------------------------------------
 ChartJS.register(
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
   Filler
 );
 
-const props = defineProps({
-  id: { type: String, required: true },
+// -------------------------------------------------------------------
+// Setup & State
+// -------------------------------------------------------------------
+const route = useRoute();
+const router = useRouter();
+const linkStore = useLinkStore();
+const linkId = route.params.id;
+
+// ใช้ Computed ดึง State จาก Store โดยตรง (Reactive)
+const isLoading = computed(() => linkStore.isLoading);
+const statsData = computed(() => linkStore.currentStats);
+
+// -------------------------------------------------------------------
+// Computed Properties (Charts & Logic)
+// -------------------------------------------------------------------
+
+// --- Helper Logic ---
+const isExpired = computed(() => {
+  if (!statsData.value?.link?.expiredAt) return false;
+  return new Date(statsData.value.link.expiredAt) < new Date();
 });
 
-const stats = ref(null);
-const isLoading = ref(true);
-const errorMsg = ref(null);
+const linkStatus = computed(() => {
+  if (!statsData.value?.link)
+    return {
+      label: "Unknown",
+      class: "bg-gray-100 text-gray-500",
+      icon: AlertCircle,
+    };
 
-const formatDate = (dateString) => {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-GB", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-};
-
-const fetchStats = async () => {
-  isLoading.value = true;
-  errorMsg.value = null;
-  try {
-    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const response = await api.get(`/links/${props.id}/stats`, {
-      params: { timezone: userTimezone },
-    });
-    stats.value = response.data;
-  } catch (error) {
-    console.error("Failed to fetch stats:", error);
-    errorMsg.value = error.message || "Could not load statistics.";
-  } finally {
-    isLoading.value = false;
+  if (statsData.value.link.disabled) {
+    return {
+      label: "Disabled",
+      class: "bg-gray-100 text-gray-500",
+      icon: EyeOff,
+    };
   }
-};
+  if (isExpired.value) {
+    return {
+      label: "Expired",
+      class: "bg-red-100 text-red-600",
+      icon: AlertCircle,
+    };
+  }
+  return {
+    label: "Active",
+    class: "bg-emerald-100 text-emerald-600",
+    icon: CheckCircle2,
+  };
+});
 
-onMounted(fetchStats);
-
-// --- [แก้ไข 1] Base Options (สำหรับกราฟทั่วไป: Referrers, Locations) ---
-// ไม่มีการแปลงวันที่ แสดง Label ตามที่ส่งมาเลย
-const baseOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      backgroundColor: "#1e293b",
-      padding: 12,
-      cornerRadius: 12,
-      titleFont: { size: 13, family: "Inter" },
-      bodyFont: { size: 13, family: "Inter" },
-      displayColors: false,
-    },
-  },
-  scales: {
-    x: {
-      grid: { display: false },
-      ticks: {
-        font: { family: "Inter" },
-        autoSkip: true,
-        maxTicksLimit: 10,
-        // ไม่ใส่ callback แปลงวันที่ที่นี่
-      },
-    },
-    y: {
-      border: { dash: [4, 4] },
-      grid: { color: "#f3f4f6", tickLength: 0 },
-      beginAtZero: true,
-      ticks: { font: { family: "Inter" }, precision: 0 },
-    },
-  },
-  elements: {
-    bar: { borderRadius: 4 },
-  },
-};
-
-// --- [แก้ไข 2] Traffic Options (สำหรับกราฟเส้น Time Series โดยเฉพาะ) ---
-// สืบทอดจาก Base แต่เพิ่ม Logic แปลงวันที่เข้าไป
-const trafficOptions = {
-  ...baseOptions,
-  scales: {
-    x: {
-      grid: { display: false },
-      ticks: {
-        font: { family: "Inter" },
-        maxTicksLimit: 7,
-        // [เฉพาะกราฟนี้] แปลง "2023-11-25" เป็น "25 Nov"
-        callback: function (value) {
-          const label = this.getLabelForValue(value);
-          const date = new Date(label);
-          // ป้องกัน Error กรณี Date ไม่ถูกต้อง
-          if (isNaN(date.getTime())) return label;
-
-          return date.toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-          });
-        },
-      },
-    },
-    y: baseOptions.scales.y,
-  },
-  plugins: {
-    ...baseOptions.plugins,
-    tooltip: {
-      ...baseOptions.plugins.tooltip,
-      callbacks: {
-        // [เฉพาะกราฟนี้] Tooltip หัวข้อแสดงเป็น "25 Nov 2023"
-        title: (items) => {
-          const date = new Date(items[0].label);
-          if (isNaN(date.getTime())) return items[0].label;
-
-          return date.toLocaleDateString("en-GB", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          });
-        },
-      },
-    },
-  },
-  elements: {
-    line: { tension: 0.4 },
-    point: {
-      radius: 4,
-      hitRadius: 20,
-      hoverRadius: 6,
-      backgroundColor: "#ffffff",
-      borderWidth: 2,
-    },
-  },
-};
-
-// --- Chart Data Computeds ---
-
+// --- Line Chart (Traffic Trend) ---
 const dailyChartData = computed(() => {
-  if (!stats.value) return { labels: [], datasets: [] };
-  const labels = [];
-  const data = [];
-  const rawData = stats.value.dailyCounts || {};
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = new Intl.DateTimeFormat("en-CA", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(d);
+  if (!statsData.value) return { labels: [], datasets: [] };
 
-    labels.push(dateStr);
-    data.push(rawData[dateStr] || 0);
-  }
+  const labels = Object.keys(statsData.value.dailyCounts);
+  const data = Object.values(statsData.value.dailyCounts);
+
   return {
     labels,
     datasets: [
@@ -197,293 +121,440 @@ const dailyChartData = computed(() => {
         label: "Clicks",
         backgroundColor: (context) => {
           const ctx = context.chart.ctx;
-          const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-          gradient.addColorStop(0, "rgba(79, 70, 229, 0.2)");
-          gradient.addColorStop(1, "rgba(79, 70, 229, 0)");
+          const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+          gradient.addColorStop(0, "rgba(79, 70, 229, 0.4)"); // Indigo
+          gradient.addColorStop(1, "rgba(79, 70, 229, 0.0)");
           return gradient;
         },
-        borderColor: "#4F46E5",
-        borderWidth: 3,
-        fill: true,
+        borderColor: "#4f46e5",
+        pointBackgroundColor: "#ffffff",
+        pointBorderColor: "#4f46e5",
+        pointHoverBackgroundColor: "#4f46e5",
+        pointHoverBorderColor: "#ffffff",
+        pointRadius: 4,
+        pointHoverRadius: 6,
         data,
+        fill: true,
+        tension: 0.4,
       },
     ],
   };
 });
 
-// Helper: ตัด Domain ให้สั้นลง (เช่น https://facebook.com -> facebook.com)
-const cleanReferrer = (url) => {
-  if (!url || url === "Direct" || url === "Direct / Unknown") return "Direct";
+const dailyChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      mode: "index",
+      intersect: false,
+      backgroundColor: "rgba(255, 255, 255, 0.95)",
+      titleColor: "#1f2937",
+      bodyColor: "#4b5563",
+      borderColor: "#e5e7eb",
+      borderWidth: 1,
+      padding: 12,
+      displayColors: false,
+      callbacks: {
+        label: (context) => `${context.parsed.y} clicks`,
+      },
+    },
+  },
+  scales: {
+    y: {
+      beginAtZero: true,
+      grid: { color: "#f3f4f6", borderDash: [5, 5] },
+      ticks: { stepSize: 1, font: { family: "'Inter', sans-serif" } },
+      border: { display: false },
+    },
+    x: {
+      grid: { display: false },
+      ticks: { font: { family: "'Inter', sans-serif" } },
+      border: { display: false },
+    },
+  },
+};
+
+// --- Doughnut Chart (Devices/Browsers) ---
+const deviceChartData = computed(() => {
+  if (!statsData.value?.topUserAgents?.length) return null;
+
+  const groupedStats = {};
+
+  // Mock Logic: ใน Production จริง Backend ควรส่ง Grouped Data (Mobile/Desktop/Tablet) มาให้
+  statsData.value.topUserAgents.forEach((u) => {
+    let label = "Other";
+    if (u.userAgent.includes("iPhone") || u.userAgent.includes("iPad"))
+      label = "iOS";
+    else if (u.userAgent.includes("Android")) label = "Android";
+    else if (u.userAgent.includes("Windows")) label = "Windows";
+    else if (u.userAgent.includes("Mac")) label = "Mac";
+    else if (u.userAgent.includes("Linux")) label = "Linux";
+
+    // บวกเพิ่มเข้าไปในหมวดหมู่นั้นๆ
+    if (!groupedStats[label]) {
+      groupedStats[label] = 0;
+    }
+    groupedStats[label] += u.count;
+  });
+
+  const data = statsData.value.topUserAgents.map((u) => u.count);
+
+  return {
+    labels: Object.keys(groupedStats),
+    datasets: [
+      {
+        backgroundColor: [
+          "#4f46e5",
+          "#10b981",
+          "#f59e0b",
+          "#ef4444",
+          "#8b5cf6",
+        ],
+        borderWidth: 0,
+        data: Object.values(groupedStats),
+      },
+    ],
+  };
+});
+
+const doughnutOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: "bottom",
+      labels: {
+        usePointStyle: true,
+        padding: 20,
+        font: { family: "'Inter', sans-serif" },
+      },
+    },
+  },
+  cutout: "75%",
+};
+
+// -------------------------------------------------------------------
+// Methods
+// -------------------------------------------------------------------
+const loadStats = async () => {
   try {
-    return new URL(url).hostname.replace("www.", "");
-  } catch {
-    return url;
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // [แก้ไข] เรียกใช้ Action ใน Store แทน
+    await linkStore.fetchLinkStats(linkId, timezone);
+  } catch (error) {
+    // Error ถูกจัดการใน Store แล้ว (Swal)
+    // แต่อาจจะ Redirect กลับถ้าหาไม่เจอ
+    router.push("/dashboard");
   }
 };
 
-const referrerChartData = computed(() => {
-  if (!stats.value?.topReferrers) return { labels: [], datasets: [] };
-  return {
-    // [แก้ไข] ใช้ cleanReferrer เพื่อให้ Label สวยงาม
-    labels: stats.value.topReferrers.map((r) => cleanReferrer(r.referrer)),
-    datasets: [
-      {
-        label: "Visits",
-        backgroundColor: "#818cf8",
-        borderRadius: 4,
-        barPercentage: 0.6,
-        data: stats.value.topReferrers.map((r) => r.count),
-      },
-    ],
-  };
-});
+const copyToClipboard = (text) => {
+  navigator.clipboard.writeText(text);
+  Swal.fire({
+    toast: true,
+    position: "top-end",
+    icon: "success",
+    title: "Copied!",
+    showConfirmButton: false,
+    timer: 1000,
+  });
+};
 
-const countryChartData = computed(() => {
-  if (!stats.value?.topCountries) return { labels: [], datasets: [] };
-  return {
-    labels: stats.value.topCountries.map((c) => c.country || "Unknown"),
-    datasets: [
-      {
-        label: "Visits",
-        backgroundColor: "#34d399",
-        borderRadius: 4,
-        barPercentage: 0.6,
-        data: stats.value.topCountries.map((c) => c.count),
-      },
-    ],
-  };
-});
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
 
-const uaChartData = computed(() => {
-  if (!stats.value?.topUserAgents) return { labels: [], datasets: [] };
-  return {
-    labels: stats.value.topUserAgents.map((u) =>
-      u.userAgent.length > 20
-        ? u.userAgent.substring(0, 20) + "..."
-        : u.userAgent
-    ),
-    datasets: [
-      {
-        label: "Visits",
-        backgroundColor: "#f472b6",
-        borderRadius: 4,
-        barPercentage: 0.6,
-        data: stats.value.topUserAgents.map((u) => u.count),
-      },
-    ],
-  };
+const getFaviconUrl = (url) => {
+  try {
+    const domain = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+  } catch (e) {
+    return "https://www.svgrepo.com/show/508699/landscape-placeholder.svg";
+  }
+};
+
+// -------------------------------------------------------------------
+// Lifecycle
+// -------------------------------------------------------------------
+onMounted(() => {
+  loadStats();
 });
 </script>
 
 <template>
-  <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 py-8 lg:py-12">
-    <div class="container mx-auto px-4 lg:px-8">
-      <div
-        v-if="isLoading"
-        class="flex flex-col items-center justify-center py-32"
-      >
-        <div class="bg-white p-4 rounded-full shadow-sm mb-4">
-          <Loader2 class="h-8 w-8 text-indigo-600 animate-spin" />
-        </div>
-        <p class="text-gray-500 font-medium">Crunching the numbers...</p>
-      </div>
+  <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 pb-24">
+    <div
+      v-if="isLoading"
+      class="flex flex-col items-center justify-center h-[60vh]"
+    >
+      <Loader2 class="h-10 w-10 text-indigo-600 animate-spin mb-4" />
+      <p class="text-gray-500 font-medium">Gathering insights...</p>
+    </div>
 
-      <div v-else-if="errorMsg" class="max-w-md mx-auto text-center py-20">
-        <div
-          class="bg-red-50 p-6 rounded-[2rem] border border-red-100 inline-block mb-6"
+    <div v-else-if="statsData" class="container mx-auto px-4 lg:px-8 py-8">
+      <div class="mb-8">
+        <button
+          @click="router.push('/dashboard')"
+          class="flex items-center text-gray-500 hover:text-indigo-600 mb-6 transition-colors font-medium group"
         >
-          <AlertCircle class="h-12 w-12 text-red-500" />
-        </div>
-        <h3 class="text-xl font-bold text-gray-900 mb-2">
-          Oops! Access Denied
-        </h3>
-        <p class="text-gray-500 mb-8">{{ errorMsg }}</p>
-        <router-link
-          to="/dashboard"
-          class="inline-flex items-center px-6 h-[46px] bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm active:scale-[0.98]"
-        >
-          <ArrowLeft class="h-5 w-5 mr-2" /> Back to Dashboard
-        </router-link>
-      </div>
+          <ArrowLeft
+            class="h-4 w-4 mr-1 transition-transform group-hover:-translate-x-1"
+          />
+          Back to Dashboard
+        </button>
 
-      <div v-else class="max-w-6xl mx-auto space-y-8 animate-fade-in-up">
         <div
-          class="flex flex-col md:flex-row md:items-center justify-between gap-6"
+          class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6"
         >
-          <div class="flex items-center gap-4">
-            <router-link
-              to="/dashboard"
-              class="p-3 bg-white border border-gray-200 rounded-xl text-gray-500 hover:text-indigo-600 hover:border-indigo-300 hover:ring-4 hover:ring-indigo-500/10 transition-all shadow-sm active:scale-95"
+          <div class="flex items-start gap-4">
+            <div
+              class="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"
             >
-              <ArrowLeft class="h-5 w-5" />
-            </router-link>
+              <img
+                :src="getFaviconUrl(statsData.link.targetUrl)"
+                class="w-6 h-6 object-contain"
+              />
+            </div>
+
             <div>
-              <div class="flex items-center gap-3">
-                <h1 class="text-2xl font-bold text-gray-900">Analytics</h1>
+              <div class="flex items-center gap-3 flex-wrap mb-1">
+                <h1 class="text-xl font-bold text-gray-900">
+                  Analytics Report
+                </h1>
                 <span
-                  class="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100 font-mono"
+                  class="px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1"
+                  :class="linkStatus.class"
                 >
-                  /{{ APP_CONFIG.ROUTES.SHORT_LINK_PREFIX }}/{{
-                    stats.link.slug
-                  }}
+                  <component :is="linkStatus.icon" class="w-3 h-3" />
+                  {{ linkStatus.label }}
                 </span>
               </div>
               <a
-                :href="stats.link.targetUrl"
+                :href="statsData.link.targetUrl"
                 target="_blank"
-                class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 mt-1 transition-colors group truncate max-w-md"
+                class="text-gray-500 hover:text-indigo-600 text-sm truncate max-w-md block transition-colors"
               >
-                {{ stats.link.targetUrl }}
-                <ExternalLink
-                  class="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                />
+                {{ statsData.link.targetUrl }}
+              </a>
+            </div>
+          </div>
+
+          <div
+            class="flex items-center gap-3 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 self-start lg:self-center w-full lg:w-auto justify-between lg:justify-start"
+          >
+            <span class="text-indigo-600 font-bold truncate">
+              /{{ APP_CONFIG.ROUTES.SHORT_LINK_PREFIX }}/{{
+                statsData.link.slug
+              }}
+            </span>
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                @click="
+                  copyToClipboard(
+                    `${APP_CONFIG.API.BASE_URL.replace('/api', '')}/${
+                      APP_CONFIG.ROUTES.SHORT_LINK_PREFIX
+                    }/${statsData.link.slug}`
+                  )
+                "
+                class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+                title="Copy"
+              >
+                <Copy class="h-4 w-4" />
+              </button>
+              <a
+                :href="`${APP_CONFIG.API.BASE_URL.replace('/api', '')}/${
+                  APP_CONFIG.ROUTES.SHORT_LINK_PREFIX
+                }/${statsData.link.slug}`"
+                target="_blank"
+                class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+              >
+                <ExternalLink class="h-4 w-4" />
               </a>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div
-            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-md flex items-center gap-5 relative overflow-hidden group hover:shadow-lg transition-shadow"
-          >
-            <div
-              class="absolute -right-6 -top-6 w-32 h-32 bg-indigo-50/50 rounded-full blur-3xl group-hover:bg-indigo-100/50 transition-colors"
-            ></div>
-            <div
-              class="p-4 bg-indigo-50 text-indigo-600 rounded-2xl relative z-10"
-            >
-              <MousePointer2 class="h-8 w-8" />
-            </div>
-            <div class="relative z-10">
-              <p
-                class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1"
-              >
-                Total Clicks
-              </p>
-              <p class="text-4xl font-extrabold text-gray-900">
-                {{ stats.totalClicks }}
-              </p>
-            </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4"
+        >
+          <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+            <MousePointer2 class="h-6 w-6" />
           </div>
-          <div
-            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-md flex items-center gap-5 group hover:shadow-lg transition-shadow"
-          >
-            <div class="p-4 bg-emerald-50 text-emerald-600 rounded-2xl">
-              <Calendar class="h-8 w-8" />
-            </div>
-            <div>
-              <p
-                class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1"
-              >
-                Created On
-              </p>
-              <p class="text-xl font-bold text-gray-900">
-                {{ formatDate(stats.link.createdAt) }}
-              </p>
-            </div>
-          </div>
-          <div
-            class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-md flex items-center gap-5 group hover:shadow-lg transition-shadow"
-          >
-            <div class="p-4 bg-purple-50 text-purple-600 rounded-2xl">
-              <BarChart3 class="h-8 w-8" />
-            </div>
-            <div>
-              <p
-                class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1"
-              >
-                Status
-              </p>
-              <span
-                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold"
-                :class="
-                  stats.link.disabled
-                    ? 'bg-red-50 text-red-600'
-                    : 'bg-emerald-50 text-emerald-600'
-                "
-                >{{ stats.link.disabled ? "Disabled" : "Active" }}</span
-              >
-            </div>
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Total Clicks</p>
+            <p class="text-2xl font-bold text-gray-900">
+              {{ statsData.totalClicks }}
+            </p>
           </div>
         </div>
 
         <div
-          class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-md h-[400px] flex flex-col"
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4"
         >
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <BarChart3 class="h-5 w-5 text-gray-400" /> Traffic Trend
-            </h3>
-            <span
-              class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
-              >Last 7 Days</span
-            >
+          <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <Calendar class="h-6 w-6" />
           </div>
-          <div class="flex-1 min-h-0 w-full">
-            <Line :data="dailyChartData" :options="trafficOptions" />
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Created</p>
+            <p class="text-lg font-bold text-gray-900">
+              {{ formatDate(statsData.link.createdAt) }}
+            </p>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div
+          class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4"
+        >
           <div
-            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-md h-[400px] flex flex-col"
+            class="p-3 rounded-xl"
+            :class="
+              isExpired
+                ? 'bg-red-50 text-red-600'
+                : 'bg-emerald-50 text-emerald-600'
+            "
           >
-            <div class="flex items-center justify-between mb-6">
-              <h3
-                class="text-lg font-bold text-gray-900 flex items-center gap-2"
-              >
-                <Globe class="h-5 w-5 text-gray-400" /> Top Referrers
-              </h3>
-              <span
-                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
-                >Source</span
-              >
+            <component
+              :is="isExpired ? AlertCircle : Calendar"
+              class="h-6 w-6"
+            />
+          </div>
+          <div>
+            <p class="text-sm text-gray-500 font-medium">Expires</p>
+            <p
+              class="text-lg font-bold"
+              :class="isExpired ? 'text-red-600' : 'text-gray-900'"
+            >
+              {{ isExpired ? "Expired" : formatDate(statsData.link.expiredAt) }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <div
+          class="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm"
+        >
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-bold text-gray-900">Traffic Trend</h3>
+            <span
+              class="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded"
+              >Last 7 Days</span
+            >
+          </div>
+          <div class="h-[300px] w-full relative">
+            <Line :data="dailyChartData" :options="dailyChartOptions" />
+          </div>
+        </div>
+
+        <div
+          class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col"
+        >
+          <h3
+            class="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2"
+          >
+            <Monitor class="h-5 w-5 text-indigo-600" /> Device & Browser
+          </h3>
+          <div
+            class="flex-grow flex items-center justify-center relative min-h-[250px]"
+          >
+            <div v-if="deviceChartData" class="w-full h-full absolute inset-0">
+              <Doughnut :data="deviceChartData" :options="doughnutOptions" />
             </div>
-            <div class="flex-1 min-h-0 w-full">
-              <Bar :data="referrerChartData" :options="baseOptions" />
+            <div v-else class="text-center text-gray-400">
+              <p>No device data available</p>
             </div>
           </div>
-          <div
-            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-md h-[400px] flex flex-col"
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <h3
+            class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"
           >
-            <div class="flex items-center justify-between mb-6">
-              <h3
-                class="text-lg font-bold text-gray-900 flex items-center gap-2"
-              >
-                <MapPin class="h-5 w-5 text-gray-400" /> Top Locations
-              </h3>
-              <span
-                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
-                >Country</span
-              >
-            </div>
-            <div class="flex-1 min-h-0 w-full">
-              <Bar
-                :data="countryChartData"
-                :options="{ ...baseOptions, indexAxis: 'y' }"
-              />
-            </div>
+            <Globe class="h-5 w-5 text-indigo-600" /> Top Referrers
+          </h3>
+          <div class="overflow-hidden rounded-xl border border-gray-50">
+            <table class="w-full text-sm text-left">
+              <thead class="text-xs text-gray-500 uppercase bg-gray-50/50">
+                <tr>
+                  <th class="px-4 py-3 font-semibold">Source</th>
+                  <th class="px-4 py-3 text-right font-semibold">Clicks</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-50">
+                <tr v-if="!statsData.topReferrers.length">
+                  <td
+                    colspan="2"
+                    class="px-4 py-8 text-center text-gray-400 italic"
+                  >
+                    No data yet
+                  </td>
+                </tr>
+                <tr
+                  v-for="(item, index) in statsData.topReferrers"
+                  :key="index"
+                  class="hover:bg-gray-50/50 transition-colors"
+                >
+                  <td
+                    class="px-4 py-3 font-medium text-gray-700 truncate max-w-[200px]"
+                  >
+                    {{ item.referrer }}
+                  </td>
+                  <td class="px-4 py-3 text-right font-bold text-indigo-600">
+                    {{ item.count }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div
-            class="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-gray-100 shadow-md h-[400px] flex flex-col lg:col-span-2"
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <h3
+            class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"
           >
-            <div class="flex items-center justify-between mb-6">
-              <h3
-                class="text-lg font-bold text-gray-900 flex items-center gap-2"
-              >
-                <Smartphone class="h-5 w-5 text-gray-400" /> Browsers & Devices
-              </h3>
-              <span
-                class="text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full"
-                >User Agents</span
-              >
-            </div>
-            <div class="flex-1 min-h-0 w-full">
-              <Bar
-                :data="uaChartData"
-                :options="{ ...baseOptions, indexAxis: 'y' }"
-              />
-            </div>
+            <Globe class="h-5 w-5 text-emerald-600" /> Top Locations
+          </h3>
+          <div class="overflow-hidden rounded-xl border border-gray-50">
+            <table class="w-full text-sm text-left">
+              <thead class="text-xs text-gray-500 uppercase bg-gray-50/50">
+                <tr>
+                  <th class="px-4 py-3 font-semibold">Country</th>
+                  <th class="px-4 py-3 text-right font-semibold">Clicks</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-50">
+                <tr v-if="!statsData.topCountries.length">
+                  <td
+                    colspan="2"
+                    class="px-4 py-8 text-center text-gray-400 italic"
+                  >
+                    No data yet
+                  </td>
+                </tr>
+                <tr
+                  v-for="(item, index) in statsData.topCountries"
+                  :key="index"
+                  class="hover:bg-gray-50/50 transition-colors"
+                >
+                  <td class="px-4 py-3 font-medium text-gray-700">
+                    {{ item.country || "Unknown" }}
+                  </td>
+                  <td class="px-4 py-3 text-right font-bold text-emerald-600">
+                    {{ item.count }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
