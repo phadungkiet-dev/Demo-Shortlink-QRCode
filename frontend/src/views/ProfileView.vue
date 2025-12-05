@@ -1,8 +1,13 @@
 <script setup>
+// Core Vue
 import { reactive, ref, computed } from "vue";
-import { useAuthStore } from "@/stores/useAuthStore";
 import api from "@/services/api";
 import Swal from "sweetalert2";
+// Stores
+import { useAuthStore } from "@/stores/useAuthStore";
+// Config
+import { APP_CONFIG } from "@/config/constants";
+// Icons
 import {
   User,
   Lock,
@@ -12,10 +17,13 @@ import {
   ShieldCheck,
   Mail,
   KeyRound,
-  AlertCircle, // [NEW] Icon สำหรับ Error
+  AlertCircle,
+  Check,
 } from "lucide-vue-next";
-import { APP_CONFIG } from "@/config/constants";
 
+// -------------------------------------------------------------------
+// Setup & State Management
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
 const isLoading = ref(false);
 const apiError = ref(null);
@@ -32,7 +40,10 @@ const formData = reactive({
   confirmPassword: "",
 });
 
-// Logic สร้างตัวย่อชื่อ (Initials) ให้เหมือน Header
+// -------------------------------------------------------------------
+// Computed Properties
+// -------------------------------------------------------------------
+// User Initials
 const initials = computed(() => {
   if (!authStore.user?.email) return "?";
   const email = authStore.user.email;
@@ -44,6 +55,39 @@ const initials = computed(() => {
   return email.substring(0, 2).toUpperCase();
 });
 
+// [NEW] Password Validation Rules (Same as RegisterForm)
+const passwordRules = computed(() => {
+  const pwd = formData.newPassword;
+  return [
+    {
+      label: `At least ${minPassLen} characters`,
+      valid: pwd.length >= minPassLen,
+    },
+    {
+      label: "1 Uppercase letter (A-Z)",
+      valid: /[A-Z]/.test(pwd),
+    },
+    {
+      label: "1 Lowercase letter (a-z)",
+      valid: /[a-z]/.test(pwd),
+    },
+    {
+      label: "1 Number (0-9)",
+      valid: /[0-9]/.test(pwd),
+    },
+    {
+      label: "1 Special character (!@#...)",
+      valid: /[\W_]/.test(pwd),
+    },
+  ];
+});
+
+// Check if all rules passed
+const isPasswordValid = computed(() => {
+  return passwordRules.value.every((rule) => rule.valid);
+});
+
+// Check confirm match
 const passwordMatchError = computed(() => {
   return (
     formData.newPassword !== formData.confirmPassword &&
@@ -51,18 +95,17 @@ const passwordMatchError = computed(() => {
   );
 });
 
+// -------------------------------------------------------------------
+// Methods & Actions
+// -------------------------------------------------------------------
 const handleChangePassword = async () => {
   apiError.value = null;
 
   if (passwordMatchError.value) return;
 
-  if (!formData.oldPassword || formData.newPassword.length < minPassLen) {
-    Swal.fire({
-      icon: "warning",
-      title: "Weak Password",
-      text: `New password must be at least ${minPassLen} characters long.`,
-      confirmButtonColor: "#4F46E5",
-    });
+  // Validate Rules before sending
+  if (!isPasswordValid.value) {
+    apiError.value = "Please meet all password requirements.";
     return;
   }
 
@@ -109,7 +152,7 @@ const handleChangePassword = async () => {
             {{ initials }}
           </div>
           <div
-            v-if="authStore.user?.role === 'ADMIN'"
+            v-if="authStore.user?.role === APP_CONFIG.USER_ROLES.ADMIN"
             class="absolute -bottom-1 -right-1 bg-white p-2 rounded-full shadow-md"
             title="Admin User"
           >
@@ -131,7 +174,7 @@ const handleChangePassword = async () => {
               }}</span>
             </div>
             <span
-              v-if="authStore.user?.role === 'ADMIN'"
+              v-if="authStore.user?.role === APP_CONFIG.USER_ROLES.ADMIN"
               class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg uppercase tracking-wide"
             >
               Admin Access
@@ -208,7 +251,7 @@ const handleChangePassword = async () => {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 gap-6">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2"
                   >New Password</label
@@ -219,7 +262,12 @@ const handleChangePassword = async () => {
                     :type="showNewPassword ? 'text' : 'password'"
                     required
                     :minlength="minPassLen"
-                    class="block w-full h-[46px] pl-4 pr-12 bg-gray-50 border-gray-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-gray-900 placeholder-gray-400"
+                    class="block w-full h-[46px] pl-4 pr-12 bg-gray-50 border-gray-200 rounded-xl focus:ring-4 transition-all text-gray-900 placeholder-gray-400"
+                    :class="
+                      isPasswordValid && formData.newPassword
+                        ? 'focus:border-emerald-500 focus:ring-emerald-500/10'
+                        : 'focus:border-indigo-500 focus:ring-indigo-500/10'
+                    "
                     :placeholder="`Min ${minPassLen} chars`"
                   />
                   <button
@@ -232,6 +280,45 @@ const handleChangePassword = async () => {
                       class="w-5 h-5"
                     />
                   </button>
+                </div>
+
+                <div
+                  class="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100 transition-all"
+                >
+                  <p class="text-xs font-bold text-gray-500 mb-2 ml-1">
+                    Must contain:
+                  </p>
+                  <ul class="space-y-1">
+                    <li
+                      v-for="(rule, index) in passwordRules"
+                      :key="index"
+                      class="flex items-center gap-2 text-xs transition-colors duration-300"
+                      :class="
+                        rule.valid
+                          ? 'text-emerald-600 font-medium'
+                          : 'text-gray-400'
+                      "
+                    >
+                      <div
+                        class="w-4 h-4 rounded-full flex items-center justify-center border transition-all duration-300 shrink-0"
+                        :class="
+                          rule.valid
+                            ? 'bg-emerald-100 border-emerald-200 scale-110'
+                            : 'border-gray-200 bg-white'
+                        "
+                      >
+                        <Check
+                          v-if="rule.valid"
+                          class="w-2.5 h-2.5 text-emerald-600"
+                        />
+                        <div
+                          v-else
+                          class="w-1 h-1 rounded-full bg-gray-300"
+                        ></div>
+                      </div>
+                      {{ rule.label }}
+                    </li>
+                  </ul>
                 </div>
               </div>
 
@@ -290,7 +377,7 @@ const handleChangePassword = async () => {
             <div class="pt-4 flex justify-end">
               <button
                 type="submit"
-                :disabled="isLoading || passwordMatchError"
+                :disabled="isLoading || passwordMatchError || !isPasswordValid"
                 class="w-full sm:w-auto h-[46px] px-8 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 hover:shadow-indigo-500/40 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 <Loader2 v-if="isLoading" class="h-5 w-5 animate-spin" />

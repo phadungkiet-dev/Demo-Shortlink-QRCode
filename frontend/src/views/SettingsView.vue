@@ -1,13 +1,21 @@
 <script setup>
+// Stores
 import { useAuthStore } from "@/stores/useAuthStore";
+// Icons
 import {
   Trash2,
   AlertTriangle,
   Settings as SettingsIcon,
 } from "lucide-vue-next";
 
+// -------------------------------------------------------------------
+// Setup & State
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
 
+// -------------------------------------------------------------------
+// Actions
+// -------------------------------------------------------------------
 const handleDeleteAccount = () => {
   authStore.deleteAccount();
 };

@@ -156,6 +156,11 @@ const handleSelectFilter = (value) => {
   isFilterOpen.value = false;
 };
 
+const clearFiltersAndSearch = () => {
+  searchQuery.value = "";
+  filterStatus.value = "ALL";
+};
+
 const closeFilterDropdown = (e) => {
   if (filterDropdownRef.value && !filterDropdownRef.value.contains(e.target)) {
     isFilterOpen.value = false;
@@ -427,25 +432,23 @@ onUnmounted(() => {
       <!-- Main Content / Data Grid (No data) -->
       <div
         v-else-if="!linkStore.myLinks.length"
-        class="py-16 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
+        class="py-20 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
       >
-        <Link2 class="h-12 w-12 text-gray-300 mx-auto mb-3" />
-        <p class="text-gray-500">No links found matching your criteria.</p>
-        <div class="mt-4 flex gap-3 justify-center">
-          <button
-            v-if="searchQuery"
-            @click="searchQuery = ''"
-            class="text-indigo-600 hover:underline font-medium"
-          >
-            Clear search</button
-          ><button
-            v-if="filterStatus !== 'ALL'"
-            @click="filterStatus = 'ALL'"
-            class="text-indigo-600 hover:underline font-medium"
-          >
-            Show All
-          </button>
-        </div>
+        <Link2 class="h-12 w-12 text-gray-300 mx-auto mb-4" />
+        <p class="text-lg font-medium text-gray-900 mb-2">
+          No links found matching your criteria.
+        </p>
+
+        <p class="text-gray-500 mb-4">
+          Try adjusting your search query or filters.
+        </p>
+        <button
+          v-if="searchQuery || filterStatus !== 'ALL'"
+          @click="clearFiltersAndSearch"
+          class="inline-flex items-center px-4 py-2 bg-indigo-50 text-indigo-600 font-medium rounded-xl hover:bg-indigo-100 transition-colors"
+        >
+          Clear Search & Filters
+        </button>
       </div>
 
       <!-- Main Content / Data Grid (Data) -->
