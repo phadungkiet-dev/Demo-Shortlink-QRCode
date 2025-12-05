@@ -1,5 +1,9 @@
 <script setup>
+// Vue Core
 import { ref, watch } from "vue";
+// Config
+import { APP_CONFIG } from "@/config/constants";
+// Icons
 import { X, Save, Gauge, Loader2 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -9,33 +13,41 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update:modelValue", "save"]);
-const limit = ref(10);
+const defaultLimit = APP_CONFIG.DEFAULTS.LINK_LIMIT;
+const limit = ref(defaultLimit);
 
+// Watch for user changes to set initial limit
 watch(
   () => props.user,
   (newUser) => {
     if (newUser) {
-      limit.value = newUser.linkLimit !== undefined ? newUser.linkLimit : 10;
+      limit.value =
+        newUser.linkLimit !== undefined ? newUser.linkLimit : defaultLimit;
     }
   },
   { immediate: true }
 );
 
 const closeModal = () => emit("update:modelValue", false);
-const handleSave = () => emit("save", limit.value);
+const handleSave = () => {
+  // Safety check: Ensure limit is at least 0
+  if (limit.value < 0) limit.value = 0;
+  emit("save", limit.value);
+};
 </script>
 
 <template>
   <div
     v-if="modelValue"
-    class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-0"
   >
     <div
       class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
       @click="closeModal"
     ></div>
+
     <div
-      class="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/50 transform transition-all scale-100"
+      class="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/50 transform transition-all scale-100 mx-4"
     >
       <div
         class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50"
@@ -74,7 +86,7 @@ const handleSave = () => emit("save", limit.value);
           <div class="flex items-center gap-3">
             <button
               @click="limit = Math.max(0, limit - 1)"
-              class="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 active:scale-95 transition-all font-bold text-gray-600"
+              class="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 active:scale-95 transition-all font-bold text-gray-600 select-none"
             >
               -
             </button>
@@ -83,10 +95,11 @@ const handleSave = () => emit("save", limit.value);
               type="number"
               min="0"
               class="block w-full text-center px-4 py-2.5 bg-gray-50 border-transparent rounded-xl text-gray-900 font-bold text-lg focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+              @keyup.enter="handleSave"
             />
             <button
               @click="limit++"
-              class="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 active:scale-95 transition-all font-bold text-gray-600"
+              class="w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 active:scale-95 transition-all font-bold text-gray-600 select-none"
             >
               +
             </button>

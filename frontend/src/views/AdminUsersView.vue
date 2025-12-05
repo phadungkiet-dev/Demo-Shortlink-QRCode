@@ -1,14 +1,21 @@
 <script setup>
+// Vue Core
 import { onMounted, onUnmounted, ref, watch, computed } from "vue";
+import Swal from "sweetalert2";
+// Stores
 import { useAuthStore } from "@/stores/useAuthStore";
-import api from "@/services/api";
+import { useAdminStore } from "@/stores/useAdminStore";
+// Config
+import { APP_CONFIG } from "@/config/constants";
+// Components
+import SetLimitModal from "@/components/SetLimitModal.vue";
+import AdminUserLinksModal from "@/components/AdminUserLinksModal.vue";
+// Icons
 import {
   Users,
-  LayoutDashboard,
   Filter,
   Search,
   RefreshCw,
-  User,
   Trash2,
   CheckCircle2,
   UserX,
@@ -23,44 +30,37 @@ import {
   ShieldCheck,
   Link as LinkIcon,
 } from "lucide-vue-next";
-import Swal from "sweetalert2";
-import SetLimitModal from "@/components/SetLimitModal.vue";
-import AdminUserLinksModal from "@/components/AdminUserLinksModal.vue";
 
+// -------------------------------------------------------------------
+// Setup & State Management
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
-
-// --- STATE MANAGEMENT ---
-const users = ref([]);
-const stats = ref({ total: 0, active: 0, blocked: 0 });
-const pagination = ref({
-  page: 1,
-  pageSize: 10,
-  totalPages: 1,
-  totalItems: 0,
-});
+const adminStore = useAdminStore();
 
 // UI States
-const isLoading = ref(true);
-const isRefreshing = ref(false);
 const searchQuery = ref("");
-const filterStatus = ref("ALL"); // ALL, ACTIVE, BLOCKED
+const filterStatus = ref("ALL"); // Enum: ALL, ACTIVE, BLOCKED
 let searchTimeout = null;
 
-// [NEW] Filter Dropdown Logic
+// Dropdown State
 const isFilterOpen = ref(false);
 const filterDropdownRef = ref(null);
 
+// Modal States
+const isSetLimitModalOpen = ref(false);
+const isAdminUserLinksModalOpen = ref(false);
+const selectedUser = ref(null);
+const isSavingLimit = ref(false); // For loading state in SetLimitModal
+
+// -------------------------------------------------------------------
+// Computed Properties
+// -------------------------------------------------------------------
 const refreshIconClasses = computed(() => ({
-  "animate-spin": isRefreshing.value,
+  "animate-spin": adminStore.isLoading,
 }));
 
 const filterOptions = [
-  {
-    value: "ALL",
-    label: "All Users",
-    icon: Users,
-    iconClass: "text-gray-400",
-  },
+  { value: "ALL", label: "All Users", icon: Users, iconClass: "text-gray-400" },
   {
     value: "ACTIVE",
     label: "Active",
@@ -81,66 +81,35 @@ const currentFilterLabel = computed(
     "All Users"
 );
 
-// Modal States
-const isSetLimitModalOpen = ref(false);
-const isAdminUserLinksModalOpen = ref(false);
-const selectedUser = ref(null);
-const isSavingLimit = ref(false);
+// -------------------------------------------------------------------
+// Methods & Actions
+// -------------------------------------------------------------------
+// --- Data Fetching ---
+const loadData = (page = adminStore.pagination.page) => {
+  // Security Check
+  if (authStore.user?.role !== APP_CONFIG.USER_ROLES.ADMIN) return;
 
-// --- METHODS ---
-const loadData = async (page = pagination.value.page) => {
-  if (!authStore.user || authStore.user.role !== "ADMIN") return;
-
-  isLoading.value = true;
-  isRefreshing.value = true;
-
-  try {
-    const params = {
-      page,
-      limit: pagination.value.pageSize,
-      search: searchQuery.value,
-      status: filterStatus.value, // Send status to backend
-    };
-
-    const response = await api.get("/admin/users", { params });
-
-    // Read the response safely and set state
-    users.value = response.data.data || [];
-    pagination.value = response.data.meta || {
-      page: 1,
-      pageSize: 10,
-      totalPages: 1,
-      totalItems: 0,
-    };
-    stats.value = response.data.stats || { total: 0, active: 0, blocked: 0 }; // Ensure fallback
-  } catch (error) {
-    console.error("Error loading admin user data:", error);
-    // Resetting states to safe defaults on error
-    users.value = [];
-    pagination.value = { page: 1, pageSize: 10, totalPages: 1, totalItems: 0 };
-    stats.value = { total: 0, active: 0, blocked: 0 };
-  } finally {
-    isLoading.value = false;
-    isRefreshing.value = false;
-  }
+  adminStore.fetchUsers(
+    page,
+    adminStore.pagination.pageSize,
+    searchQuery.value,
+    filterStatus.value
+  );
 };
 
-// [NEW] Function สำหรับเคลียร์ Filter และ Search
+const handleRefresh = () => loadData(adminStore.pagination.page);
+
+const changePage = (newPage) => {
+  if (newPage < 1 || newPage > adminStore.pagination.totalPages) return;
+  loadData(newPage);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+// --- Filtering & Search ---
 const clearFiltersAndSearch = () => {
   searchQuery.value = "";
   filterStatus.value = "ALL";
   isFilterOpen.value = false;
-  // loadData(1) จะถูก Trigger โดย Watcher
-};
-
-const handleRefresh = () => {
-  loadData(pagination.value.page);
-};
-
-const changePage = (newPage) => {
-  if (newPage < 1 || newPage > pagination.value.totalPages) return;
-  loadData(newPage);
-  window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 const handleSelectFilter = (value) => {
@@ -148,13 +117,13 @@ const handleSelectFilter = (value) => {
   isFilterOpen.value = false;
 };
 
-// Click Outside Handler
 const closeFilterDropdown = (e) => {
   if (filterDropdownRef.value && !filterDropdownRef.value.contains(e.target)) {
     isFilterOpen.value = false;
   }
 };
 
+// --- Helpers ---
 const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -163,84 +132,27 @@ const formatDate = (dateString) => {
   });
 };
 
-const getUserInitials = (email) =>
-  email ? email.substring(0, 2).toUpperCase() : "U";
-
-const handleToggleBlock = async (user) => {
-  const newBlockedStatus = !user.isBlocked;
-  const actionText = newBlockedStatus ? "Block" : "Unblock";
-  const confirmText = newBlockedStatus
-    ? "Block this user?"
-    : "Unblock this user?";
-
-  const result = await Swal.fire({
-    title: confirmText,
-    text: `Are you sure you want to ${actionText.toLowerCase()} user ${
-      user.email
-    }?`,
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonColor: newBlockedStatus ? "#f87171" : "#34d399",
-    cancelButtonColor: "#6b7280",
-    confirmButtonText: actionText,
-  });
-
-  if (result.isConfirmed) {
-    try {
-      const response = await api.patch(`/admin/users/${user.id}/status`, {
-        isBlocked: newBlockedStatus,
-      });
-
-      const updatedUser = response.data;
-      const index = users.value.findIndex((u) => u.id === updatedUser.id);
-      if (index !== -1) {
-        users.value[index].isBlocked = updatedUser.isBlocked;
-      }
-
-      loadData(pagination.value.page);
-
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        icon: "success",
-        title: updatedUser.isBlocked ? "User Blocked" : "User Unblocked",
-        showConfirmButton: false,
-        timer: 1500,
-      });
-    } catch (error) {
-      /* Handled by api service */
-    }
+const getUserInitials = (email) => {
+  if (!email) return "U";
+  const parts = email.split("@")[0].split(".");
+  if (parts.length > 1 && parts[0].length > 0 && parts[1].length > 0) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
+  return email.substring(0, 2).toUpperCase();
 };
 
-const handleDeleteUser = async (user) => {
-  const result = await Swal.fire({
-    title: "Delete User",
-    text: `Are you sure you want to permanently delete user ${user.email}? This action is irreversible.`,
-    icon: "error",
-    showCancelButton: true,
-    confirmButtonColor: "#dc2626",
-    cancelButtonColor: "#6b7280",
-    confirmButtonText: "Yes, delete it!",
-  });
+// --- User Actions ---
+const handleChangeRole = (user) => {
+  // Toggle Role
+  const newRole =
+    user.role === APP_CONFIG.USER_ROLES.ADMIN
+      ? APP_CONFIG.USER_ROLES.USER
+      : APP_CONFIG.USER_ROLES.ADMIN;
 
-  if (result.isConfirmed) {
-    try {
-      await api.delete(`/admin/users/${user.id}`);
-      Swal.fire({
-        icon: "success",
-        title: "Deleted!",
-        text: "User has been deleted.",
-        showConfirmButton: false,
-        timer: 1500,
-      });
-      loadData(1);
-    } catch (error) {
-      /* Handled by api service */
-    }
-  }
+  adminStore.changeUserRole(user, newRole);
 };
 
+// --- Modals ---
 const handleSetLimit = (user) => {
   selectedUser.value = user;
   isSetLimitModalOpen.value = true;
@@ -251,19 +163,37 @@ const handleViewLinks = (user) => {
   isAdminUserLinksModalOpen.value = true;
 };
 
-// --- WATCHERS ---
+const handleSaveLimit = async (newLimit) => {
+  if (!selectedUser.value) return;
+
+  isSavingLimit.value = true; // เริ่มโหลด (หมุนติ้วๆ ที่ปุ่ม)
+
+  try {
+    // เรียก Action จาก Store
+    const success = await adminStore.updateUserLimit(
+      selectedUser.value,
+      newLimit
+    );
+
+    if (success) {
+      // ถ้าสำเร็จ ให้ปิด Modal
+      isSetLimitModalOpen.value = false;
+    }
+  } finally {
+    isSavingLimit.value = false; // หยุดโหลด
+  }
+};
+
+// -------------------------------------------------------------------
+// Watchers & Lifecycle
+// -------------------------------------------------------------------
 watch(searchQuery, () => {
   if (searchTimeout) clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    loadData(1);
-  }, 500);
+  searchTimeout = setTimeout(() => loadData(1), 500); // Debounce
 });
 
-watch(filterStatus, () => {
-  loadData(1);
-});
+watch(filterStatus, () => loadData(1));
 
-// --- LIFECYCLE HOOKS ---
 onMounted(() => {
   loadData();
   document.addEventListener("click", closeFilterDropdown);
@@ -277,7 +207,9 @@ onUnmounted(() => {
 <template>
   <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 pb-24">
     <div
-      v-if="!authStore.user || authStore.user.role !== 'ADMIN'"
+      v-if="
+        !authStore.user || authStore.user.role !== APP_CONFIG.USER_ROLES.ADMIN
+      "
       class="flex flex-col items-center justify-center h-[60vh]"
     >
       <Loader2 class="h-10 w-10 text-indigo-600 animate-spin mb-4" />
@@ -294,8 +226,8 @@ onUnmounted(() => {
           <h1
             class="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3 tracking-tight"
           >
-            <ShieldCheck class="h-7 w-7 sm:h-8 sm:w-8 text-indigo-600" /> User
-            Management
+            <ShieldCheck class="h-7 w-7 sm:h-8 sm:w-8 text-indigo-600" />
+            User Management
           </h1>
           <p class="text-gray-500 text-sm sm:text-base mt-1">
             Manage all users, block/unblock, and set link limits.
@@ -379,7 +311,7 @@ onUnmounted(() => {
           <div class="flex gap-2 z-10">
             <button
               @click="handleRefresh"
-              :disabled="isRefreshing"
+              :disabled="adminStore.isLoading"
               class="h-[46px] w-[46px] flex items-center justify-center bg-white border border-gray-200 rounded-xl text-gray-600 hover:text-indigo-600 hover:border-indigo-300 hover:ring-4 hover:ring-indigo-500/10 shadow-sm active:scale-95 transition-all disabled:opacity-50"
               title="Refresh Data"
             >
@@ -407,7 +339,7 @@ onUnmounted(() => {
           <div>
             <p class="text-sm text-gray-500 font-medium">Total Users</p>
             <p class="text-2xl font-bold text-gray-900">
-              {{ stats.total }}
+              {{ adminStore.stats.total }}
             </p>
           </div>
         </div>
@@ -428,7 +360,7 @@ onUnmounted(() => {
           <div>
             <p class="text-sm text-gray-500 font-medium">Active Users</p>
             <p class="text-2xl font-bold text-gray-900">
-              {{ stats.active }}
+              {{ adminStore.stats.active }}
             </p>
           </div>
         </div>
@@ -449,14 +381,14 @@ onUnmounted(() => {
           <div>
             <p class="text-sm text-gray-500 font-medium">Blocked Users</p>
             <p class="text-2xl font-bold text-gray-900">
-              {{ stats.blocked }}
+              {{ adminStore.stats.blocked }}
             </p>
           </div>
         </div>
       </div>
 
       <div
-        v-if="!users.length && !isLoading"
+        v-if="!adminStore.users.length && !adminStore.isLoading"
         class="py-20 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
       >
         <Users class="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -476,7 +408,7 @@ onUnmounted(() => {
       </div>
 
       <div
-        v-else-if="users.length"
+        v-else
         class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
       >
         <div class="overflow-x-auto min-h-[300px]">
@@ -484,56 +416,54 @@ onUnmounted(() => {
             <thead class="bg-gray-50">
               <tr>
                 <th
-                  scope="col"
                   class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
                   User (Provider)
                 </th>
                 <th
-                  scope="col"
                   class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
                   Role
                 </th>
                 <th
-                  scope="col"
                   class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
                   Status
                 </th>
                 <th
-                  scope="col"
                   class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
                   Links (Limit)
                 </th>
                 <th
-                  scope="col"
                   class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
                   Joined At
                 </th>
                 <th
-                  scope="col"
                   class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody v-if="isLoading" class="bg-white divide-y divide-gray-100">
+
+            <tbody
+              v-if="adminStore.isLoading"
+              class="bg-white divide-y divide-gray-100"
+            >
               <tr>
                 <td colspan="6" class="p-10 text-center text-gray-500">
                   <Loader2
                     class="h-8 w-8 text-indigo-500 animate-spin mx-auto mb-3"
-                  />
-                  Loading users...
+                  />Loading users...
                 </td>
               </tr>
             </tbody>
+
             <tbody v-else class="bg-white divide-y divide-gray-100">
               <tr
-                v-for="user in users"
+                v-for="user in adminStore.users"
                 :key="user.id"
                 class="hover:bg-gray-50 transition-colors"
                 :class="{ 'bg-red-50/50': user.isBlocked }"
@@ -542,7 +472,7 @@ onUnmounted(() => {
                   <div class="flex items-center">
                     <div class="flex-shrink-0 h-10 w-10">
                       <div
-                        class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm"
+                        class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm border border-indigo-200"
                       >
                         {{ getUserInitials(user.email) }}
                       </div>
@@ -559,16 +489,19 @@ onUnmounted(() => {
                 </td>
 
                 <td class="px-6 py-4 whitespace-nowrap text-left">
-                  <span
+                  <button
+                    @click="handleChangeRole(user)"
+                    :disabled="user.id === authStore.user.id"
                     :class="[
-                      'px-3 inline-flex text-xs leading-5 font-semibold rounded-full',
-                      user.role === 'ADMIN'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-indigo-100 text-indigo-800',
+                      'px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full transition-all active:scale-95',
+                      user.role === APP_CONFIG.USER_ROLES.ADMIN
+                        ? 'bg-purple-100 text-purple-800 hover:bg-purple-200'
+                        : 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200',
                     ]"
+                    title="Click to toggle role"
                   >
                     {{ user.role }}
-                  </span>
+                  </button>
                 </td>
 
                 <td class="px-6 py-4 whitespace-nowrap text-left">
@@ -589,7 +522,8 @@ onUnmounted(() => {
                 <td
                   class="px-6 py-4 whitespace-nowrap text-left text-sm font-medium text-gray-500"
                 >
-                  {{ user._count.links }} ({{ user.linkLimit }})
+                  {{ user._count.links }}
+                  <span class="text-gray-400">/ {{ user.linkLimit }}</span>
                 </td>
 
                 <td
@@ -617,15 +551,16 @@ onUnmounted(() => {
                       <Settings class="h-4 w-4" />
                     </button>
                     <button
-                      @click="handleToggleBlock(user)"
-                      :disabled="user.role === 'ADMIN'"
+                      @click="adminStore.toggleUserBlock(user)"
+                      :disabled="user.role === APP_CONFIG.USER_ROLES.ADMIN"
                       :class="[
-                        'p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                        'p-2 rounded-lg transition-colors',
                         user.isBlocked
                           ? 'text-emerald-500 hover:bg-emerald-50'
                           : 'text-red-500 hover:bg-red-50',
+                        'disabled:opacity-50 disabled:cursor-not-allowed',
                       ]"
-                      :title="user.isBlocked ? 'Unblock User' : 'Block User'"
+                      :title="user.isBlocked ? 'Unblock' : 'Block'"
                     >
                       <component
                         :is="user.isBlocked ? Unplug : Ban"
@@ -633,8 +568,8 @@ onUnmounted(() => {
                       />
                     </button>
                     <button
-                      @click="handleDeleteUser(user)"
-                      :disabled="user.role === 'ADMIN'"
+                      @click="adminStore.deleteUser(user)"
+                      :disabled="user.role === APP_CONFIG.USER_ROLES.ADMIN"
                       class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Delete User"
                     >
@@ -649,24 +584,27 @@ onUnmounted(() => {
       </div>
 
       <div
-        v-if="pagination.totalPages > 1 && !isLoading"
+        v-if="adminStore.pagination.totalPages > 1 && !adminStore.isLoading"
         class="mt-10 flex justify-center items-center gap-4"
       >
         <button
-          @click="changePage(pagination.page - 1)"
-          :disabled="pagination.page <= 1"
-          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50 transition-all active:scale-95"
+          @click="changePage(adminStore.pagination.page - 1)"
+          :disabled="adminStore.pagination.page <= 1"
+          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
         >
           <ChevronLeft class="h-5 w-5" />
         </button>
         <span
           class="text-sm font-medium text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm"
-          >Page {{ pagination.page }} of {{ pagination.totalPages }}</span
+          >Page {{ adminStore.pagination.page }} of
+          {{ adminStore.pagination.totalPages }}</span
         >
         <button
-          @click="changePage(pagination.page + 1)"
-          :disabled="pagination.page >= pagination.totalPages"
-          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50 transition-all active:scale-95"
+          @click="changePage(adminStore.pagination.page + 1)"
+          :disabled="
+            adminStore.pagination.page >= adminStore.pagination.totalPages
+          "
+          class="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
         >
           <ChevronRight class="h-5 w-5" />
         </button>
@@ -678,7 +616,7 @@ onUnmounted(() => {
         v-model="isSetLimitModalOpen"
         :user="selectedUser"
         :is-loading="isSavingLimit"
-        @limitUpdated="loadData"
+        @save="handleSaveLimit"
       />
       <AdminUserLinksModal
         v-model="isAdminUserLinksModalOpen"

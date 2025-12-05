@@ -1,22 +1,34 @@
 <script setup>
+// Vue Core
 import { ref } from "vue";
-import { useAuthStore } from "@/stores/useAuthStore";
 import { useRouter } from "vue-router";
-import AppHeader from "@/components/AppHeader.vue";
-import { Loader2, Github } from "lucide-vue-next";
+// Stores
+import { useAuthStore } from "@/stores/useAuthStore";
+// Components
+import AppHeader from "@/components/layout/AppHeader.vue"; 
+import AppFooter from "@/components/layout/AppFooter.vue";
+// Icons
+import { Loader2 } from "lucide-vue-next";
 
+// -------------------------------------------------------------------
+// Setup & State
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
 const router = useRouter();
+
 const isRouteLoading = ref(false);
 
+// -------------------------------------------------------------------
+// Logic & Listeners
+// -------------------------------------------------------------------
 // --- Router Guards (จัดการ Loading ระหว่างเปลี่ยนหน้า) ---
-// ก่อนเปลี่ยนหน้า: ให้แสดง Loading
+// ก่อนเปลี่ยนหน้า: ให้แสดง Loading Overlay
 router.beforeEach((to, from, next) => {
   isRouteLoading.value = true;
   next();
 });
 
-// หลังเปลี่ยนหน้าเสร็จ: ปิด Loading
+// หลังเปลี่ยนหน้าเสร็จ: ปิด Loading Overlay
 router.afterEach(() => {
   // หน่วงเวลาเล็กน้อยเพื่อให้ Transition นุ่มนวล
   setTimeout(() => {
@@ -26,11 +38,6 @@ router.afterEach(() => {
 </script>
 
 <template>
-  <!-- 
-    Initializing (กำลังเริ่มระบบ)
-    แสดงหน้า Loading เต็มจอ ระหว่างรอเช็ค Session กับ Backend 
-    (authStore.initAuth ยังไม่เสร็จ)
-  -->
   <div
     v-if="!authStore.isAuthReady"
     class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center space-y-4"
@@ -43,15 +50,11 @@ router.afterEach(() => {
     <p class="text-gray-500 text-sm font-medium">Initializing application...</p>
   </div>
 
-  <!-- 
-    Ready (ระบบพร้อมใช้งาน) แสดง Layout หลักของเว็บไซต์
-  -->
   <div v-else class="flex flex-col min-h-screen">
-    <!-- Header: เมนูบนสุด (Sticky) -->
+    <!-- App Header -->
     <AppHeader />
-    <!-- Main Content: พื้นที่แสดงผลของแต่ละหน้า -->
+
     <main class="flex-grow relative flex flex-col">
-      <!-- Route Loading Overlay: แสดงเฉพาะตรงกลาง ระหว่างเปลี่ยนหน้า -->
       <div
         v-if="isRouteLoading"
         class="absolute inset-0 z-30 flex items-start justify-center pt-20 bg-white/50 backdrop-blur-[2px] transition-all duration-300"
@@ -61,7 +64,7 @@ router.afterEach(() => {
         </div>
       </div>
 
-      <!-- Router View: จุดที่หน้าเว็บจริงๆ (Home, Dashboard) จะถูกโหลดมาใส่ -->
+      <!-- Main Content -->
       <router-view v-slot="{ Component }">
         <transition
           enter-active-class="transition ease-out duration-200"
@@ -76,33 +79,7 @@ router.afterEach(() => {
         </transition>
       </router-view>
     </main>
-
-    <!-- Footer: ส่วนล่างสุด -->
-    <footer class="bg-white border-t border-gray-100 mt-auto">
-      <div class="container mx-auto px-4 lg:px-8 py-8">
-        <div
-          class="flex flex-col md:flex-row justify-between items-center gap-4"
-        >
-          <div class="text-center md:text-left">
-            <p class="text-sm text-gray-500 font-medium">
-              &copy; {{ new Date().getFullYear() }} Shortlink.QR
-            </p>
-            <p class="text-xs text-gray-400 mt-1">
-              Built for Security & Speed. Designed for Education.
-            </p>
-          </div>
-
-          <a
-            href="https://github.com/phadungkiet-dev/Demo-Shortlink-QRCode"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-gray-400 hover:text-gray-900 transition-colors p-2 hover:bg-gray-50 rounded-full"
-          >
-            <span class="sr-only">GitHub</span>
-            <Github class="h-5 w-5" />
-          </a>
-        </div>
-      </div>
-    </footer>
+    <!-- App Footer -->
+    <AppFooter />
   </div>
 </template>

@@ -1,10 +1,16 @@
 <script setup>
+// Vue Core
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import api from "@/services/api";
+// Stores
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useLinkStore } from "@/stores/useLinkStore";
+// Config
 import { APP_CONFIG } from "@/config/constants";
+// Components
+import ResultModal from "@/components/ResultModal.vue";
+import LoginModal from "@/components/LoginModal.vue";
+// Icons
 import {
   Loader2,
   Link2,
@@ -13,39 +19,45 @@ import {
   QrCode,
   BarChart3,
   ArrowRight,
+  Info,
 } from "lucide-vue-next";
-import ResultModal from "@/components/ResultModal.vue";
-import LoginModal from "@/components/LoginModal.vue";
 
+// -------------------------------------------------------------------
+// Setup & State Management
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
 const linkStore = useLinkStore();
 const route = useRoute();
 const router = useRouter();
 
-// --- Form State ---
+// Form State
 const targetUrl = ref("");
 const customSlug = ref("");
 const isSubmitting = ref(false);
 const generatedLink = ref(null);
 const errorMsg = ref(null);
 
-// --- Modal State ---
+// Modal State
 const isLoginModalOpen = ref(false);
 
+// -------------------------------------------------------------------
+// Computed Properties
+// -------------------------------------------------------------------
+const isResultModalOpen = computed(() => !!generatedLink.value);
+
+// -------------------------------------------------------------------
+// Methods & Actions
+// -------------------------------------------------------------------
 const openLoginModal = () => {
   isLoginModalOpen.value = true;
 };
 
-// --- Lifecycle Hooks ---
-onMounted(() => {
-  if (route.query.login === "true") {
-    isLoginModalOpen.value = true;
-    // ลบ query param ออกเพื่อให้ URL สะอาด (Optional)
-    router.replace({ query: null });
-  }
-});
+const closeResultModal = () => {
+  generatedLink.value = null;
+  targetUrl.value = "";
+  customSlug.value = "";
+};
 
-// --- Actions ---
 const handleSubmit = async () => {
   if (!targetUrl.value) return;
 
@@ -56,7 +68,7 @@ const handleSubmit = async () => {
   try {
     const payload = { targetUrl: targetUrl.value };
 
-    // Feature: ถ้า Login แล้ว อนุญาตให้ส่ง Custom Slug ได้
+    // Feature: Custom Slug for logged-in users only
     if (authStore.user && customSlug.value) {
       payload.slug = customSlug.value;
     }
@@ -74,14 +86,17 @@ const handleSubmit = async () => {
   }
 };
 
-// Computed: เปิด Modal ผลลัพธ์เมื่อมีข้อมูลใน generatedLink
-const isResultModalOpen = computed(() => !!generatedLink.value);
-
-const closeResultModal = () => {
-  generatedLink.value = null;
-  targetUrl.value = "";
-  customSlug.value = "";
-};
+// -------------------------------------------------------------------
+// Lifecycle Hooks
+// -------------------------------------------------------------------
+onMounted(() => {
+  // Check for login trigger from router query (e.g., redirect from auth guard)
+  if (route.query.login === "true") {
+    isLoginModalOpen.value = true;
+    // ลบ query param ออกเพื่อให้ URL สะอาด (Optional)
+    router.replace({ query: null }); // Clean URL
+  }
+});
 </script>
 
 <template>
@@ -89,13 +104,28 @@ const closeResultModal = () => {
     class="min-h-[calc(100vh-64px)] bg-gradient-to-b from-white via-indigo-50/30 to-white flex flex-col"
   >
     <div
-      class="container mx-auto px-4 sm:px-6 lg:px-8 pt-12 lg:pt-20 pb-16 flex-grow"
+      class="container mx-auto px-4 sm:px-6 lg:px-8 pt-8 lg:pt-16 pb-16 flex-grow"
     >
-      <!-- Hero Section -->
+      <!-- Banner Warning -->
+      <div class="max-w-3xl mx-auto mb-10 animate-fade-in-down">
+        <div
+          class="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm"
+        >
+          <Info class="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 class="text-sm font-bold text-yellow-800">Demo Environment</h4>
+            <p class="text-sm text-yellow-700 mt-0.5">
+              This is a testing environment for educational purposes. All data
+              (links, analytics, accounts) may be reset periodically. Please do
+              not use for critical production workloads.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div
         class="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8 animate-fade-in-up"
       >
-        <!-- Badge: Education Demo -->
         <div
           class="inline-flex items-center justify-center p-1 pr-3 rounded-full bg-white border border-gray-200 shadow-sm mb-4"
         >
@@ -108,7 +138,7 @@ const closeResultModal = () => {
           >
         </div>
 
-        <!-- Main Title -->
+        <!-- Text header -->
         <h1
           class="text-4xl sm:text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight leading-tight"
         >
@@ -120,7 +150,6 @@ const closeResultModal = () => {
           </span>
         </h1>
 
-        <!-- Subtitle -->
         <p
           class="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed px-4 sm:px-0"
         >
@@ -130,7 +159,7 @@ const closeResultModal = () => {
         </p>
       </div>
 
-      <!-- Form Section -->
+      <!-- Form send link for shortlink -->
       <div
         class="max-w-3xl mx-auto mt-10 sm:mt-12 relative z-10 animate-fade-in-up"
         style="animation-delay: 0.1s"
@@ -139,7 +168,6 @@ const closeResultModal = () => {
           class="bg-white p-4 sm:p-6 rounded-3xl shadow-xl shadow-indigo-100/50 border border-gray-100 transform transition-all"
         >
           <form @submit.prevent="handleSubmit" class="flex flex-col gap-4">
-            <!-- Input: Target URL -->
             <div class="relative group">
               <div
                 class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
@@ -158,7 +186,6 @@ const closeResultModal = () => {
               />
             </div>
 
-            <!-- Input: Custom Slug (เฉพาะ User) -->
             <div v-if="authStore.user" class="relative group">
               <div
                 class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
@@ -171,13 +198,13 @@ const closeResultModal = () => {
               <input
                 type="text"
                 v-model="customSlug"
+                :maxlength="APP_CONFIG.VALIDATION.SLUG_MAX_LEN"
                 placeholder="Custom alias (optional)"
                 class="block w-full pl-9 pr-4 py-4 bg-gray-50 border-transparent rounded-2xl text-gray-900 placeholder-gray-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 text-base transition-all"
                 :disabled="isSubmitting"
               />
             </div>
 
-            <!-- CTA: Login Prompt (เฉพาะ Guest) -->
             <div v-else class="flex items-center justify-between px-2 py-1">
               <p class="text-xs sm:text-sm text-gray-500">
                 Looking for a branded alias?
@@ -191,7 +218,6 @@ const closeResultModal = () => {
               </p>
             </div>
 
-            <!-- Submit Button -->
             <button
               type="submit"
               class="w-full px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all duration-200 transform active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
@@ -204,7 +230,6 @@ const closeResultModal = () => {
           </form>
         </div>
 
-        <!-- Error Message -->
         <transition
           enter-active-class="transition ease-out duration-200"
           enter-from-class="opacity-0 -translate-y-2"
@@ -220,9 +245,9 @@ const closeResultModal = () => {
         </transition>
       </div>
 
-      <!-- Features Grid -->
+      <!-- Grid column -->
       <div
-        class="mt-8 lg:mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto px-4"
+        class="mt-16 lg:mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto px-4"
       >
         <div
           class="group p-8 bg-white rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 hover:-translate-y-1 flex flex-col items-center text-center md:items-start md:text-left"
@@ -271,7 +296,6 @@ const closeResultModal = () => {
       </div>
     </div>
 
-    <!-- Teleport Modals: ย้าย Modal ไปอยู่ระดับ Body เพื่อไม่ให้โดน CSS ของ Parent ทับ -->
     <Teleport to="body">
       <ResultModal
         :modelValue="isResultModalOpen"

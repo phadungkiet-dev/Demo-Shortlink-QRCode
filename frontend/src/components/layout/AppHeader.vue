@@ -1,15 +1,25 @@
 <script setup>
+// Vue Core
 import { ref, onMounted, onUnmounted } from "vue";
+// Stores
 import { useAuthStore } from "@/stores/useAuthStore";
+// Components
+import LoginModal from "@/components/LoginModal.vue";
+import UserDropdown from "@/components/UserDropdown.vue";
+// Icons
 import { Link, Menu, X, LogIn } from "lucide-vue-next";
-import LoginModal from "./LoginModal.vue";
-import UserDropdown from "./UserDropdown.vue";
 
+// -------------------------------------------------------------------
+// Setup & State
+// -------------------------------------------------------------------
 const authStore = useAuthStore();
 const isLoginModalOpen = ref(false);
 const isMobileMenuOpen = ref(false);
 const isScrolled = ref(false);
 
+// -------------------------------------------------------------------
+// Scroll Listener (For sticky header effect)
+// -------------------------------------------------------------------
 const handleScroll = () => {
   isScrolled.value = window.scrollY > 10;
 };

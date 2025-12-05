@@ -92,7 +92,7 @@ export const useLinkStore = defineStore("links", {
         // 3. อัปเดต Stats ให้ครบทุกค่า
         if (linkToDelete) {
           if (this.stats.total > 0) this.stats.total--;
-          
+
           if (linkToDelete.disabled) {
             // ถ้าลิงก์ที่ลบเป็น Inactive -> ลดค่า Inactive
             if (this.stats.inactive > 0) this.stats.inactive--;
@@ -101,7 +101,6 @@ export const useLinkStore = defineStore("links", {
             if (this.stats.active > 0) this.stats.active--;
           }
         }
-        
 
         Swal.fire({
           toast: true,
@@ -158,6 +157,38 @@ export const useLinkStore = defineStore("links", {
         this.myLinks[index] = { ...this.myLinks[index], ...updatedLink };
       }
     },
+    // ----------------------------------------------------------------
+    // Toggle Link Status (Enable/Disable)
+    // ----------------------------------------------------------------
+    async toggleLinkStatus(link) {
+      try {
+        // ยิง API ไปหา Backend
+        const response = await api.patch(`/links/${link.id}`, {
+          disabled: !link.disabled,
+        });
+
+        const updatedLink = response.data;
+
+        // อัปเดตข้อมูลใน List (UI)
+        this.updateLinkInStore(updatedLink);
+
+        // อัปเดต Stats (Optimistic Update)
+        // ถ้าสถานะใหม่เป็น Disabled (แปลว่าเดิมคือ Active) -> Active ลด, Inactive เพิ่ม
+        if (updatedLink.disabled) {
+          if (this.stats.active > 0) this.stats.active--;
+          this.stats.inactive++;
+        } else {
+          // ถ้าสถานะใหม่เป็น Active (แปลว่าเดิมคือ Disabled) -> Active เพิ่ม, Inactive ลด
+          this.stats.active++;
+          if (this.stats.inactive > 0) this.stats.inactive--;
+        }
+
+        return updatedLink; // ส่งข้อมูลกลับไปเผื่อ Component อยากใช้
+      } catch (error) {
+        throw error; // โยน Error ออกไปให้ Component จัดการต่อ (ถ้าจำเป็น)
+      }
+    },
+
     async createShortlink(payload) {
       this.isLoading = true;
       try {

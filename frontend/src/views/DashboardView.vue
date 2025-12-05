@@ -1,8 +1,17 @@
 <script setup>
+// Vue Core
 import { onMounted, onUnmounted, computed, ref, watch } from "vue";
+import api from "@/services/api";
+import Swal from "sweetalert2";
+// Stores
 import { useLinkStore } from "@/stores/useLinkStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+// Config
 import { APP_CONFIG } from "@/config/constants";
+// Components
+import ResultModal from "@/components/ResultModal.vue";
+import EditLinkModal from "@/components/EditLinkModal.vue";
+// Icons
 import {
   Loader2,
   Link2,
@@ -28,11 +37,10 @@ import {
   ChevronDown,
   Check,
 } from "lucide-vue-next";
-import ResultModal from "@/components/ResultModal.vue";
-import EditLinkModal from "@/components/EditLinkModal.vue";
-import Swal from "sweetalert2";
-import api from "@/services/api";
 
+// -------------------------------------------------------------------
+// Setup & State
+// -------------------------------------------------------------------
 const linkStore = useLinkStore();
 const authStore = useAuthStore();
 
@@ -46,13 +54,24 @@ let searchTimeout = null;
 const isFilterOpen = ref(false);
 const filterDropdownRef = ref(null);
 
+// Modal States
+const isResultModalOpen = ref(false);
+const isEditModalOpen = ref(false);
+const selectedLink = ref(null);
+
+// -------------------------------------------------------------------
+// Computed Properties
+// -------------------------------------------------------------------
+const totalLinks = computed(() => linkStore.stats.total);
+const activeLinks = computed(() => linkStore.stats.active);
+const inactiveLinks = computed(() => linkStore.stats.inactive);
+
+const refreshIconClasses = computed(() => ({
+  "animate-spin": isRefreshing.value,
+}));
+
 const filterOptions = [
-  {
-    value: "ALL",
-    label: "All Links",
-    icon: Link2,
-    iconClass: "text-gray-400",
-  },
+  { value: "ALL", label: "All Links", icon: Link2, iconClass: "text-gray-400" },
   {
     value: "ACTIVE",
     label: "Active",
@@ -73,36 +92,13 @@ const currentFilterLabel = computed(
     "All Links"
 );
 
-const handleSelectFilter = (value) => {
-  filterStatus.value = value;
-  isFilterOpen.value = false;
-};
-
-// Click Outside Handler
-const closeFilterDropdown = (e) => {
-  if (filterDropdownRef.value && !filterDropdownRef.value.contains(e.target)) {
-    isFilterOpen.value = false;
-  }
-};
-
-// Modal States
-const isResultModalOpen = ref(false);
-const isEditModalOpen = ref(false);
-const selectedLink = ref(null);
-
-// Stats
-const totalLinks = computed(() => linkStore.stats.total);
-const activeLinks = computed(() => linkStore.stats.active);
-const inactiveLinks = computed(() => linkStore.stats.inactive);
-
-const refreshIconClasses = computed(() => ({
-  "animate-spin": isRefreshing.value,
-}));
-
-// Base Class สำหรับปุ่ม Action
+// Style Classes
 const actionBtnClass =
   "flex items-center justify-center p-2 rounded-xl transition-colors active:scale-90";
 
+// -------------------------------------------------------------------
+// Methods & Actions
+// -------------------------------------------------------------------
 // Helpers
 const getFaviconUrl = (url) => {
   try {
@@ -131,8 +127,8 @@ const formatDate = (dateString) => {
   });
 };
 
-// Search & Filter Logic
-// รวมการ Watch ทั้ง Search และ Filter ไว้ด้วยกัน
+// Actions
+// --- Data Loading ---
 const loadData = (page = 1) => {
   linkStore.fetchMyLinks(
     page,
@@ -142,18 +138,6 @@ const loadData = (page = 1) => {
   );
 };
 
-watch(searchQuery, () => {
-  if (searchTimeout) clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    loadData(1); // Reset กลับไปหน้า 1 เสมอเมื่อค้นหา
-  }, 500);
-});
-
-watch(filterStatus, () => {
-  loadData(1); // Reset กลับไปหน้า 1 เสมอเมื่อเปลี่ยน Filter
-});
-
-// Actions
 const handleRefresh = async () => {
   isRefreshing.value = true;
   await loadData(linkStore.pagination.page);
@@ -166,32 +150,33 @@ const changePage = (newPage) => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
+// --- Filters ---
+const handleSelectFilter = (value) => {
+  filterStatus.value = value;
+  isFilterOpen.value = false;
+};
+
+const closeFilterDropdown = (e) => {
+  if (filterDropdownRef.value && !filterDropdownRef.value.contains(e.target)) {
+    isFilterOpen.value = false;
+  }
+};
+
+// --- Link Actions ---
 const handleToggleDisable = async (link) => {
   try {
-    const response = await api.patch(`/links/${link.id}`, {
-      disabled: !link.disabled,
-    });
-    linkStore.updateLinkInStore(response.data);
-
-    // Update Stats (Client-side optimistic update)
-    if (response.data.disabled) {
-      linkStore.stats.active--;
-      linkStore.stats.inactive++;
-    } else {
-      linkStore.stats.active++;
-      linkStore.stats.inactive--;
-    }
+    const updatedLink = await linkStore.toggleLinkStatus(link);
 
     Swal.fire({
       toast: true,
       position: "top-end",
       icon: "success",
-      title: response.data.disabled ? "Link Disabled" : "Link Enabled",
+      title: updatedLink.disabled ? "Link Disabled" : "Link Enabled",
       showConfirmButton: false,
       timer: 1000,
     });
   } catch (error) {
-    /* handled by api */
+    // API Error handled by interceptor
   }
 };
 
@@ -207,19 +192,35 @@ const copyToClipboard = (text) => {
   });
 };
 
-// Modals
+// --- Modals ---
 const handleShowQr = (link) => {
   selectedLink.value = link;
   isResultModalOpen.value = true;
 };
+
 const handleEdit = (link) => {
   selectedLink.value = link;
   isEditModalOpen.value = true;
 };
+
 const closeResultModal = () => {
   isResultModalOpen.value = false;
   setTimeout(() => (selectedLink.value = null), 300);
 };
+
+// -------------------------------------------------------------------
+// Watchers & Lifecycle
+// -------------------------------------------------------------------
+watch(searchQuery, () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    loadData(1); // Reset กลับไปหน้า 1 เสมอเมื่อค้นหา
+  }, 500);
+});
+
+watch(filterStatus, () => {
+  loadData(1); // Reset กลับไปหน้า 1 เสมอเมื่อเปลี่ยน Filter
+});
 
 onMounted(() => {
   if (authStore.user) {
@@ -235,6 +236,7 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-[calc(100vh-64px)] bg-gray-50/50 pb-24">
+    <!-- LOADING STATE -->
     <div
       v-if="!authStore.user"
       class="flex flex-col items-center justify-center h-[60vh]"
@@ -243,6 +245,7 @@ onUnmounted(() => {
       <p class="text-gray-500 font-medium">Loading dashboard...</p>
     </div>
 
+    <!-- MAIN CONTENT -->
     <div v-else class="container mx-auto px-4 lg:px-8 py-10">
       <div
         class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8"
@@ -258,6 +261,7 @@ onUnmounted(() => {
             Manage your links and view analytics.
           </p>
         </div>
+
         <div class="flex flex-col sm:flex-row flex-wrap gap-3 w-full md:w-auto">
           <div class="relative min-w-[160px] z-20" ref="filterDropdownRef">
             <button
@@ -265,10 +269,8 @@ onUnmounted(() => {
               class="w-full h-[46px] flex items-center justify-between px-4 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 shadow-sm hover:border-indigo-300 hover:ring-4 hover:ring-indigo-500/10 transition-all focus:outline-none focus:border-indigo-500 active:scale-[0.98]"
             >
               <div class="flex items-center gap-2.5 truncate">
-                <Filter class="h-4 w-4 text-gray-400 shrink-0" /><span
-                  class="truncate"
-                  >{{ currentFilterLabel }}</span
-                >
+                <Filter class="h-4 w-4 text-gray-400 shrink-0" />
+                <span class="truncate">{{ currentFilterLabel }}</span>
               </div>
               <ChevronDown
                 :class="[
@@ -316,6 +318,7 @@ onUnmounted(() => {
               </div>
             </transition>
           </div>
+
           <div class="relative group flex-1 md:w-auto md:min-w-[200px] z-10">
             <div
               class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
@@ -331,6 +334,7 @@ onUnmounted(() => {
               class="block w-full h-[46px] pl-10 pr-4 bg-white border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 shadow-sm transition-all placeholder-gray-400 text-gray-900"
             />
           </div>
+
           <div class="flex gap-2 z-10">
             <button
               @click="handleRefresh"
@@ -349,6 +353,7 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Stats / KPI Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div
           @click="filterStatus = 'ALL'"
@@ -369,6 +374,7 @@ onUnmounted(() => {
             <p class="text-2xl font-bold text-gray-900">{{ totalLinks }}</p>
           </div>
         </div>
+
         <div
           @click="filterStatus = 'ACTIVE'"
           class="bg-white p-5 rounded-2xl border transition-all cursor-pointer flex items-center gap-4 group"
@@ -388,6 +394,7 @@ onUnmounted(() => {
             <p class="text-2xl font-bold text-gray-900">{{ activeLinks }}</p>
           </div>
         </div>
+
         <div
           @click="filterStatus = 'INACTIVE'"
           class="bg-white p-5 rounded-2xl border transition-all cursor-pointer flex items-center gap-4 group"
@@ -416,6 +423,8 @@ onUnmounted(() => {
         <Loader2 class="h-10 w-10 text-indigo-600 animate-spin mb-3" />
         <p class="text-gray-500">Loading links...</p>
       </div>
+
+      <!-- Main Content / Data Grid (No data) -->
       <div
         v-else-if="!linkStore.myLinks.length"
         class="py-16 text-center bg-white border-2 border-dashed border-gray-200 rounded-3xl"
@@ -439,6 +448,7 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Main Content / Data Grid (Data) -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         <div
           v-for="link in linkStore.myLinks"
@@ -452,6 +462,7 @@ onUnmounted(() => {
           >
             Disabled
           </div>
+
           <div class="flex items-start justify-between gap-3 mb-4">
             <div class="flex items-center gap-3 min-w-0">
               <div

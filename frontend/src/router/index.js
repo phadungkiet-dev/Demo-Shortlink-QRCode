@@ -7,14 +7,13 @@ const routes = [
   {
     path: "/",
     name: "Home",
-    component: HomeView, // โหลดทันที (Eager loading) เพราะเป็นหน้าแรก
+    component: HomeView, // Eager loading for LCP (Largest Contentful Paint) optimization
     meta: { title: "Free URL Shortener & QR Code Generator" },
   },
   {
     path: "/login",
     name: "Login",
-    // Redirect ไปหน้าแรกแทน เพราะเราใช้ Login Modal
-    // (แต่ยังเก็บ Route นี้ไว้เพื่อให้ลิงก์ /login ทำงานได้)
+    // Redirect logic for modal-based login
     redirect: (to) => {
       return { path: "/", query: { login: "true" } };
     },
@@ -23,7 +22,7 @@ const routes = [
   {
     path: "/dashboard",
     name: "Dashboard",
-    // Lazy loading: โหลดเมื่อ User เข้าหน้านี้เท่านั้น (Code Splitting)
+    // Lazy loading for code splitting
     component: () => import("@/views/DashboardView.vue"),
     meta: { requiresAuth: true, title: "My Dashboard" }, // ต้อง Login
   },
@@ -52,17 +51,7 @@ const routes = [
     component: () => import("@/views/SettingsView.vue"),
     meta: { requiresAuth: true, title: "Settings" },
   },
-  {
-    path: "/404",
-    name: "NotFound",
-    component: NotFoundView,
-    meta: { title: "Page Not Found" },
-  },
-  // Catch-all route: ถ้าพิมพ์มั่วๆ ให้ไปหน้า 404
-  {
-    path: "/:pathMatch(.*)*",
-    redirect: "/404",
-  },
+
   {
     path: "/forgot-password",
     name: "ForgotPassword",
@@ -74,6 +63,17 @@ const routes = [
     name: "ResetPassword",
     component: () => import("@/views/ResetPasswordView.vue"),
     meta: { requiresGuest: true, title: "Set New Password" },
+  },
+  {
+    path: "/404",
+    name: "NotFound",
+    component: NotFoundView,
+    meta: { title: "Page Not Found" },
+  },
+  // Catch-all route
+  {
+    path: "/:pathMatch(.*)*",
+    redirect: "/404",
   },
 ];
 
@@ -102,8 +102,7 @@ router.beforeEach(async (to, from, next) => {
     ? `${to.meta.title} | ${DEFAULT_TITLE}`
     : DEFAULT_TITLE;
 
-  // รอเช็คสถานะ Login กับ Backend ให้เสร็จก่อนเสมอ (สำคัญมาก!)
-  // ถ้าไม่รอ Router จะคิดว่า User เป็น null ทั้งที่จริงๆ อาจจะ Login ค้างอยู่
+  // Ensure Auth State is Ready
   if (!authStore.isAuthReady) {
     await authStore.initAuth();
   }
@@ -111,9 +110,7 @@ router.beforeEach(async (to, from, next) => {
   const isAuthenticated = authStore.isAuthenticated;
   const isAdmin = authStore.isAdmin;
 
-  // เช็คสิทธิ์การเข้าถึง (Authorization)
-
-  // กรณี: หน้าที่ต้องการ Login แต่ยังไม่เข้า
+  // Authorization Logic
   if (to.meta.requiresAuth && !isAuthenticated) {
     // ส่งกลับไปหน้าแรก พร้อมเปิด Modal Login และจำ URL เดิมไว้ (redirect)
     next({

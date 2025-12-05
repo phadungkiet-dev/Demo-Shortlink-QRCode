@@ -6,7 +6,7 @@ export const APP_CONFIG = {
   },
   // --- ตั้งค่าเส้นทาง (ต้องตรงกับ Backend) ---
   ROUTES: {
-    SHORT_LINK_PREFIX: "sl", 
+    SHORT_LINK_PREFIX: "sl",
   },
   // Roles
   USER_ROLES: {
@@ -17,7 +17,13 @@ export const APP_CONFIG = {
   // กฎการตรวจสอบข้อมูล (ต้องตรงกับ Backend)
   VALIDATION: {
     PASSWORD_MIN_LEN: 8,
-    USERNAME_MIN_LEN: 3,
+    SLUG_MIN_LEN: 3,
+    SLUG_MAX_LEN: 30,
+  },
+
+  // ค่าเริ่มต้นของระบบ
+  DEFAULTS: {
+    LINK_LIMIT: 10,
   },
 
   // ค่าเริ่มต้นของ QR Code
