@@ -1,6 +1,10 @@
 <script setup>
-import { ref, watchEffect, watch, computed, nextTick } from "vue";
-// ... (Imports เหมือนเดิม) ...
+// Core Vue
+import { ref, watchEffect, watch, computed } from "vue";
+// Libs
+import QrCodeStyling from "qr-code-styling";
+import Swal from "sweetalert2";
+// Icons
 import {
   X,
   Copy,
@@ -17,31 +21,54 @@ import {
   Square,
   MousePointer2,
 } from "lucide-vue-next";
-import QrCodeStyling from "qr-code-styling";
-import Swal from "sweetalert2";
-import api from "@/services/api";
+
+// Stores & Config
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useLinkStore } from "@/stores/useLinkStore";
 import { APP_CONFIG } from "@/config/constants";
 
-// ... (Script Logic ทั้งหมดเหมือนเดิม ไม่ต้องแก้) ...
+// ==========================================
+// Props & Emits
+// ==========================================
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   link: { type: Object, default: null },
 });
 const emit = defineEmits(["update:modelValue"]);
+
+// ==========================================
+// State Management
+// ==========================================
 const authStore = useAuthStore();
 const linkStore = useLinkStore();
 
+// UI States
 const activeTab = ref("design");
 const isSaving = ref(false);
 const copyIcon = ref(Copy);
+const isLogoBroken = ref(false);
 
+// Dropdown States
 const isSizeDropdownOpen = ref(false);
 const isFormatDropdownOpen = ref(false);
 const isDotsDropdownOpen = ref(false);
 const isCornersDropdownOpen = ref(false);
 
+// QR Options State
+const qrSize = ref(APP_CONFIG.QR.DEFAULT_SIZE || 300);
+const mainColor = ref(APP_CONFIG.QR.DEFAULT_COLOR);
+const backgroundColor = ref(APP_CONFIG.QR.DEFAULT_BG);
+const isTransparent = ref(false);
+const dotsOptionsType = ref("rounded");
+const cornersSquareOptionsType = ref("extra-rounded");
+const logoImage = ref(null);
+const downloadExtension = ref("png");
+
+// Refs
+const qrCodeRef = ref(null);
+const qrCodeInstance = ref(null);
+
+// Options Data
 const availableSizes = [300, 500, 800, 1000, 1200];
 const dotsOptions = [
   { label: "Rounded", value: "rounded" },
@@ -55,19 +82,9 @@ const cornerOptions = [
   { label: "Square", value: "square" },
 ];
 
-const qrSize = ref(300);
-const mainColor = ref(APP_CONFIG.QR.DEFAULT_COLOR);
-const backgroundColor = ref(APP_CONFIG.QR.DEFAULT_BG);
-const isTransparent = ref(false);
-const dotsOptionsType = ref("rounded");
-const cornersSquareOptionsType = ref("extra-rounded");
-const logoImage = ref(null);
-const downloadExtension = ref("png");
-
-const qrCodeRef = ref(null);
-const qrCodeInstance = ref(null);
-const isLogoBroken = ref(false);
-
+// ==========================================
+// Computed Properties
+// ==========================================
 const saveIconClasses = computed(() => ({
   "animate-bounce": isSaving.value,
 }));
@@ -77,44 +94,17 @@ const currentDotsLabel = computed(
     dotsOptions.find((o) => o.value === dotsOptionsType.value)?.label ||
     "Rounded"
 );
+
 const currentCornersLabel = computed(
   () =>
     cornerOptions.find((o) => o.value === cornersSquareOptionsType.value)
       ?.label || "Extra Rounded"
 );
 
-const closeDropdowns = () => {
-  isSizeDropdownOpen.value = false;
-  isFormatDropdownOpen.value = false;
-  isDotsDropdownOpen.value = false;
-  isCornersDropdownOpen.value = false;
-};
-
-const toggleDropdown = (target) => {
-  // 1. เก็บสถานะเดิมของตัวที่จะกดไว้ก่อน (ว่าเปิดอยู่หรือเปล่า)
-  const wasOpen =
-    (target === "size" && isSizeDropdownOpen.value) ||
-    (target === "format" && isFormatDropdownOpen.value) ||
-    (target === "dots" && isDotsDropdownOpen.value) ||
-    (target === "corners" && isCornersDropdownOpen.value);
-
-  // 2. สั่งปิดทุกตัวทันที (Reset)
-  closeDropdowns();
-
-  // 3. ถ้าของเดิมปิดอยู่ -> ให้เปิด (ถ้าของเดิมเปิดอยู่ ก็จะถูกปิดไปในขั้นตอนที่ 2 แล้วจบเลย)
-  if (!wasOpen) {
-    if (target === "size") isSizeDropdownOpen.value = true;
-    if (target === "format") isFormatDropdownOpen.value = true;
-    if (target === "dots") isDotsDropdownOpen.value = true;
-    if (target === "corners") isCornersDropdownOpen.value = true;
-  }
-};
-
-const closeModal = () => {
-  closeDropdowns();
-  emit("update:modelValue", false);
-};
-
+// ==========================================
+// Watchers
+// ==========================================
+// Init & Reset State when link changes
 watch(
   () => props.link,
   (newLink) => {
@@ -128,6 +118,7 @@ watch(
         opts.cornersSquareOptionsType || "extra-rounded";
       logoImage.value = opts.image || null;
     } else {
+      // Default values
       mainColor.value = APP_CONFIG.QR.DEFAULT_COLOR;
       backgroundColor.value = APP_CONFIG.QR.DEFAULT_BG;
       isTransparent.value = false;
@@ -161,6 +152,22 @@ watch(isTransparent, (val) => {
   }
 });
 
+// Live Render QR Code
+watchEffect(() => {
+  if (props.modelValue && props.link && qrCodeRef.value) {
+    if (!qrCodeInstance.value) {
+      qrCodeInstance.value = new QrCodeStyling(getQrOptions(300));
+    } else {
+      qrCodeInstance.value.update(getQrOptions(300));
+    }
+    qrCodeRef.value.innerHTML = "";
+    qrCodeInstance.value.append(qrCodeRef.value);
+  }
+});
+
+// ==========================================
+// Methods & Helpers
+// ==========================================
 const getQrOptions = (width) => ({
   width,
   height: width,
@@ -178,21 +185,60 @@ const getQrOptions = (width) => ({
   imageOptions: { crossOrigin: "anonymous", margin: 10 },
 });
 
-watchEffect(() => {
-  if (props.modelValue && props.link && qrCodeRef.value) {
-    if (!qrCodeInstance.value) {
-      qrCodeInstance.value = new QrCodeStyling(getQrOptions(300));
-    } else {
-      qrCodeInstance.value.update(getQrOptions(300));
-    }
-    qrCodeRef.value.innerHTML = "";
-    qrCodeInstance.value.append(qrCodeRef.value);
+// --- Dropdown Management ---
+const closeDropdowns = () => {
+  isSizeDropdownOpen.value = false;
+  isFormatDropdownOpen.value = false;
+  isDotsDropdownOpen.value = false;
+  isCornersDropdownOpen.value = false;
+};
+
+const toggleDropdown = (target) => {
+  // เก็บสถานะเดิมของตัวที่จะกดไว้ก่อน (ว่าเปิดอยู่หรือเปล่า)
+  const wasOpen =
+    (target === "size" && isSizeDropdownOpen.value) ||
+    (target === "format" && isFormatDropdownOpen.value) ||
+    (target === "dots" && isDotsDropdownOpen.value) ||
+    (target === "corners" && isCornersDropdownOpen.value);
+
+  // สั่งปิดทุกตัวทันที (Reset)
+  closeDropdowns();
+
+  // ถ้าของเดิมปิดอยู่ -> ให้เปิด (ถ้าของเดิมเปิดอยู่ ก็จะถูกปิดไปในขั้นตอนที่ 2 แล้วจบเลย)
+  if (!wasOpen) {
+    if (target === "size") isSizeDropdownOpen.value = true;
+    if (target === "format") isFormatDropdownOpen.value = true;
+    if (target === "dots") isDotsDropdownOpen.value = true;
+    if (target === "corners") isCornersDropdownOpen.value = true;
   }
-});
+};
+
+const closeModal = () => {
+  closeDropdowns();
+  emit("update:modelValue", false);
+};
+
+// --- Actions ---
+const handleFileSelect = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 1024 * 1024) {
+    Swal.fire("Error", "File too large (Max 1MB)", "warning");
+    e.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    logoImage.value = event.target.result;
+    e.target.value = "";
+  };
+  reader.readAsDataURL(file);
+};
 
 const saveQrStyle = async () => {
   if (!props.link) return;
   isSaving.value = true;
+
   const config = {
     mainColor: mainColor.value,
     backgroundColor: backgroundColor.value,
@@ -203,8 +249,9 @@ const saveQrStyle = async () => {
   };
 
   try {
-    await api.patch(`/links/${props.link.id}`, { qrOptions: config });
-    linkStore.updateLinkInStore({ id: props.link.id, qrOptions: config });
+    // เรียก Action จาก Store (ใช้ updateLink action เดียวกับ EditModal)
+    await linkStore.updateLink(props.link.id, { qrOptions: config });
+
     Swal.fire({
       toast: true,
       position: "top-end",
@@ -222,11 +269,8 @@ const saveQrStyle = async () => {
 
 const downloadQR = async () => {
   const downloadOptions = getQrOptions(qrSize.value);
-  if (downloadExtension.value === "svg") {
-    downloadOptions.type = "svg";
-  } else {
-    downloadOptions.type = "canvas";
-  }
+  downloadOptions.type = downloadExtension.value === "svg" ? "svg" : "canvas";
+
   const tempQr = new QrCodeStyling(downloadOptions);
   try {
     await tempQr.download({
@@ -236,22 +280,6 @@ const downloadQR = async () => {
   } catch (error) {
     console.error("Download failed:", error);
   }
-};
-
-const handleFileSelect = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  if (file.size > 1024 * 1024) {
-    Swal.fire("Error", "File too large (Max 1MB)", "warning");
-    e.target.value = "";
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    logoImage.value = event.target.result;
-    e.target.value = "";
-  };
-  reader.readAsDataURL(file);
 };
 
 const copyToClipboard = () => {

@@ -1,21 +1,32 @@
 <script setup>
+// Core Vue
 import { ref, watch } from "vue";
-import { X, Save, Link2, Loader2 } from "lucide-vue-next";
-import api from "@/services/api";
+// Libs & Stores
 import Swal from "sweetalert2";
 import { useLinkStore } from "@/stores/useLinkStore";
+// Icons
+import { X, Save, Link2, Loader2 } from "lucide-vue-next";
 
+// ==========================================
+// Props & Emits
+// ==========================================
 const props = defineProps({
   modelValue: Boolean,
   link: Object,
 });
 
 const emit = defineEmits(["update:modelValue"]);
-const linkStore = useLinkStore();
 
+// ==========================================
+// State Management
+// ==========================================
+const linkStore = useLinkStore();
 const targetUrl = ref("");
 const isLoading = ref(false);
 
+// ==========================================
+// Watchers
+// ==========================================
 watch(
   () => props.link,
   (newLink) => {
@@ -23,16 +34,21 @@ watch(
   }
 );
 
+// ==========================================
+// Methods & Actions
+// ==========================================
 const closeModal = () => emit("update:modelValue", false);
 
 const handleSave = async () => {
   if (!targetUrl.value) return;
+
   isLoading.value = true;
   try {
-    const response = await api.patch(`/links/${props.link.id}`, {
+    // [REF] เรียก Action จาก Store แทนการยิง API ตรงๆ
+    await linkStore.updateLink(props.link.id, {
       targetUrl: targetUrl.value,
     });
-    linkStore.updateLinkInStore(response.data); // Update UI
+
     Swal.fire({
       toast: true,
       position: "top-end",
@@ -43,7 +59,8 @@ const handleSave = async () => {
     });
     closeModal();
   } catch (error) {
-    // Error handled by store/api
+    // Error จะถูกจัดการโดย Interceptor หรือแสดงใน Console
+    console.error(error);
   } finally {
     isLoading.value = false;
   }
@@ -59,6 +76,7 @@ const handleSave = async () => {
       class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
       @click="closeModal"
     ></div>
+
     <div
       class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-white/50 transform transition-all scale-100"
     >
@@ -73,6 +91,7 @@ const handleSave = async () => {
           <X class="w-5 h-5" />
         </button>
       </div>
+
       <div class="p-6 space-y-5">
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-2"
@@ -93,6 +112,7 @@ const handleSave = async () => {
             />
           </div>
         </div>
+
         <button
           @click="handleSave"
           :disabled="isLoading"

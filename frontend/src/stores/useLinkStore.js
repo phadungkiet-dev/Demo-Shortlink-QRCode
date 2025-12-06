@@ -240,5 +240,19 @@ export const useLinkStore = defineStore("links", {
         this.isLoading = false;
       }
     },
+
+    async updateLink(id, payload) {
+      try {
+        const response = await api.patch(`/links/${id}`, payload);
+        const updatedLink = response.data;
+
+        // อัปเดตข้อมูลใน List ทันที (Optimistic Update Helper)
+        this.updateLinkInStore(updatedLink);
+
+        return updatedLink;
+      } catch (error) {
+        throw error;
+      }
+    },
   },
 });

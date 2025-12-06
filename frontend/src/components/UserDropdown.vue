@@ -1,6 +1,9 @@
 <script setup>
+// Core Vue
 import { ref, computed, onMounted, onUnmounted } from "vue";
+// Stores
 import { useAuthStore } from "@/stores/useAuthStore";
+// Icons
 import {
   LogOut,
   User,
@@ -8,8 +11,12 @@ import {
   Shield,
   LayoutDashboard,
 } from "lucide-vue-next";
+// Libs
 import Swal from "sweetalert2";
 
+// ==========================================
+// Props & Emits
+// ==========================================
 const props = defineProps({
   mode: {
     type: String,
@@ -19,11 +26,16 @@ const props = defineProps({
 
 const emit = defineEmits(["close-menu"]);
 
+// ==========================================
+// State Management
+// ==========================================
 const authStore = useAuthStore();
 const isOpen = ref(false);
 const dropdownRoot = ref(null);
 
-// --- Computed Data ---
+// ==========================================
+// Computed Properties
+// ==========================================
 const initials = computed(() => {
   if (!authStore.user?.email) return "?";
   const email = authStore.user.email;
@@ -37,7 +49,9 @@ const initials = computed(() => {
 const userRole = computed(() => authStore.user?.role || "USER");
 const userEmail = computed(() => authStore.user?.email || "");
 
-// --- Click Outside (Desktop Only) ---
+// ==========================================
+// Lifecycle & Event Listeners
+// ==========================================
 const handleClickOutside = (event) => {
   if (
     props.mode === "desktop" &&
@@ -57,7 +71,9 @@ onUnmounted(() => {
   document.removeEventListener("mousedown", handleClickOutside);
 });
 
-// --- Actions ---
+// ==========================================
+// Methods & Actions
+// ==========================================
 const handleItemClick = () => {
   if (props.mode === "desktop") isOpen.value = false;
   emit("close-menu");
@@ -80,11 +96,12 @@ const handleLogoutClick = () => {
   });
 };
 
-// --- Styles ---
-// รวม Class พื้นฐานของรายการเมนูไว้ที่เดียว
+// --- Styles Helpers ---
+// รวม Class พื้นฐานของรายการเมนูไว้ที่เดียว เพื่อให้อ่านง่ายและแก้ที่เดียวจบ
 const menuItemClass =
   "group flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-xl transition-all hover:bg-indigo-50 hover:text-indigo-600";
-// Class สำหรับสถานะ Active (Current Page)
+
+// Class สำหรับสถานะ Active (Current Page) จาก Vue Router
 const activeClass =
   "bg-indigo-50 text-indigo-600 !font-semibold ring-1 ring-indigo-100";
 </script>
@@ -131,11 +148,11 @@ const activeClass =
         v-show="isOpen || mode === 'mobile'"
         :class="[
           'bg-white overflow-hidden',
-          // Desktop Specific Styles
+          // Desktop Specific Styles: Absolute Positioning
           mode === 'desktop'
             ? 'absolute right-0 mt-3 w-72 origin-top-right rounded-2xl shadow-2xl ring-1 ring-black/5 z-50'
             : '',
-          // Mobile Specific Styles
+          // Mobile Specific Styles: Full Width Block
           mode === 'mobile'
             ? 'w-full rounded-xl border border-gray-100 shadow-sm'
             : '',
