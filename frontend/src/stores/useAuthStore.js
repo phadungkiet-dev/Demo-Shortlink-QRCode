@@ -170,6 +170,15 @@ export const useAuthStore = defineStore("auth", {
       }
     },
 
+    async forgotPassword(email) {
+      try {
+        await api.post("/auth/forgot-password", { email });
+        // Backend จะส่งอีเมลให้เอง ถ้าสำเร็จก็ถือว่าจบ
+      } catch (error) {
+        throw error;
+      }
+    },
+
     // ----------------------------------------------------------------
     // Delete Account
     // ----------------------------------------------------------------
