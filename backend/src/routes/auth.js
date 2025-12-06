@@ -13,6 +13,7 @@ router.post("/register", authController.register);
 
 // --- Password Recovery Routes ---
 router.post("/forgot-password", authController.forgotPassword);
+router.get("/reset-password/:token", authController.verifyResetToken);
 router.post("/reset-password/:token", authController.resetPassword);
 
 // --- Google OAuth ---

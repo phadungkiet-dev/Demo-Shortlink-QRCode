@@ -214,6 +214,15 @@ const resetPassword = catchAsync(async (req, res, next) => {
   res.status(200).json(result);
 });
 
+// -------------------------------------------------------------------
+// Verify Token
+// -------------------------------------------------------------------
+const verifyResetToken = catchAsync(async (req, res, next) => {
+  const { token } = req.params;
+  await authService.verifyResetToken(token);
+  res.status(200).json({ valid: true });
+});
+
 module.exports = {
   getCsrfToken,
   loginLocal,
@@ -226,4 +235,5 @@ module.exports = {
   deleteAccount,
   forgotPassword,
   resetPassword,
+  verifyResetToken,
 };

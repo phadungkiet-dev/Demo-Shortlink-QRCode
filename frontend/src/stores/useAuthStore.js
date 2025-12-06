@@ -155,6 +155,19 @@ export const useAuthStore = defineStore("auth", {
       }
     },
     // ----------------------------------------------------------------
+    // Verify Reset Token
+    // ----------------------------------------------------------------
+    async verifyResetToken(token) {
+      try {
+        // ยิงไปที่ Route GET ที่เราสร้างไว้ใน Backend
+        await api.get(`/auth/reset-password/${token}`);
+        return true; // ถ้าไม่ Error แปลว่า Token ใช้ได้
+      } catch (error) {
+        // โยน Error ออกไปให้ Component จัดการ (แสดงผล)
+        throw error;
+      }
+    },
+    // ----------------------------------------------------------------
     // Reset Password
     // ----------------------------------------------------------------
     async resetPassword(token, password, confirmPassword) {

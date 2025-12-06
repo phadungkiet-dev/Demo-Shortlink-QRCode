@@ -206,6 +206,27 @@ const resetPassword = async (token, newPassword) => {
   return { message: "Password updated successfully! You can now log in." };
 };
 
+/**
+ * @function verifyResetToken
+ * @description ตรวจสอบว่า Token ยังใช้งานได้ไหม (สำหรับ Pre-check หน้าเว็บ)
+ */
+const verifyResetToken = async (token) => {
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  const user = await prisma.user.findFirst({
+    where: {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { gt: new Date() }, // ต้องยังไม่หมดอายุ
+    },
+  });
+
+  if (!user) {
+    throw new AppError("Token is invalid or has expired.", 400);
+  }
+
+  return true; // Token ใช้ได้
+};
+
 module.exports = {
   getSafeUser,
   registerUser,
@@ -213,4 +234,5 @@ module.exports = {
   deleteAccount,
   forgotPassword,
   resetPassword,
+  verifyResetToken,
 };
