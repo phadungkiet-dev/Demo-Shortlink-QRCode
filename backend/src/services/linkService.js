@@ -22,33 +22,57 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
     : DEFAULTS.USER_LINK_EXPIRY_DAYS;
   const expiredAt = addDays(now, expiryDays);
 
-  // Check Quota (สำหรับ Logged-in User เท่านั้น)
-  if (!isAnonymous) {
-    // ดึงข้อมูล User เพื่อดู Limit และ Role
-    const user = await prisma.user.findUnique({
-      where: { id: ownerId },
-      select: { linkLimit: true, role: true },
-    });
+  // Helper Function: ทำงานภายใน Transaction เดียว
+  // รับ slug เข้ามาเพื่อลองสร้าง
+  const performCreation = async (slugToUse) => {
+    return await prisma.$transaction(async (tx) => {
+      // -------------------------------------------------------
+      // Critical Section: Check Quota with Locking
+      // -------------------------------------------------------
+      if (!isAnonymous) {
+        // [LOCK] ล็อกแถว User นี้ไว้ จนกว่า Transaction นี้จะจบ
+        // ป้องกัน Race Condition ที่ User ยิงรัวๆ เข้ามาพร้อมกัน
+        // ใช้ Raw Query เพราะ Prisma ยังไม่มี .findUnique({ lock: ... }) ที่ใช้ง่ายๆ
+        await tx.$executeRaw`SELECT 1 FROM "users" WHERE id = ${ownerId} FOR UPDATE`;
 
-    // (Admin สร้างได้ไม่จำกัด Unlimited)
-    if (user && user.role !== USER_ROLES.ADMIN) {
-      const currentLinkCount = await prisma.link.count({
-        where: { ownerId: ownerId },
-      });
+        // ดึงข้อมูล User (ตอนนี้ปลอดภัยแล้ว เพราะมีแค่เราที่ถือ Lock ของ User นี้)
+        const user = await tx.user.findUnique({
+          where: { id: ownerId },
+          select: { linkLimit: true, role: true },
+        });
 
-      const limit = user.linkLimit || DEFAULTS.LINK_LIMIT;
+        // ตรวจสอบ Quota (ยกเว้น Admin)
+        if (user && user.role !== USER_ROLES.ADMIN) {
+          const currentLinkCount = await tx.link.count({
+            where: { ownerId: ownerId },
+          });
 
-      if (currentLinkCount >= limit) {
-        throw new AppError(
-          `Limit reached! You have used ${currentLinkCount}/${limit} links. Please contact admin or upgrade.`,
-          403 // Forbidden
-        );
+          if (currentLinkCount >= user.linkLimit) {
+            throw new AppError(
+              `Limit reached! You have used ${currentLinkCount}/${user.linkLimit} links.`,
+              403
+            );
+          }
+        }
       }
-    }
-  }
 
-  // กรณี Custom Slug
+      // -------------------------------------------------------
+      // Create Link
+      // -------------------------------------------------------
+      return tx.link.create({
+        data: {
+          slug: slugToUse,
+          targetUrl,
+          ownerId,
+          expiredAt,
+        },
+      });
+    });
+  };
+
+  // --- Custom Slug (ทำครั้งเดียว ไม่ต้อง Loop) ---
   if (customSlug) {
+    // เช็คเบื้องต้นก่อนเข้า Transaction เพื่อประหยัด Resource
     const existing = await prisma.link.findUnique({
       where: { slug: customSlug },
     });
@@ -56,45 +80,30 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
       throw new AppError("This custom alias is already taken.", 409);
     }
 
-    return prisma.link.create({
-      data: {
-        slug: customSlug,
-        targetUrl,
-        ownerId,
-        expiredAt,
-      },
-    });
+    return await performCreation(customSlug);
   }
 
-  // กรณี Auto Generated Slug (Retry Logic)
-  let slug;
+  // --- Auto Generated Slug (Retry Logic) ---
+  // เราต้องเอา Loop ไว้นอก Transaction เพื่อให้ Retry ได้ถ้า Slug ชน
+  // แต่ละรอบของ Loop จะเป็น 1 Transaction ย่อย
   let retries = 0;
-
   while (retries < DEFAULTS.SLUG_RETRIES) {
-    slug = await generateSlug();
+    const slug = await generateSlug();
     retries++;
 
     try {
-      const link = await prisma.link.create({
-        data: {
-          slug,
-          targetUrl,
-          ownerId,
-          expiredAt,
-        },
-      });
-      return link;
+      // ลองสร้างใน Transaction (ถ้า Limit เต็มจะ Error ออกไปเลย)
+      return await performCreation(slug);
     } catch (e) {
-      // P2002 = Unique constraint failed (Slug ซ้ำ)
+      // ถ้า Error เป็น P2002 (Unique Constraint) แปลว่า Slug ชน -> ให้วนรอบใหม่
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === "P2002"
       ) {
-        logger.warn(
-          `Slug collision detected: ${slug}. Retrying... (${retries}/${MAX_SLUG_RETRIES})`
-        );
+        logger.warn(`Slug collision: ${slug}. Retrying...`);
         continue;
       }
+      // ถ้าเป็น Error อื่น (เช่น Limit เต็ม) -> โยนออกไป
       throw e;
     }
   }
@@ -246,8 +255,8 @@ const updateLink = async (linkId, ownerId, data) => {
         if (logoUrl) {
           finalOptions.image = logoUrl; // ใช้ URL ใหม่
 
-          const oldPath = getRelativePath(oldImage);
-          if (oldPath) await storageService.deleteImage(oldPath);
+          // const oldPath = getRelativePath(oldImage);
+          if (oldImage) await storageService.deleteImage(oldImage);
         }
       } catch (err) {
         logger.error(`Failed to save logo for link ${link.slug}:`, err);
@@ -255,8 +264,8 @@ const updateLink = async (linkId, ownerId, data) => {
       }
     } else if (newImage === null) {
       // ลบรูปเก่าทิ้ง
-      const oldPath = getRelativePath(oldImage);
-      if (oldPath) await storageService.deleteImage(oldPath);
+      // const oldPath = getRelativePath(oldImage);
+      if (oldImage) await storageService.deleteImage(oldImage);
       finalOptions.image = null; // เคลียร์ค่าใน DB
     }
 
@@ -289,8 +298,8 @@ const deleteLink = async (linkId, ownerId) => {
     typeof link.qrOptions === "object" &&
     link.qrOptions.image
   ) {
-    const imagePath = getRelativePath(link.qrOptions.image);
-    if (imagePath) await storageService.deleteImage(imagePath);
+    // const imagePath = getRelativePath(link.qrOptions.image);
+    await storageService.deleteImage(link.qrOptions.image);
   }
 
   await prisma.link.delete({ where: { id: linkId } });

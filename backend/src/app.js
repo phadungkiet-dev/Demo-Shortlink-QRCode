@@ -144,9 +144,40 @@ const morganFormat =
 // Logging: ต่อท่อ Morgan เข้ากับ Winston Logger
 app.use(morgan(morganFormat, { stream: logger.stream }));
 
-// Body Parser: แปลง Request Body
-app.use(express.json({ limit: "10mb" })); // รองรับ JSON (เพิ่ม Limit เผื่อส่งรูป Base64)
-app.use(express.urlencoded({ extended: false, limit: "10mb" })); // รองรับ Form Data
+// Body Parser Configuration (Dynamic Limit)
+const jsonSmall = express.json({ limit: "20kb" }); // สำหรับ Request ทั่วไป
+const jsonLarge = express.json({ limit: "5mb" }); // สำหรับ Upload รูปภาพ
+
+const urlencodedSmall = express.urlencoded({ extended: false, limit: "20kb" });
+const urlencodedLarge = express.urlencoded({ extended: false, limit: "5mb" });
+
+// Helper: เช็คว่า Route นี้จำเป็นต้องรับไฟล์ใหญ่ไหม?
+const shouldAllowLargeBody = (req) => {
+  // อนุญาตเฉพาะเส้นทาง /api/links ที่เป็น POST หรือ PATCH (เผื่อการสร้าง/แก้ไขลิงก์พร้อม QR)
+  if (
+    req.originalUrl.startsWith("/api/links") &&
+    ["POST", "PATCH"].includes(req.method)
+  ) {
+    return true;
+  }
+  return false;
+};
+
+// Middleware: เลือกใช้ Parser ตามเงื่อนไข
+app.use((req, res, next) => {
+  const isLarge = shouldAllowLargeBody(req);
+  if (isLarge) return jsonLarge(req, res, next);
+  return jsonSmall(req, res, next);
+});
+
+app.use((req, res, next) => {
+  const isLarge = shouldAllowLargeBody(req);
+  if (isLarge) return urlencodedLarge(req, res, next);
+  return urlencodedSmall(req, res, next);
+});
+
+// app.use(express.json({ limit: "10mb" })); // รองรับ JSON (เพิ่ม Limit เผื่อส่งรูป Base64)
+// app.use(express.urlencoded({ extended: false, limit: "10mb" })); // รองรับ Form Data
 app.use(cookieParser(process.env.SESSION_SECRET)); // อ่าน Cookie
 
 // -------------------------------------------------------------------
