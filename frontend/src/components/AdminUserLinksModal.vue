@@ -1,5 +1,7 @@
 <script setup>
-import { ref, watch } from "vue";
+// Core Vue
+import { ref, watch, computed } from "vue";
+// Icons
 import {
   X,
   ExternalLink,
@@ -9,59 +11,77 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-vue-next";
-import api from "@/services/api";
+// Stores
+import { useAdminStore } from "@/stores/useAdminStore";
+// Config
 import { APP_CONFIG } from "@/config/constants";
 
+// ==========================================
+// Props & Emits
+// ==========================================
 const props = defineProps({
   modelValue: Boolean,
   user: Object,
 });
 
 const emit = defineEmits(["update:modelValue"]);
-const links = ref([]);
-const pagination = ref({ page: 1, totalPages: 1 });
-const isLoading = ref(false);
+
+// ==========================================
+// State Management
+// ==========================================
+const adminStore = useAdminStore();
+// Data
+const links = computed(() => adminStore.userLinks); // [NEW] Computed from Store
+const pagination = computed(() => adminStore.userLinksMeta); // [NEW] Computed from Store
+const isLoading = computed(() => adminStore.isUserLinksLoading); // [NEW] Computed from Store
+
+// UI States
 const searchQuery = ref("");
 let searchTimeout = null;
 
-// Watch ทั้ง User และ สถานะเปิด/ปิด Modal
+// ==========================================
+// Watchers
+// ==========================================
 watch([() => props.user, () => props.modelValue], ([newUser, isOpen]) => {
   if (isOpen && newUser) {
-    fetchLinks(1);
+    adminStore.fetchUserLinks(newUser.id);
   }
 });
 
-// Watch Search แยกต่างหาก (Debounce)
-watch(searchQuery, () => {
+// Watch Search (Debounce)
+watch(searchQuery, (newQuery) => {
   if (searchTimeout) clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => fetchLinks(1), 500);
+  searchTimeout = setTimeout(() => {
+    if (props.user) {
+      adminStore.fetchUserLinks(props.user.id, 1, 5, newQuery);
+    }
+  }, 500);
 });
 
-const fetchLinks = async (page = 1) => {
-  if (!props.user) return;
-  isLoading.value = true;
-  try {
-    const response = await api.get(`/admin/users/${props.user.id}/links`, {
-      params: { page, limit: 5, search: searchQuery.value },
-    });
-    links.value = response.data.data;
-    pagination.value = response.data.meta;
-  } catch (error) {
-    console.error(error);
-  } finally {
-    isLoading.value = false;
+// ==========================================
+// Methods & Actions
+// ==========================================
+const handlePageChange = (newPage) => {
+  if (props.user) {
+    adminStore.fetchUserLinks(props.user.id, newPage, 5, searchQuery.value);
   }
 };
 
 const closeModal = () => {
   emit("update:modelValue", false);
   setTimeout(() => {
-    links.value = [];
+    adminStore.clearUserLinks();
     searchQuery.value = "";
   }, 300);
 };
-
-const formatDate = (date) => new Date(date).toLocaleDateString("en-GB");
+// --- Helpers ---
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
 </script>
 
 <template>
@@ -73,6 +93,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString("en-GB");
       class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
       @click="closeModal"
     ></div>
+
     <div
       class="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
     >
@@ -113,12 +134,14 @@ const formatDate = (date) => new Date(date).toLocaleDateString("en-GB");
           <Loader2 class="h-8 w-8 text-indigo-600 animate-spin mb-2" />
           Loading...
         </div>
+
         <div
           v-else-if="links.length === 0"
           class="py-10 text-center text-gray-400"
         >
           No links found.
         </div>
+
         <div v-else class="space-y-3">
           <div
             v-for="link in links"
@@ -163,7 +186,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString("en-GB");
         class="p-3 border-t border-gray-100 bg-white flex justify-center gap-2 shrink-0"
       >
         <button
-          @click="fetchLinks(pagination.page - 1)"
+          @click="handlePageChange(pagination.page - 1)"
           :disabled="pagination.page <= 1"
           class="p-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
         >
@@ -173,7 +196,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString("en-GB");
           >Page {{ pagination.page }} / {{ pagination.totalPages }}</span
         >
         <button
-          @click="fetchLinks(pagination.page + 1)"
+          @click="handlePageChange(pagination.page + 1)"
           :disabled="pagination.page >= pagination.totalPages"
           class="p-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
         >

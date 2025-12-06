@@ -14,6 +14,14 @@ export const useAdminStore = defineStore("admin", {
       totalItems: 0,
     },
     isLoading: false,
+    // State สำหรับ User Links (Modal)
+    userLinks: [],
+    userLinksMeta: {
+      page: 1,
+      totalPages: 1,
+      totalItems: 0,
+    },
+    isUserLinksLoading: false, // แยก Loading state ออกจากตารางหลัก
   }),
   actions: {
     // Fetch Users
@@ -32,6 +40,33 @@ export const useAdminStore = defineStore("admin", {
       } finally {
         this.isLoading = false;
       }
+    },
+
+    // Fetch User Links
+    async fetchUserLinks(userId, page = 1, limit = 5, search = "") {
+      this.isUserLinksLoading = true;
+      try {
+        const response = await api.get(`/admin/users/${userId}/links`, {
+          params: { page, limit, search },
+        });
+        this.userLinks = response.data.data || [];
+        this.userLinksMeta = response.data.meta || {
+          page: 1,
+          totalPages: 1,
+        };
+      } catch (error) {
+        console.error("Failed to fetch user links:", error);
+        // ไม่ต้อง throw error ก็ได้ ให้ UI แสดง Empty state แทน
+        this.userLinks = [];
+      } finally {
+        this.isUserLinksLoading = false;
+      }
+    },
+    // Clear User Links (Reset state เมื่อปิด Modal)
+    clearUserLinks() {
+      this.userLinks = [];
+      this.userLinksMeta = { page: 1, totalPages: 1 };
+      this.isUserLinksLoading = false;
     },
     // Toggle Block Status
     async toggleUserBlock(user) {
