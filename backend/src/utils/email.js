@@ -1,11 +1,185 @@
-const nodemailer = require("nodemailer");
+const { google } = require("googleapis");
+const MailComposer = require("nodemailer/lib/mail-composer");
 const logger = require("./logger");
 
 /**
  * -------------------------------------------------------------------
- * Email Templates (ส่วน Template HTML)
+ * Constants & Configuration
  * -------------------------------------------------------------------
  */
+
+const OAUTH_PLAYGROUND = "https://developers.google.com/oauthplayground";
+
+/**
+ * ดึงค่า Config จาก Environment Variables พร้อม Validation
+ * @returns {Object|null} คืนค่า Object config หรือ null ถ้าค่าไม่ครบ
+ */
+const getOAuthConfig = () => {
+  const { OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, OAUTH_REFRESH_TOKEN } =
+    process.env;
+
+  if (!OAUTH_CLIENT_ID || !OAUTH_CLIENT_SECRET || !OAUTH_REFRESH_TOKEN) {
+    return null;
+  }
+
+  return {
+    clientId: OAUTH_CLIENT_ID,
+    clientSecret: OAUTH_CLIENT_SECRET,
+    refreshToken: OAUTH_REFRESH_TOKEN,
+  };
+};
+
+/**
+ * -------------------------------------------------------------------
+ * Private Helpers
+ * -------------------------------------------------------------------
+ */
+
+/**
+ * สร้าง Gmail API Client โดยใช้ OAuth2
+ * @returns {Object|null} Google Gmail Service Instance
+ */
+const _createGmailClient = () => {
+  const config = getOAuthConfig();
+  if (!config) return null;
+
+  const oauth2Client = new google.auth.OAuth2(
+    config.clientId,
+    config.clientSecret,
+    OAUTH_PLAYGROUND
+  );
+
+  oauth2Client.setCredentials({
+    refresh_token: config.refreshToken,
+  });
+
+  return google.gmail({ version: "v1", auth: oauth2Client });
+};
+
+/**
+ * สร้าง Raw Email String (Base64Encoded) ตามมาตรฐาน RFC 2822
+ * @param {string} to - อีเมลผู้รับ
+ * @param {string} subject - หัวข้ออีเมล
+ * @param {string} htmlBody - เนื้อหา HTML
+ * @returns {Promise<string>} Base64URL string สำหรับ Gmail API
+ */
+const _createRawMessage = async (to, subject, htmlBody) => {
+  const mail = new MailComposer({
+    to,
+    subject,
+    html: htmlBody,
+    text: "This email requires HTML support to view properly.",
+  });
+
+  const message = await mail.compile().build();
+
+  // Convert Buffer to Base64URL (RFC 4648)
+  return message
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
+
+/**
+ * -------------------------------------------------------------------
+ * Public Functions
+ * -------------------------------------------------------------------
+ */
+
+/**
+ * ส่งอีเมลผ่าน Gmail API (HTTP/REST)
+ * ฟังก์ชันนี้ออกแบบมาให้ทะลุข้อจำกัด Port SMTP ของ Cloud Hosting (Render)
+ * * @param {Object} options
+ * @param {string} options.to - อีเมลปลายทาง
+ * @param {string} options.subject - หัวข้ออีเมล
+ * @param {string} options.html - เนื้อหาอีเมล (HTML)
+ * @param {string} [options.text] - เนื้อหา Plain text (Optional)
+ */
+
+const sendEmail = async (options) => {
+  // ตรวจสอบ Config และสร้าง Client
+  const gmail = _createGmailClient();
+
+  // Handle กรณี Config ไม่ครบ (Mock Mode)
+  if (!gmail) {
+    _logMockEmail(options);
+
+    // Enforce Error ใน Production
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Critical: OAuth configuration is missing in Production environment."
+      );
+    }
+    return;
+  }
+
+  try {
+    // Prepare Message (MIME)
+    const rawMessage = await _createRawMessage(
+      options.to,
+      options.subject,
+      options.html
+    );
+
+    // Execute API Call
+    const res = await gmail.users.messages.send({
+      userId: "me",
+      requestBody: {
+        raw: rawMessage,
+      },
+    });
+
+    logger.info(`✅ Email sent successfully via Gmail API. ID: ${res.data.id}`);
+  } catch (error) {
+    _handleEmailError(error);
+  }
+};
+
+/**
+ * Helper สำหรับ Log กรณี Mock (แยกออกมาเพื่อความสะอาดของ Main Logic)
+ */
+const _logMockEmail = (options) => {
+  logger.info(
+    "\n📧 ================ [MOCK MAIL (Config Missing)] ================"
+  );
+  logger.info(`To:      ${options.to}`);
+  logger.info(`Subject: ${options.subject}`);
+  logger.info(
+    "===============================================================\n"
+  );
+};
+
+/**
+ * Centralized Error Handler
+ */
+const _handleEmailError = (error) => {
+  logger.error("❌ Failed to send email via Gmail API");
+
+  if (error.response) {
+    // API Error (เช่น 401, 403 จาก Google)
+    logger.error(
+      `Status: ${error.response.status} - ${error.response.statusText}`
+    );
+    logger.error(`Details: ${JSON.stringify(error.response.data, null, 2)}`);
+
+    if (error.response.status === 401) {
+      logger.error("👉 Tip: Check if Refresh Token is expired or revoked.");
+    }
+  } else {
+    // Network or Logic Error
+    logger.error(`Error Message: ${error.message}`);
+  }
+
+  throw new Error("Email Service Error: Unable to send email via Gmail API.");
+};
+
+/**
+ * -------------------------------------------------------------------
+ * Templates (แยกไว้ด้านล่าง หรือควรย้ายไปไฟล์ template แยกต่างหาก)
+ * -------------------------------------------------------------------
+ */
+
 const resetPasswordTemplate = (resetUrl) => `
   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 20px;">
     <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
@@ -47,98 +221,6 @@ const resetPasswordTemplate = (resetUrl) => `
     </table>
   </div>
 `;
-
-/**
- * @function createTransporter
- * @description สร้าง Transporter สำหรับส่งเมล อ่านค่าจาก .env
- * @returns {Object|null} Nodemailer Transporter หรือ null ถ้า Config ไม่ครบ
- */
-const createTransporter = () => {
-  // ตรวจสอบว่ามี Config ครบหรือไม่
-  if (
-    !process.env.SMTP_USER ||
-    !process.env.OAUTH_CLIENT_ID ||
-    !process.env.OAUTH_CLIENT_SECRET ||
-    !process.env.OAUTH_REFRESH_TOKEN
-  ) {
-    logger.warn("⚠️ OAUTH configuration is missing.");
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      type: "OAuth2",
-      user: process.env.SMTP_USER,
-      clientId: process.env.OAUTH_CLIENT_ID,
-      clientSecret: process.env.OAUTH_CLIENT_SECRET,
-      refreshToken: process.env.OAUTH_REFRESH_TOKEN,
-    },
-    // เพิ่ม Timeout ป้องกันการรอเก้อ (30 วินาที)
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 30000,
-
-    tls: {
-      // ช่วยแก้ปัญหา Certificate ของบาง Server
-      rejectUnauthorized: false,
-    },
-  });
-};
-
-/**
- * @function sendEmail
- * @description ฟังก์ชันส่งอีเมลกลางของระบบ (รองรับ Mock Mode ใน Dev)
- * @param {Object} options - { to, subject, text, html }
- */
-const sendEmail = async (options) => {
-  const transporter = createTransporter();
-
-  if (!transporter) {
-    logger.info(
-      "\n📧 ================ [MOCK MAIL (OAuth Missing)] ================"
-    );
-    logger.info(`To:      ${options.to}`);
-    logger.info(`Subject: ${options.subject}`);
-    logger.info(`Link:    ${options.text || "See HTML content"}`);
-    logger.info(
-      "===============================================================\n"
-    );
-
-    // ถ้าเป็น Production แล้ว Config ไม่ครบ ต้อง Error
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("OAuth configuration is missing in Production.");
-    }
-    return;
-  }
-
-  try {
-    // ส่งอีเมลจริง
-    const info = await transporter.sendMail({
-      from:
-        process.env.EMAIL_FROM || `"Shortlink App" <${process.env.SMTP_USER}>`,
-      to: options.to,
-      subject: options.subject,
-      text: options.text,
-      html: options.html,
-    });
-
-    logger.info(
-      `✅ Email sent via Gmail OAuth2. Message ID: ${info.messageId}`
-    );
-  } catch (error) {
-    logger.error("❌ Gmail OAuth2 Error:", error);
-
-    // Debug: ช่วยบอกสาเหตุถ้า Token ผิด
-    if (error.code === "EAUTH") {
-      logger.error(
-        "👉 สาเหตุ: Refresh Token หมดอายุ หรือ Client ID/Secret ไม่ถูกต้อง"
-      );
-    }
-
-    throw new Error("Failed to send email via Gmail OAuth2.");
-  }
-};
 
 module.exports = {
   sendEmail,
