@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://shortlink-backend-1opc.onrender.com/api/:path*"
+      "destination": "https://demo-backend-slqr.onrender.com/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://shortlink-backend-1opc.onrender.com/uploads/:path*"
+      "destination": "https://demo-backend-slqr.onrender.com/uploads/:path*"
     },
     {
       "source": "/sl/:path*",
-      "destination": "https://shortlink-backend-1opc.onrender.com/sl/:path*"
+      "destination": "https://demo-backend-slqr.onrender.com/sl/:path*"
     },
     {
       "source": "/(.*)",
