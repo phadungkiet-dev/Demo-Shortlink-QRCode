@@ -5,8 +5,9 @@ const dns = require("node:dns");
 // เพิ่มส่วนนี้: บังคับใช้ IPv4 เพื่อแก้ปัญหา Timeout บน Render
 try {
   dns.setDefaultResultOrder("ipv4first");
+  console.log("✅ DNS Resolution set to: IPv4 First");
 } catch (error) {
-  logger.warn("Could not set default result order to ipv4first");
+  console.warn("Could not set default result order to ipv4first", error);
 }
 
 /**
@@ -64,20 +65,25 @@ const resetPasswordTemplate = (resetUrl) => `
 const createTransporter = () => {
   // ตรวจสอบว่ามี Config ครบหรือไม่
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    logger.warn(
-      "⚠️ SMTP configuration (USER/PASS) is missing. Email will not be sent (Mock Mode)."
-    );
+    logger.warn("⚠️ SMTP configuration is missing.");
     return null;
   }
 
   return nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true, // true สำหรับ port 465
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // เพิ่ม Timeout ป้องกันการรอเก้อ (30 วินาที)
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+
     tls: {
-      ciphers: "SSLv3",
+      // ช่วยแก้ปัญหา Certificate ของบาง Server
       rejectUnauthorized: false,
     },
     logger: true,
@@ -118,11 +124,19 @@ const sendEmail = async (options) => {
   };
 
   try {
+    await transporter.verify();
+    logger.info("🔌 SMTP Connection established successfully.");
     const info = await transporter.sendMail(mailOptions);
     logger.info(`📧 Email sent successfully: ${info.messageId}`);
   } catch (error) {
     logger.error("❌ Error sending email:", error);
-    throw new Error("Email could not be sent. Please try again later.");
+    // ปริ้น Error ละเอียดออกมาดู
+    if (error.code === "EAUTH") {
+      logger.error("👉 สาเหตุ: รหัสผ่าน App Password ไม่ถูกต้อง หรือ อีเมลผิด");
+    } else if (error.code === "ESOCKET" || error.command === "CONN") {
+      logger.error("👉 สาเหตุ: Network Connection ถูกบล็อก หรือ Port ผิด");
+    }
+    throw new Error(`Email sending failed: ${error.message}`);
   }
 };
 
