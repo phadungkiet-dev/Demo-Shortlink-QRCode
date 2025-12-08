@@ -74,6 +74,8 @@ const createTransporter = () => {
       ciphers: "SSLv3",
       rejectUnauthorized: false,
     },
+    logger: true,
+    debug: true,
   });
 };
 
