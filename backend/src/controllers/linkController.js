@@ -11,20 +11,29 @@ const { ROUTES } = require("../config/constants");
 // Create Shortlink
 // -------------------------------------------------------------------
 const createLink = catchAsync(async (req, res, next) => {
-  // Validate Input (ถ้าไม่ผ่าน Zod จะ throw error ไปที่ Global Handler เอง)
+  // Validate Input
   const { targetUrl, slug } = createLinkSchema.parse(req.body);
 
-  // Business Logic Validation
-  // ป้องกันการย่อลิงก์ของตัวเอง (Self-loop)
-  // เช่น เอา domain.com มาย่อเป็น domain.com/sl/xyz (ซึ่งจะเกิด Infinite Loop)
-  if (targetUrl.includes(process.env.BASE_URL)) {
-    throw new AppError("Cannot create a shortlink that points to itself.", 400);
+  // ป้องกันการสร้างลิงก์ที่ชี้กลับมาหาตัวเอง โดยเช็คที่ Hostname
+  try {
+    const targetObj = new URL(targetUrl);
+    const baseObj = new URL(process.env.BASE_URL); // เช่น http://localhost:3001
+
+    if (targetObj.hostname === baseObj.hostname) {
+      throw new AppError(
+        "Cannot create a shortlink that points to itself.",
+        400
+      );
+    }
+  } catch (error) {
+    // ถ้าเป็น AppError ให้โยนต่อ (กรณี Loop)
+    if (error instanceof AppError) throw error;
+    // ถ้าเป็น Error จากการ Parse URL (ไม่น่าเกิดเพราะ Zod กรองแล้ว) ก็ปล่อยผ่านไปก่อน
   }
 
   const ownerId = req.user ? req.user.id : null;
 
   // Rule: Custom slugs are for members only
-  // ป้องกัน Anonymous พยายามส่ง Slug มาเอง
   if (slug && !ownerId) {
     throw new AppError(
       "Custom slugs are for logged-in users only. Please login.",

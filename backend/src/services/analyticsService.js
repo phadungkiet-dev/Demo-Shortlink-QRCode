@@ -6,6 +6,7 @@ const { addDays, getNow } = require("../utils/time");
  * Helper: ตรวจสอบว่า Timezone ถูกต้องหรือไม่ (ป้องกัน SQL Injection)
  */
 const isValidTimezone = (tz) => {
+  if (!tz) return false;
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
     return true;
@@ -18,10 +19,13 @@ const isValidTimezone = (tz) => {
  * @function getStatsForLink
  * @description ดึงข้อมูลสถิติเชิงลึกของลิงก์ (High Performance Version)
  */
-const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
+const getStatsForLink = async (linkId, ownerId, timezone) => {
   // Validate Timezone (Safety Check)
+  // ใช้ค่าจาก ENV เป็นค่า Default หลัก ถ้า Client ไม่ส่งมาหรือส่งมาผิด
+  const systemTz = process.env.TZ || "Asia/Bangkok";
+
   if (!isValidTimezone(timezone)) {
-    timezone = "Asia/Bangkok"; // Fallback to default if invalid
+    timezone = systemTz;
   }
 
   // ตรวจสอบความเป็นเจ้าของ (linkId และ ownerId เป็น UUID String)
@@ -45,9 +49,8 @@ const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
       // Total Clicks
       prisma.click.count({ where: { linkId } }),
 
-      // Daily Graph (7 Days) - Raw SQL for Timezone conversion
-      // หมายเหตุ: Prisma ป้องกัน SQL Injection สำหรับ parameter ${...} ทั่วไป
-      // แต่ชื่อ Timezone อาจต้องระวัง เราจึง validate ข้างบนแล้ว
+      // Daily Graph (7 Days)
+      // ใช้ SQL Raw เพื่อแปลง Timezone อย่างถูกต้อง
       prisma.$queryRaw`
         SELECT 
           TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${timezone}, 'YYYY-MM-DD') as date, 
@@ -86,8 +89,23 @@ const getStatsForLink = async (linkId, ownerId, timezone = "Asia/Bangkok") => {
       }),
     ]);
 
-  // Format Data
+  // Format Data (Fill missing dates with 0)
   const dailyCounts = {};
+
+  // Create last 7 days keys
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+
+    // ใช้ toLocaleDateString แทน toISOString เพื่อให้ได้วันที่ตาม Timezone ที่เราต้องการ
+    // 'en-CA' ให้ผลลัพธ์เป็น YYYY-MM-DD อัตโนมัติ
+    const dateStr = d.toLocaleDateString("en-CA", { timeZone: timezone });
+
+    // ตั้งค่าเริ่มต้นเป็น 0 (ถ้า SQL มีข้อมูล มันจะมาทับค่านี้ทีหลัง)
+    dailyCounts[dateStr] = 0;
+  }
+
+  // Map Actual Data
   dailyStatsRaw.forEach((item) => {
     dailyCounts[item.date] = item.count;
   });
