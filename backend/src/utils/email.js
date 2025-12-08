@@ -1,5 +1,13 @@
 const nodemailer = require("nodemailer");
 const logger = require("./logger");
+const dns = require("node:dns");
+
+// เพิ่มส่วนนี้: บังคับใช้ IPv4 เพื่อแก้ปัญหา Timeout บน Render
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch (error) {
+  logger.warn("Could not set default result order to ipv4first");
+}
 
 /**
  * -------------------------------------------------------------------
@@ -55,17 +63,15 @@ const resetPasswordTemplate = (resetUrl) => `
  */
 const createTransporter = () => {
   // ตรวจสอบว่ามี Config ครบหรือไม่
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     logger.warn(
-      "⚠️ SMTP configuration is missing. Email will not be sent (Mock Mode)."
+      "⚠️ SMTP configuration (USER/PASS) is missing. Email will not be sent (Mock Mode)."
     );
     return null;
   }
 
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || "587"), // แปลงเป็น Int เสมอ
-    secure: process.env.SMTP_SECURE === "true", // true for 465, false for others
+    service: "gmail",
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
