@@ -1,14 +1,18 @@
 const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const logger = require("./logger");
 const dns = require("node:dns");
 
-// เพิ่มส่วนนี้: บังคับใช้ IPv4 เพื่อแก้ปัญหา Timeout บน Render
 try {
   dns.setDefaultResultOrder("ipv4first");
-  console.log("✅ DNS Resolution set to: IPv4 First");
 } catch (error) {
-  console.warn("Could not set default result order to ipv4first", error);
+  // Ignore error
 }
+
+// ใช้ API Key จาก Environment Variable
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 /**
  * -------------------------------------------------------------------
@@ -70,9 +74,7 @@ const createTransporter = () => {
   }
 
   return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true, // true สำหรับ port 465
+    service: "gmail",
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -97,46 +99,60 @@ const createTransporter = () => {
  * @param {Object} options - { to, subject, text, html }
  */
 const sendEmail = async (options) => {
+  const isProduction = process.env.NODE_ENV === "production";
+  if (isProduction) {
+    if (!resend) {
+      logger.error("❌ [PROD] RESEND_API_KEY is missing!");
+      throw new Error("Email service is not configured correctly.");
+    }
+
+    try {
+      const { data, error } = await resend.emails.send({
+        from: "Shortlink.QR <onboarding@resend.dev>",
+        to: [options.to],
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+
+      if (error) {
+        logger.error("❌ [PROD] Resend API Error:", error);
+        throw new Error(error.message);
+      }
+
+      logger.info(`✅ [PROD] Email sent via Resend. ID: ${data.id}`);
+      return;
+    } catch (error) {
+      logger.error("❌ [PROD] Failed to send email via Resend:", error);
+      throw new Error("Failed to send email via Resend Provider.");
+    }
+  }
+
   const transporter = createTransporter();
 
   // กรณีไม่มี Transporter (Config ไม่ครบ หรือตั้งใจไม่ใส่ใน Dev)
   if (!transporter) {
-    // ถ้าเป็น Dev Mode ให้ Mock การส่งและปริ้น Link ออกมาให้กดได้เลย
-    if (process.env.NODE_ENV === "development") {
-      logger.info("================ [DEV-MAIL MOCK] ================");
-      logger.info(`To: ${options.to}`);
-      logger.info(`Subject: ${options.subject}`);
-      logger.info(`Content: ${options.text}`); // [สำคัญ] ปริ้นเนื้อหาที่มี Link ออกมา
-      logger.info("=================================================");
-      return;
-    }
-    // ถ้าเป็น Production ต้อง Error เท่านั้น
-    throw new Error("Email service is not configured.");
+    logger.info("================ [DEV-MAIL MOCK] ================");
+    logger.info(`To: ${options.to}`);
+    logger.info(`Subject: ${options.subject}`);
+    logger.info(`Content: ${options.text}`); // [สำคัญ] ปริ้นเนื้อหาที่มี Link ออกมา
+    logger.info("=================================================");
+    return;
   }
 
-  const mailOptions = {
-    from:
-      process.env.EMAIL_FROM || '"Shortlink Support" <noreply@shortlink.qr>',
-    to: options.to,
-    subject: options.subject,
-    text: options.text,
-    html: options.html,
-  };
-
   try {
-    await transporter.verify();
-    logger.info("🔌 SMTP Connection established successfully.");
-    const info = await transporter.sendMail(mailOptions);
-    logger.info(`📧 Email sent successfully: ${info.messageId}`);
+    const info = await transporter.sendMail({
+      from:
+        process.env.EMAIL_FROM || '"Shortlink Support" <noreply@shortlink.qr>',
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+    });
+    logger.info(`✅ [DEV] Email sent via Gmail SMTP. ID: ${info.messageId}`);
   } catch (error) {
-    logger.error("❌ Error sending email:", error);
-    // ปริ้น Error ละเอียดออกมาดู
-    if (error.code === "EAUTH") {
-      logger.error("👉 สาเหตุ: รหัสผ่าน App Password ไม่ถูกต้อง หรือ อีเมลผิด");
-    } else if (error.code === "ESOCKET" || error.command === "CONN") {
-      logger.error("👉 สาเหตุ: Network Connection ถูกบล็อก หรือ Port ผิด");
-    }
-    throw new Error(`Email sending failed: ${error.message}`);
+    logger.error("❌ [DEV] Gmail SMTP Error:", error);
+    throw new Error("Failed to send email via Gmail SMTP.");
   }
 };
 
