@@ -1,18 +1,5 @@
 const nodemailer = require("nodemailer");
-const { Resend } = require("resend");
 const logger = require("./logger");
-const dns = require("node:dns");
-
-try {
-  dns.setDefaultResultOrder("ipv4first");
-} catch (error) {
-  // Ignore error
-}
-
-// ใช้ API Key จาก Environment Variable
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
 
 /**
  * -------------------------------------------------------------------
@@ -68,16 +55,24 @@ const resetPasswordTemplate = (resetUrl) => `
  */
 const createTransporter = () => {
   // ตรวจสอบว่ามี Config ครบหรือไม่
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    logger.warn("⚠️ SMTP configuration is missing.");
+  if (
+    !process.env.SMTP_USER ||
+    !process.env.OAUTH_CLIENT_ID ||
+    !process.env.OAUTH_CLIENT_SECRET ||
+    !process.env.OAUTH_REFRESH_TOKEN
+  ) {
+    logger.warn("⚠️ OAUTH configuration is missing.");
     return null;
   }
 
   return nodemailer.createTransport({
     service: "gmail",
     auth: {
+      type: "OAuth2",
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      clientId: process.env.OAUTH_CLIENT_ID,
+      clientSecret: process.env.OAUTH_CLIENT_SECRET,
+      refreshToken: process.env.OAUTH_REFRESH_TOKEN,
     },
     // เพิ่ม Timeout ป้องกันการรอเก้อ (30 วินาที)
     connectionTimeout: 30000,
@@ -88,8 +83,6 @@ const createTransporter = () => {
       // ช่วยแก้ปัญหา Certificate ของบาง Server
       rejectUnauthorized: false,
     },
-    logger: true,
-    debug: true,
   });
 };
 
@@ -99,60 +92,51 @@ const createTransporter = () => {
  * @param {Object} options - { to, subject, text, html }
  */
 const sendEmail = async (options) => {
-  const isProduction = process.env.NODE_ENV === "production";
-  if (isProduction) {
-    if (!resend) {
-      logger.error("❌ [PROD] RESEND_API_KEY is missing!");
-      throw new Error("Email service is not configured correctly.");
-    }
-
-    try {
-      const { data, error } = await resend.emails.send({
-        from: "Shortlink.QR <onboarding@resend.dev>",
-        to: [options.to],
-        subject: options.subject,
-        html: options.html,
-        text: options.text,
-      });
-
-      if (error) {
-        logger.error("❌ [PROD] Resend API Error:", error);
-        throw new Error(error.message);
-      }
-
-      logger.info(`✅ [PROD] Email sent via Resend. ID: ${data.id}`);
-      return;
-    } catch (error) {
-      logger.error("❌ [PROD] Failed to send email via Resend:", error);
-      throw new Error("Failed to send email via Resend Provider.");
-    }
-  }
-
   const transporter = createTransporter();
 
-  // กรณีไม่มี Transporter (Config ไม่ครบ หรือตั้งใจไม่ใส่ใน Dev)
   if (!transporter) {
-    logger.info("================ [DEV-MAIL MOCK] ================");
-    logger.info(`To: ${options.to}`);
+    logger.info(
+      "\n📧 ================ [MOCK MAIL (OAuth Missing)] ================"
+    );
+    logger.info(`To:      ${options.to}`);
     logger.info(`Subject: ${options.subject}`);
-    logger.info(`Content: ${options.text}`); // [สำคัญ] ปริ้นเนื้อหาที่มี Link ออกมา
-    logger.info("=================================================");
+    logger.info(`Link:    ${options.text || "See HTML content"}`);
+    logger.info(
+      "===============================================================\n"
+    );
+
+    // ถ้าเป็น Production แล้ว Config ไม่ครบ ต้อง Error
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("OAuth configuration is missing in Production.");
+    }
     return;
   }
 
   try {
+    // ส่งอีเมลจริง
     const info = await transporter.sendMail({
       from:
-        process.env.EMAIL_FROM || '"Shortlink Support" <noreply@shortlink.qr>',
+        process.env.EMAIL_FROM || `"Shortlink App" <${process.env.SMTP_USER}>`,
       to: options.to,
       subject: options.subject,
       text: options.text,
       html: options.html,
     });
-    logger.info(`✅ [DEV] Email sent via Gmail SMTP. ID: ${info.messageId}`);
+
+    logger.info(
+      `✅ Email sent via Gmail OAuth2. Message ID: ${info.messageId}`
+    );
   } catch (error) {
-    logger.error("❌ [DEV] Gmail SMTP Error:", error);
-    throw new Error("Failed to send email via Gmail SMTP.");
+    logger.error("❌ Gmail OAuth2 Error:", error);
+
+    // Debug: ช่วยบอกสาเหตุถ้า Token ผิด
+    if (error.code === "EAUTH") {
+      logger.error(
+        "👉 สาเหตุ: Refresh Token หมดอายุ หรือ Client ID/Secret ไม่ถูกต้อง"
+      );
+    }
+
+    throw new Error("Failed to send email via Gmail OAuth2.");
   }
 };
 
