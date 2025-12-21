@@ -75,6 +75,6 @@ module.exports = {
   // --- การตั้งค่า Cron Job ---
   CRON: {
     // เปลี่ยนจาก "0 * * * *" (ทุกชั่วโมง) เป็น "0 1 * * *" (ตี 1 ทุกวัน)
-    CLEANUP_SCHEDULE: "0 * * * *",
+    CLEANUP_SCHEDULE: "0 1 * * *",
   },
 };

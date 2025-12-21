@@ -3,6 +3,9 @@ node_modules
 /backend/node_modules
 /frontend/node_modules
 
+# Render Blueprint
+render.yaml
+
 # --- Environment Variables (ห้ามหลุดเด็ดขาด!) ---
 .env
 .env.*
