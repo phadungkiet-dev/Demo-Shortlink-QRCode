@@ -20,6 +20,8 @@ import {
   BarChart3,
   ArrowRight,
   Info,
+  Timer,
+  Construction,
 } from "lucide-vue-next";
 
 // -------------------------------------------------------------------
@@ -107,18 +109,50 @@ onMounted(() => {
       class="container mx-auto px-4 sm:px-6 lg:px-8 pt-8 lg:pt-16 pb-16 flex-grow"
     >
       <!-- Banner Warning -->
-      <div class="max-w-3xl mx-auto mb-10 animate-fade-in-down">
+      <div class="max-w-2xl mx-auto mb-12 animate-fade-in-down">
         <div
-          class="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm"
+          class="relative overflow-hidden bg-white/80 backdrop-blur-sm border-2 border-amber-200/60 rounded-3xl p-6 shadow-xl shadow-amber-500/10"
         >
-          <Info class="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
-          <div>
-            <h4 class="text-sm font-bold text-yellow-800">Demo Environment</h4>
-            <p class="text-sm text-yellow-700 mt-0.5">
-              This is a testing environment for educational purposes. All data
-              (links, analytics, accounts) may be reset periodically. Please do
-              not use for critical production workloads.
-            </p>
+          <div
+            class="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent opacity-50"
+          ></div>
+
+          <div
+            class="relative z-10 flex flex-col items-center text-center gap-4"
+          >
+            <div class="relative">
+              <div
+                class="absolute inset-0 bg-amber-100 rounded-2xl animate-ping opacity-60"
+              ></div>
+              <div
+                class="relative bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600 p-3.5 rounded-2xl border border-amber-200 shadow-sm transform transition-transform hover:scale-110 duration-300"
+              >
+                <Construction class="h-8 w-8" />
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <h4
+                class="text-lg font-bold text-gray-800 flex items-center justify-center gap-2"
+              >
+                Portfolio Demo Project
+                <span
+                  class="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-extrabold uppercase tracking-wider rounded-full border border-amber-200"
+                >
+                  Read Only / Reset Daily
+                </span>
+              </h4>
+              <p class="text-sm text-gray-600 leading-relaxed max-w-lg mx-auto">
+                This website is a showcase project developed for portfolio
+                demonstration purposes only.
+                <br class="hidden sm:block" />
+                All data and links are simulated and
+                <span class="font-semibold text-amber-700"
+                  >may be automatically reset at any time</span
+                >
+                without prior notice.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -306,3 +340,23 @@ onMounted(() => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+/* เพิ่ม Animation ให้แถบสี */
+.animate-gradient-x {
+  background-size: 200% auto;
+  animation: gradient 5s linear infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+</style>
