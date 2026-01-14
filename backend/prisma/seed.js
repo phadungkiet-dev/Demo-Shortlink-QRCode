@@ -1,10 +1,36 @@
 const { PrismaClient } = require("@prisma/client");
+const { Pool } = require("pg");
+const { PrismaPg } = require("@prisma/adapter-pg");
 const bcrypt = require("bcrypt");
+const path = require("path");
+
+// [---------- โหลด Environment Variables ----------]
+const envPath = path.join(__dirname, "../.env");
+require("dotenv").config({ path: envPath });
+
+// ตรวจสอบว่ามีค่า Connection String หรือไม่
+if (!process.env.DATABASE_URL && !process.env.DIRECT_URL) {
+  console.error("❌ Error: Missing DATABASE_URL or DIRECT_URL in .env");
+  console.error("Please check your .env file at:", envPath);
+  process.exit(1);
+}
+
+// [---------- Initialize Prisma Client with Adapter (แก้ไขจุดที่ Error) ----------]
+// ใช้ DIRECT_URL (Port 5432) สำหรับงาน Seed เพื่อความเสถียร
+// ใช้ DIRECT_URL (Port 5432) สำหรับงาน Seed เพื่อความเสถียร
+const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
+
+const pool = new Pool({ 
+  connectionString,
+  max: 5 // ใช้ connection น้อยๆ สำหรับ script seed ก็พอ
+});
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
+
 const { USER_ROLES, DEFAULTS, SECURITY } = require("../src/config/constants");
 const { generateSlug } = require("../src/utils/slug");
 const { addDays } = require("../src/utils/time");
-
-const prisma = new PrismaClient();
 
 // --- Helper Functions ---
 const randomInt = (min, max) =>
@@ -48,16 +74,14 @@ async function main() {
   console.log(`🌱 Start seeding (Big Data Mode - Users + Anonymous Links)...`);
 
   const password = "User#123";
-  const passwordHash = await bcrypt.hash(password, SECURITY.SALT_ROUNDS);
+  const passwordHash = await bcrypt.hash(password, SECURITY?.SALT_ROUNDS || 10);
 
   // Clear Old Data
   await prisma.click.deleteMany({});
   await prisma.link.deleteMany({});
   await prisma.user.deleteMany({});
 
-  // -----------------------------------------------------------------------
-  // Create Main Users
-  // -----------------------------------------------------------------------
+  // [---------- Create Main Users ----------]
   const admin = await prisma.user.create({
     data: {
       email: "admin@local.dev",
@@ -79,9 +103,7 @@ async function main() {
 
   console.log(`✅ Created Main Users: Admin & Demo User`);
 
-  // -----------------------------------------------------------------------
-  // Create Random Users & Links
-  // -----------------------------------------------------------------------
+  // [---------- Create Random Users & Links ----------]
   const users = [demoUser];
   const allLinks = [];
 

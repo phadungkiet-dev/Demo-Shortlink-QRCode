@@ -6,18 +6,18 @@ generator client {
 
 // กำหนด Database เป็น PostgreSQL
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  // url       = env("DATABASE_URL")
+  // directUrl = env("DIRECT_URL")
 }
 
 // --- ตารางผู้ใช้งาน (Users) ---
 model User {
   id           String  @id @default(uuid()) // เปลี่ยนเป็น UUID
   email        String  @unique
-  passwordHash String? @map("password_hash") // Map ชื่อ column ใน DB
+  passwordHash String? @map("password_hash")
   provider     String  @default("LOCAL") // 'LOCAL', 'GOOGLE'
-  providerId   String? @map("provider_id") // From google oauth
+  providerId   String? @map("provider_id") // ID จาก Google (ถ้าใช้ field นี้เป็นหลัก)
   role         String  @default("USER") // 'USER', 'ADMIN'
   isBlocked    Boolean @default(false) @map("is_blocked")
   linkLimit    Int     @default(10) @map("link_limit")
@@ -42,7 +42,8 @@ model Link {
   slug      String   @unique
   targetUrl String   @map("target_url")
   disabled  Boolean  @default(false)
-  expiredAt DateTime @map("expired_at")
+
+  expiredAt DateTime? @map("expired_at")
 
   // JSON เก็บ Config QR Code (ยืดหยุ่น ไม่ต้องแก้ Schema บ่อย)
   qrOptions Json? @map("qr_options")
@@ -63,7 +64,7 @@ model Link {
 
 // --- ตารางสถิติการคลิก (Clicks) ---
 model Click {
-  id        String  @id @default(uuid()) // เปลี่ยนเป็น UUID
+  id        String  @id @default(uuid()) 
   ip        String
   userAgent String? @map("user_agent")
   referrer  String?
@@ -81,16 +82,4 @@ model Click {
   @@index([linkId])
   @@index([createdAt]) // ช่วยให้ query กราฟย้อนหลังเร็วขึ้น
   @@map("clicks")
-}
-
-// --- ตาราง Session (สำหรับ express-session) ---
-// ใช้เก็บ Session การ Login ของ User ลง DB แทนที่จะเก็บใน RAM
-model Session {
-  sid    String   @id // Session ID
-  sess   Json // ข้อมูล Session (User ID, Cookie info)
-  expire DateTime @db.Timestamp(6) // เวลาหมดอายุ
-
-  // Map ชื่อตารางจริงใน DB ให้เป็น "user_sessions" (ตาม convention ของ connect-pg-simple)
-  @@index([expire], map: "IDX_session_expire")
-  @@map("user_sessions") // Index ช่วยให้ลบ Session หมดอายุได้เร็ว
 }
