@@ -1,35 +1,60 @@
+const passport = require("passport");
 const AppError = require("../utils/AppError");
 const { USER_ROLES } = require("../config/constants");
 
 /**
- * Middleware: ตรวจสอบว่า User ล็อกอินหรือยัง? (Authentication)
+ * Middleware: Authentication Guard (JWT)
+ * ตรวจสอบ Access Token จาก Header (Authorization: Bearer <token>)
  * หลักการทำงาน:
- * - Passport จะเช็ค Session Cookie ที่ส่งมา
- * - ถ้าถูกต้อง จะ Deserialize User จาก DB มาใส่ใน `req.user`
- * - ถ้า `req.isAuthenticated()` เป็น true แปลว่าผ่าน
+ * - ใช้ Passport JwtStrategy ตรวจสอบความถูกต้องและวันหมดอายุของ Token
+ * - ถ้าผ่าน: แนบ User Object ใส่ req.user แล้วไปต่อ
+ * - ถ้าไม่ผ่าน: ส่ง Error 401
  */
-const isAuthenticated = (req, res, next) => {
-  if (req.isAuthenticated()) {
-    return next(); // ผ่านด่านไปทำรายการต่อ
-  }
-  // ถ้าไม่ผ่าน ให้ส่ง Error 401 (Unauthorized) กลับไป
-  next(new AppError("Unauthorized. Please log in.", 401));
+const authGuard = (req, res, next) => {
+  passport.authenticate("jwt", { session: false }, (err, user, info) => {
+    // 1. Error จาก System/Database
+    if (err) {
+      return next(err);
+    }
+
+    // 2. Token ไม่ถูกต้อง / หมดอายุ / ไม่ส่งมา
+    if (!user) {
+      // info จะมีรายละเอียด Error ที่ Passport ส่งมา
+      // เช่น name: "TokenExpiredError", message: "jwt expired"
+      let errorMessage = "Unauthorized. Please log in.";
+
+      if (info) {
+        if (info.name === "TokenExpiredError") {
+          errorMessage = "Token expired"; // Keyword สำคัญให้ Frontend จับเพื่อ Refresh Token
+        } else if (info.message) {
+          errorMessage = info.message;
+        }
+      }
+
+      return next(new AppError(errorMessage, 401));
+    }
+
+    // 3. ผ่าน -> แนบ User เข้า Request
+    req.user = user;
+    next();
+  })(req, res, next);
 };
 
 /**
- * Middleware: ตรวจสอบว่าเป็น Admin หรือไม่? (Authorization)
- * *ต้องใช้คู่กับ isAuthenticated เสมอ*
+ * Middleware: Authorization Guard (Admin Only)
+ * *ต้องใช้ต่อจาก authGuard เสมอ*
  */
-const isAdmin = (req, res, next) => {
-  // ต้องล็อกอินแล้ว AND ต้องมี Role เป็น ADMIN
-  if (req.isAuthenticated() && req.user.role === USER_ROLES.ADMIN) {
+const adminGuard = (req, res, next) => {
+  // ตรวจสอบว่ามี req.user (จากการ Login) และ Role เป็น ADMIN หรือไม่
+  if (req.user && req.user.role === USER_ROLES.ADMIN) {
     return next();
   }
-  // ถ้าล็อกอินแล้วแต่ไม่ใช่ Admin ให้ส่ง 403 (Forbidden - ห้ามเข้า)
+
+  // ถ้าไม่ใช่ Admin
   next(new AppError("Forbidden. Admin access required.", 403));
 };
 
 module.exports = {
-  isAuthenticated,
-  isAdmin,
+  authGuard,
+  adminGuard,
 };

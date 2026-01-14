@@ -1,17 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("../controllers/adminController");
-const { isAuthenticated, isAdmin } = require("../middlewares/authGuard");
+const { authGuard, adminGuard } = require("../middlewares/authGuard");
 
-// -------------------------------------------------------------------
-// Security Gate (Admin Access Only)
-// -------------------------------------------------------------------
-// บังคับใช้ Authentication และ Authorization (Admin Role) กับทุก Route ในไฟล์นี้
-router.use(isAuthenticated, isAdmin);
+// [---------- Security Gate (Admin Access Only) ----------]
+// 1. authGuard: ตรวจสอบ Access Token (Login หรือยัง?)
+// 2. adminGuard: ตรวจสอบ Role (เป็น Admin หรือไม่?)
+router.use(authGuard, adminGuard);
 
-// -------------------------------------------------------------------
-// User Management Routes
-// -------------------------------------------------------------------
+// [---------- User Management Routes ----------]
 // Get All Users (with pagination & search)
 router.get("/users", adminController.getAllUsers);
 

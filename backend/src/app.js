@@ -1,10 +1,7 @@
-// -------------------------------------------------------------------
-// Initial Setup & Configurations
-// -------------------------------------------------------------------
+// [---------- Initial Setup & Configurations ----------]
 require("dotenv").config();
 
-// บังคับ Timezone ให้เป็นเวลาไทย (Asia/Bangkok) เสมอ เพื่อความถูกต้องของ Logs และ Cron Jobs
-// ถ้าไม่มีค่าใน .env จะใช้ 'Asia/Bangkok' เป็น Default
+// บังคับ Timezone ให้เป็นเวลาไทย (Asia/Bangkok)
 process.env.TZ = process.env.TIMEZONE || "Asia/Bangkok";
 
 // Import External Libraries
@@ -14,16 +11,13 @@ const cors = require("cors"); // จัดการ Cross-Origin Resource Sharin
 const compression = require("compression"); // บีบอัด Response (Gzip) ลดขนาดข้อมูล
 const morgan = require("morgan"); // Logger สำหรับ HTTP Requests
 const cookieParser = require("cookie-parser"); // แปลง Cookie header เป็น Object
-const session = require("express-session"); // ระบบ Session Management
 const passport = require("passport"); // Authentication Framework
-const csurf = require("csurf"); // ป้องกัน Cross-Site Request Forgery (CSRF)
 const path = require("path");
-const pg = require("pg"); // PostgreSQL Client
-const ConnectPgSimple = require("connect-pg-simple")(session); // Adapter เก็บ Session ลง Postgres
 
 // Import Internal Modules
 const { prisma } = require("./config/prisma");
-const { COOKIE, ROUTES } = require("./config/constants");
+// const { COOKIE, ROUTES } = require("./config/constants");
+const { ROUTES } = require("./config/constants");
 const logger = require("./utils/logger");
 const globalErrorHandler = require("./middlewares/errorHandler");
 const { redirectLimiter } = require("./middlewares/rateLimit");
@@ -46,24 +40,7 @@ const PORT = process.env.PORT || 3001;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const USE_HTTPS = process.env.USE_HTTPS === "true";
 
-// -------------------------------------------------------------------
-// Database & Session Store Configuration
-// -------------------------------------------------------------------
-// เชื่อมต่อ PostgreSQL
-const pgPool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-// กำหนดให้เก็บ Session ลงในฐานข้อมูล (Table: user_sessions)
-const sessionStore = new ConnectPgSimple({
-  pool: pgPool,
-  tableName: "user_sessions", // ข้อควรระวัง: [สร้างโดย prisma เรียบร้อยแล้ว]
-  createTableIfMissing: false, // Prisma จัดการเรื่อง Schema แล้ว
-});
-
-// -------------------------------------------------------------------
-// Security & Core Middlewares Setup
-// -------------------------------------------------------------------
+// [---------- Security & Core Middlewares Setup ----------]
 // Trust Proxy Configuration
 // จำเป็นมากเมื่อ Deploy บน Cloud (Render/Heroku/Nginx)
 // เพื่อให้ Express ได้ IP จริงของ User และรู้ Protocol (http/https) ที่ถูกต้อง
@@ -73,7 +50,7 @@ app.set("trust proxy", 1);
 // กำหนดว่า Domain ไหนบ้างที่มีสิทธิ์เรียก API
 const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(",") // รองรับหลาย Domain คั่นด้วย comma (,)
-  : ["http://localhost:5173"]; // Default Local Dev
+  : ["http://localhost:5173", "http://localhost:3000"]; // Default Local Dev
 
 app.use(
   cors({
@@ -176,56 +153,17 @@ app.use((req, res, next) => {
   return urlencodedSmall(req, res, next);
 });
 
-// app.use(express.json({ limit: "10mb" })); // รองรับ JSON (เพิ่ม Limit เผื่อส่งรูป Base64)
-// app.use(express.urlencoded({ extended: false, limit: "10mb" })); // รองรับ Form Data
+// [IMPORTANT] Cookie Parser: จำเป็นต้องมีเพื่ออ่าน Refresh Token ที่เป็น HttpOnly Cookie
+// process.env.SESSION_SECRET ใช้สำหรับ Signed Cookie (ถ้ามี)
 app.use(cookieParser(process.env.SESSION_SECRET)); // อ่าน Cookie
 
-// -------------------------------------------------------------------
-// Session & Authentication Middleware
-// -------------------------------------------------------------------
-// Cookie Configuration Object
-// ใช้ร่วมกันทั้ง Session และ CSRF เพื่อความสม่ำเสมอ
-const cookieConfig = {
-  httpOnly: true, // JavaScript เข้าถึงไม่ได้ (ป้องกัน XSS ขโมย Session)
-  // Secure:
-  // - Production (Render): ต้องเป็น true เสมอ (Render บังคับ HTTPS)
-  // - Development: false (http://localhost)
-  secure: IS_PRODUCTION || USE_HTTPS,
-  // SameSite:
-  // - 'none': จำเป็นสำหรับการส่ง Cookie ข้ามโดเมน (Vercel -> Render)
-  // - 'lax': ใช้สำหรับ Localhost หรือ Domain เดียวกัน
-  sameSite: IS_PRODUCTION ? "none" : "lax",
-  maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS || COOKIE.MAX_AGE), // อายุ Session
-  domain:
-    IS_PRODUCTION && process.env.COOKIE_DOMAIN
-      ? process.env.COOKIE_DOMAIN
-      : undefined,
-};
-
-// Session Middleware
-app.use(
-  session({
-    name: COOKIE.NAME,
-    store: sessionStore, // เก็บ Session ลง DB
-    secret: process.env.SESSION_SECRET, // Key สำหรับเข้ารหัส Session ID
-    resave: false, // ไม่บันทึกซ้ำถ้าไม่มีการเปลี่ยนแปลง (ลดโหลด DB)
-    saveUninitialized: false, // ไม่สร้าง Session จนกว่าจะมีข้อมูล (Login)
-    rolling: true, // ต่ออายุ Session ทุกครั้งที่มีการใช้งาน (User ไม่เด้งออก)
-    proxy: true, // จำเป็นสำหรับการทำงานหลัง Proxy (Render/Nginx)
-    cookie: cookieConfig,
-  })
-);
-
+// [---------- Authentication Middleware (Stateless JWT) ----------]
 // Initialize Passport (Authentication)
 app.use(passport.initialize());
-app.use(passport.session());
 // เพื่อให้ req.user มีค่าพร้อมใช้งาน
 app.use(auditLogger);
 
-// -------------------------------------------------------------------
-// Route Handling
-// -------------------------------------------------------------------
-
+// [---------- Route Handling ----------]
 // Static Files Route (สำหรับไฟล์รูปภาพที่ Upload)
 app.use("/uploads", express.static(path.join(__dirname, "../storage")));
 
@@ -246,20 +184,9 @@ app.get("/health", (req, res) => {
   });
 });
 
-// API Routes (Protected with CSRF)
-// เส้นทาง API ทั้งหมด (/api/*) จะถูกป้องกันด้วย CSRF Token
-const csrfProtection = csurf({
-  cookie: {
-    ...cookieConfig, // ใช้ Config เดียวกับ Session
-    key: COOKIE.SECRET_KEY,
-  },
-});
+app.use("/api", apiRouter);
 
-app.use("/api", csrfProtection, apiRouter);
-
-// -------------------------------------------------------------------
-// Error Handling & Jobs
-// -------------------------------------------------------------------
+// [---------- Error Handling & Jobs ----------]
 // 404 Not Found Handler (Global)
 // จำเป็นต้องมีไว้เพื่อดักจับ Request ที่หลุดรอดจาก Route ทั้งหมด (เช่น /random-path)
 const AppError = require("./utils/AppError");
@@ -283,7 +210,9 @@ const server = app.listen(PORT, () => {
     `🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
   );
   logger.info(
-    `🔒 Security Config: HTTPS=${USE_HTTPS}, SecureCookie=${cookieConfig.secure}, SameSite=${cookieConfig.sameSite}`
+    `🔒 Security Config: HTTPS=${USE_HTTPS}, SecureCookie=${
+      IS_PRODUCTION || USE_HTTPS
+    } (handled by Auth Controller)`
   );
 });
 

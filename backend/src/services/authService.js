@@ -1,18 +1,142 @@
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
 const { prisma } = require("../config/prisma");
 const AppError = require("../utils/AppError");
 const { sendEmail, resetPasswordTemplate } = require("../utils/email");
 const { DEFAULTS, USER_ROLES, SECURITY } = require("../config/constants");
 
+// Constants for JWT
+const JWT_SECRET = process.env.JWT_SECRET || "access_secret_should_be_changed";
+const JWT_REFRESH_SECRET =
+  process.env.JWT_REFRESH_SECRET || "refresh_secret_should_be_changed";
+const ACCESS_EXPIRES_IN = "15m"; // 15 นาที
+const REFRESH_EXPIRES_IN = "7d"; // 7 วัน
+
 /**
  * @function getSafeUser
- * @description ตัดข้อมูล Sensitive (เช่น Password Hash) ออกจาก User Object ก่อนส่งกลับไปให้ Client
+ * @description ตัดข้อมูล Sensitive ออกจาก User Object ก่อนส่งกลับ Client
  */
 const getSafeUser = (user) => {
   if (!user) return null;
-  const { passwordHash, ...safeUser } = user;
+  // ตัด passwordHash และข้อมูล sensitive อื่นๆ
+  const {
+    passwordHash,
+    resetPasswordToken,
+    resetPasswordExpires,
+    ...safeUser
+  } = user;
   return safeUser;
+};
+
+/**
+ * @function generateTokens
+ * @description สร้าง Access Token และ Refresh Token
+ */
+const generateTokens = (user) => {
+  const payload = { sub: user.id, role: user.role };
+
+  const accessToken = jwt.sign(payload, JWT_SECRET, {
+    expiresIn: ACCESS_EXPIRES_IN,
+  });
+
+  const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, {
+    expiresIn: REFRESH_EXPIRES_IN,
+  });
+
+  return { accessToken, refreshToken };
+};
+
+/**
+ * @function verifyUserCredentials
+ * @description ตรวจสอบ Email และ Password (สำหรับ Local Login)
+ */
+const verifyUserCredentials = async (email, password) => {
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user) {
+    throw new AppError("Incorrect email or password.", 401);
+  }
+
+  // ถ้าไม่มี passwordHash แสดงว่าเป็น User ที่สมัครผ่าน Google
+  if (!user.passwordHash) {
+    throw new AppError(
+      "This email is registered with Google. Please login with Google.",
+      400
+    );
+  }
+
+  const isMatch = await bcrypt.compare(password, user.passwordHash);
+  if (!isMatch) {
+    throw new AppError("Incorrect email or password.", 401);
+  }
+
+  return user;
+};
+
+/**
+ * @function handleGoogleAuth
+ * @description จัดการ Login/Register ผ่าน Google (Find or Create)
+ */
+const handleGoogleAuth = async (email, googleId, name, avatar) => {
+  let user = await prisma.user.findUnique({ where: { email } });
+
+  if (user) {
+    // ถ้ามี User อยู่แล้ว แต่ยังไม่มี googleId (เช่นเคยสมัคร Local ไว้) -> Link Account
+    if (!user.googleId) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleId,
+          avatar: user.avatar || avatar, // อัปเดตรูปถ้าของเดิมไม่มี
+        },
+      });
+    }
+  } else {
+    // สมัครสมาชิกใหม่
+    user = await prisma.user.create({
+      data: {
+        email,
+        name: name || "Google User",
+        googleId,
+        avatar,
+        provider: "GOOGLE",
+        role: USER_ROLES.USER,
+        linkLimit: DEFAULTS.LINK_LIMIT,
+        isVerified: true, // Google email ถือว่า verify แล้ว
+      },
+    });
+  }
+  return user;
+};
+
+/**
+ * @function refreshAccessToken
+ * @description ตรวจสอบ Refresh Token และออก Access Token ใหม่
+ */
+const refreshAccessToken = async (refreshToken) => {
+  try {
+    // 1. Verify Signature
+    const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
+
+    // 2. Check if user exists
+    const user = await prisma.user.findUnique({ where: { id: decoded.sub } });
+    if (!user) {
+      throw new AppError("User not found.", 401);
+    }
+
+    // 3. Generate new tokens
+    // หมายเหตุ: เราคืน accessToken ใหม่ ส่วน refreshToken อาจจะใช้ตัวเดิมหรือสร้างใหม่ก็ได้ (Rotation)
+    // ในที่นี้เลือกสร้างใหม่เฉพาะ Access Token เพื่อลดความซับซ้อนของ Client แต่ถ้าต้องการความปลอดภัยสูงสุดควรทำ Rotation
+    const tokens = generateTokens(user);
+
+    return {
+      accessToken: tokens.accessToken,
+      user,
+    };
+  } catch (err) {
+    throw new AppError("Invalid or expired refresh token.", 403);
+  }
 };
 
 /**
@@ -20,7 +144,6 @@ const getSafeUser = (user) => {
  * @description สมัครสมาชิกใหม่ (Local Provider)
  */
 const registerUser = async (email, password) => {
-  // ตรวจสอบว่ามีอีเมลนี้ในระบบหรือยัง
   const existingUser = await prisma.user.findUnique({
     where: { email },
   });
@@ -29,10 +152,8 @@ const registerUser = async (email, password) => {
     throw new AppError("Email address is already in use.", 409);
   }
 
-  // Use SECURITY.SALT_ROUNDS instead of 10
   const passwordHash = await bcrypt.hash(password, SECURITY.SALT_ROUNDS);
 
-  // สร้าง User ลง DB
   const newUser = await prisma.user.create({
     data: {
       email,
@@ -51,10 +172,8 @@ const registerUser = async (email, password) => {
  * @description เปลี่ยนรหัสผ่าน (เฉพาะ Local User)
  */
 const changePassword = async (userId, oldPassword, newPassword) => {
-  // ดึงข้อมูล User
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
-  // Safety Check: ต้องมี User และเป็นแบบ Local เท่านั้น
   if (!user || user.provider !== "LOCAL" || !user.passwordHash) {
     throw new AppError(
       "User not found or cannot change password for this account type.",
@@ -62,13 +181,11 @@ const changePassword = async (userId, oldPassword, newPassword) => {
     );
   }
 
-  // ตรวจสอบรหัสผ่านเก่า
   const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
   if (!isMatch) {
-    throw new AppError("Incorrect old password.", 401); // 401 Unauthorized
+    throw new AppError("Incorrect old password.", 401);
   }
 
-  // Hash รหัสใหม่และบันทึก
   const newPasswordHash = await bcrypt.hash(newPassword, SECURITY.SALT_ROUNDS);
   await prisma.user.update({
     where: { id: userId },
@@ -83,7 +200,6 @@ const changePassword = async (userId, oldPassword, newPassword) => {
  * @description ลบบัญชีผู้ใช้ถาวร
  */
 const deleteAccount = async (userId) => {
-  // ตรวจสอบก่อนว่ามี User ไหม (Optional แต่แนะนำเพื่อความชัวร์)
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     throw new AppError("User not found.", 404);
@@ -101,25 +217,18 @@ const deleteAccount = async (userId) => {
  * @description สร้าง Reset Token และส่งอีเมล
  */
 const forgotPassword = async (email) => {
-  // หา User จาก Email
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user || user.provider !== "LOCAL") {
-    // Security: ไม่บอกว่าหาไม่เจอ เพื่อป้องกัน Email Enumeration Attack
-    // แต่ถ้าเป็น Google OAuth อาจจะบอกหน่อยว่า "Email นี้ผูกกับ Google" (Optional)
+    // Security: Return generic message or specific if Google
     throw new AppError("There is no account with that email address.", 404);
   }
 
-  // สร้าง Reset Token (Random String)
   const resetToken = crypto.randomBytes(32).toString("hex");
-
-  // Hash Token ก่อนเก็บลง DB (เพื่อความปลอดภัย ถ้า DB หลุด Token ก็ยังใช้ไม่ได้ทันที)
   const hashedToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
-
-  // บันทึก Token และวันหมดอายุ (1 ชั่วโมง = 60 * 60 * 1000 ms)
   const expiresAt = new Date(Date.now() + DEFAULTS.PASSWORD_RESET_EXPIRY_MS);
 
   await prisma.user.update({
@@ -130,9 +239,6 @@ const forgotPassword = async (email) => {
     },
   });
 
-  // [Important] ใช้ FRONTEND_URL จาก ENV (ถ้าไม่มีให้ใช้ Localhost เป็น Default)
-  // ระวัง: .env เก่าอาจไม่มีตัวแปรนี้ ต้องแน่ใจว่าเพิ่มแล้ว หรือใช้ Logic แบบ controller ก็ได้
-  // แต่ใน Service ควรรับค่าที่ถูกต้องมาเลย
   const frontendUrl = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(",")[0]
     : "http://localhost:5173";
@@ -144,18 +250,16 @@ const forgotPassword = async (email) => {
     (Link expires in 1 hour)
   `;
 
-  // ส่งเมล
   try {
     await sendEmail({
       to: user.email,
       subject: "Password Reset Request",
-      text: textMessage, // Send the plain text version
-      html: resetPasswordTemplate(resetUrl), // Send the beautiful HTML version
+      text: textMessage,
+      html: resetPasswordTemplate(resetUrl),
     });
 
     return { message: "Email sent successfully." };
   } catch (err) {
-    // ถ้าส่งไม่ผ่าน ต้องล้าง Token ออกจาก DB เพื่อไม่ให้ค้าง
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -175,14 +279,12 @@ const forgotPassword = async (email) => {
  * @description ตรวจสอบ Token และตั้งรหัสผ่านใหม่
  */
 const resetPassword = async (token, newPassword) => {
-  // Hash Token ที่ได้จาก URL เพื่อไปเทียบกับใน DB
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
-  // หา User ที่มี Token นี้ และยังไม่หมดอายุ
   const user = await prisma.user.findFirst({
     where: {
       resetPasswordToken: hashedToken,
-      resetPasswordExpires: { gt: new Date() }, // Expires > Now
+      resetPasswordExpires: { gt: new Date() },
     },
   });
 
@@ -190,10 +292,8 @@ const resetPassword = async (token, newPassword) => {
     throw new AppError("Token is invalid or has expired.", 400);
   }
 
-  // Hash รหัสผ่านใหม่
   const passwordHash = await bcrypt.hash(newPassword, SECURITY.SALT_ROUNDS);
 
-  // อัปเดต User และล้าง Token ทิ้ง
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -216,7 +316,7 @@ const verifyResetToken = async (token) => {
   const user = await prisma.user.findFirst({
     where: {
       resetPasswordToken: hashedToken,
-      resetPasswordExpires: { gt: new Date() }, // ต้องยังไม่หมดอายุ
+      resetPasswordExpires: { gt: new Date() },
     },
   });
 
@@ -224,11 +324,15 @@ const verifyResetToken = async (token) => {
     throw new AppError("Token is invalid or has expired.", 400);
   }
 
-  return true; // Token ใช้ได้
+  return true;
 };
 
 module.exports = {
   getSafeUser,
+  generateTokens,
+  verifyUserCredentials,
+  handleGoogleAuth,
+  refreshAccessToken,
   registerUser,
   changePassword,
   deleteAccount,
