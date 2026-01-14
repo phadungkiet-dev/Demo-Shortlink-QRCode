@@ -3,18 +3,14 @@ const { ZodError } = require("zod");
 const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
 
-// -------------------------------------------------------------------
-// Helper Functions: แปลง Error แปลกๆ ให้เป็น AppError
-// -------------------------------------------------------------------
-
+// [---------- Helper Functions: แปลง Error แปลกๆ ให้เป็น AppError ----------]
 const handlePrismaUniqueError = (err) => {
-  const field =
-    err.meta && err.meta.target ? err.meta.target.join(", ") : "Field";
+  const field = err.meta?.target ? err.meta.target.join(", ") : "Field";
   const message = `Duplicate field value: ${field}. Please use another value.`;
   return new AppError(message, 409);
 };
 
-const handlePrismaNotFoundError = (err) => {
+const handlePrismaNotFoundError = () => {
   return new AppError("Record not found.", 404);
 };
 
@@ -27,16 +23,10 @@ const handleZodError = (err) => {
 const handleJWTError = () =>
   new AppError("Invalid token. Please log in again.", 401);
 
-const handleCSRFError = () =>
-  new AppError(
-    "Session invalid or expired. Please refresh and try again.",
-    403
-  );
+const handleJWTExpiredError = () =>
+  new AppError("Token expired. Please log in again.", 401);
 
-// -------------------------------------------------------------------
-// Response Generators
-// -------------------------------------------------------------------
-
+// [---------- Response Generators ----------]
 const sendErrorDev = (err, req, res) => {
   res.status(err.statusCode).json({
     status: err.status,
@@ -54,22 +44,20 @@ const sendErrorProd = (err, req, res) => {
         message: err.message,
       });
     }
-
-    logger.error("ERROR 💥", err);
-
+    // Programming or other unknown error: don't leak details
+    logger.error("ERROR :", err);
     return res.status(500).json({
       status: "error",
       message: "Something went wrong! Please try again later.",
     });
   }
 
-  logger.error("ERROR 💥", err);
+  // Rendered Website Errors (if any)
+  logger.error("ERROR :", err);
   return res.status(err.statusCode).send("Something went wrong!");
 };
 
-// -------------------------------------------------------------------
-// Main Middleware
-// -------------------------------------------------------------------
+// [---------- Main Middleware ----------]
 module.exports = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || "error";
@@ -77,12 +65,14 @@ module.exports = (err, req, res, next) => {
   if (process.env.NODE_ENV === "development") {
     sendErrorDev(err, req, res);
   } else if (process.env.NODE_ENV === "production") {
-    let error = { ...err };
+    let error = Object.create(err);
     error.message = err.message;
-    error.name = err.name;
-    error.code = err.code;
+    error.statusCode = err.statusCode;
+    error.status = err.status;
+    error.isOperational = err.isOperational; // Important!
 
-    // --- แปลง Error Types ---
+    // แปลง Error Types
+    // Prisma Errors
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
       // Prisma: Unique Constraint (P2002)
       if (err.code === "P2002") error = handlePrismaUniqueError(err);
@@ -93,9 +83,9 @@ module.exports = (err, req, res, next) => {
     // Zod Validation Errors
     if (err instanceof ZodError) error = handleZodError(err);
 
-    // CSRF & JWT Errors
-    if (err.code === "EBADCSRFTOKEN") error = handleCSRFError();
+    // JWT Errors
     if (err.name === "JsonWebTokenError") error = handleJWTError();
+    if (err.name === "TokenExpiredError") error = handleJWTExpiredError();
 
     sendErrorProd(error, req, res);
   }

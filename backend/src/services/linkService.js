@@ -56,9 +56,7 @@ const createLink = async (targetUrl, ownerId, customSlug = null) => {
         }
       }
 
-      // -------------------------------------------------------
-      // Create Link
-      // -------------------------------------------------------
+      // Create Link 
       return tx.link.create({
         data: {
           slug: slugToUse,
@@ -203,10 +201,10 @@ const findLinksByOwner = async (
 /**
  * Helper: ดึง Relative Path จาก URL
  */
-const getRelativePath = (fullUrl) => {
-  if (!fullUrl || !fullUrl.includes("/uploads/logos/")) return null;
-  return fullUrl.split("/uploads/logos/")[1];
-};
+// const getRelativePath = (fullUrl) => {
+//   if (!fullUrl || !fullUrl.includes("/uploads/logos/")) return null;
+//   return fullUrl.split("/uploads/logos/")[1];
+// };
 
 /**
  * @function updateLink

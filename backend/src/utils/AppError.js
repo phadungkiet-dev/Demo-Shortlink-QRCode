@@ -1,17 +1,13 @@
 /**
- * ============================================================================
+ * [---------- AppError ----------]
  * AppError - Custom Error Class
- * ============================================================================
- * หน้าที่: เป็น Error Object มาตรฐานของระบบที่สืบทอดมาจาก Error ปกติของ JS
- * ประโยชน์:
- * 1. ใช้ส่ง HTTP Status Code ได้ (เช่น 404, 400)
- * 2. ระบุได้ว่าเป็น "Operational Error" (Error ที่เราคาดการณ์ไว้ เช่น กรอกผิด)
- * เพื่อแยกออกจาก "Programming Error" (Bug ของระบบ)
+ * Custom Error Class for handling operational errors (e.g., 404 Not Found, 400 Bad Request)
+ * Distinguishes between trusted operational errors and programming bugs.
  */
 class AppError extends Error {
   /**
-   * @param {string} message - ข้อความแจ้งเตือน Error
-   * @param {number} statusCode - รหัส HTTP Status (เช่น 400, 404, 401)
+   * @param {string} message - Error message
+   * @param {number} statusCode - HTTP Status Code
    */
   constructor(message, statusCode) {
     // เรียก Constructor ของ Parent Class (Error) เพื่อเซ็ต message

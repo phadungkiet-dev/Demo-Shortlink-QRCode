@@ -18,7 +18,7 @@ const limitHandler = (req, res, next, options) => {
  */
 const createLinkLimiter = rateLimit({
   windowMs: RATE_LIMIT.CREATE.WINDOW_MS, // 1 ชั่วโมง
-  // Dev: ให้ 1000 ครั้ง (Test สบาย), Prod: 5 ครั้ง (กัน Spam)
+  // Dev: ให้ 1000 ครั้ง, Prod: 5 ครั้ง
   max: isDev ? RATE_LIMIT.CREATE.MAX_DEV : RATE_LIMIT.CREATE.MAX_PROD,
   message:
     "You have created too many links recently. Please log in for unlimited access.",

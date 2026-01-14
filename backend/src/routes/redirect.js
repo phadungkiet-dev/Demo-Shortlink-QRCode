@@ -2,9 +2,7 @@ const express = require("express");
 const router = express.Router();
 const redirectController = require("../controllers/redirectController");
 
-// -------------------------------------------------------------------
-// Redirect Route (เส้นทางสำหรับลิงก์ย่อ)
-// -------------------------------------------------------------------
+// [---------- Redirect Route ----------]
 
 // GET /:slug
 // URL จริงจะเป็น: http://domain.com/{PREFIX}/{SLUG}

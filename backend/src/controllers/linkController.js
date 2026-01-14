@@ -7,9 +7,7 @@ const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/AppError");
 const { ROUTES } = require("../config/constants");
 
-// -------------------------------------------------------------------
-// Create Shortlink
-// -------------------------------------------------------------------
+// [---------- Create Shortlink ----------]
 const createLink = catchAsync(async (req, res, next) => {
   // Validate Input
   const { targetUrl, slug } = createLinkSchema.parse(req.body);
@@ -51,9 +49,7 @@ const createLink = catchAsync(async (req, res, next) => {
   });
 });
 
-// -------------------------------------------------------------------
-// Get My Links
-// -------------------------------------------------------------------
+// [---------- Get My Links ----------]
 const getMyLinks = catchAsync(async (req, res, next) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 9;
@@ -82,9 +78,7 @@ const getMyLinks = catchAsync(async (req, res, next) => {
   });
 });
 
-// -------------------------------------------------------------------
-// Update Link
-// -------------------------------------------------------------------
+// [---------- Update Link ----------]
 const updateLink = catchAsync(async (req, res, next) => {
   const linkId = req.params.id;
 
@@ -102,9 +96,7 @@ const updateLink = catchAsync(async (req, res, next) => {
   });
 });
 
-// -------------------------------------------------------------------
-// Delete Link
-// -------------------------------------------------------------------
+// [---------- Delete Link ----------]
 const deleteLink = catchAsync(async (req, res, next) => {
   const linkId = req.params.id;
   const ownerId = req.user.id;

@@ -1,33 +1,34 @@
 const { DEFAULTS } = require("../config/constants");
-let nanoid;
+let nanoidGenerate;
 
 /**
  * @function loadNanoid
- * @description Helper สำหรับโหลด library 'nanoid' (ESM) ในสภาพแวดล้อม CommonJS
- * ใช้ Singleton Pattern เพื่อโหลดเพียงครั้งเดียวแล้วจำค่าไว้
+ * @description โหลด nanoid และตั้งค่า Custom Alphabet
+ * ตัดอักขระที่สับสนง่าย (l, 1, I, O, 0) และตัด Symbol (-_ ) ออกเพื่อให้ Clean URL
  */
 const loadNanoid = async () => {
-  if (!nanoid) {
-    const module = await import("nanoid");
-    nanoid = module.nanoid;
+  if (!nanoidGenerate) {
+    const { customAlphabet } = await import("nanoid");
+
+    const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    nanoidGenerate = customAlphabet(alphabet);
   }
-  return nanoid;
+  return nanoidGenerate;
 };
 
 /**
  * @function generateSlug
  * @description สร้างรหัสสุ่ม (Slug) สำหรับ Shortlink
- * ใช้ Nanoid ซึ่งมีความปลอดภัยสูง (Collision-resistant) และ URL-friendly (A-Za-z0-9_-)
- * * @param {number} [size=DEFAULTS.SLUG_SIZE] - ความยาวของ Slug (ค่า Default ดึงจาก Config)
- * @returns {Promise<string>} - รหัส Slug (Async function)
+ * @param {number} [size=DEFAULTS.SLUG_SIZE] - ความยาวของ Slug
+ * @returns {Promise<string>} - รหัส Slug
  */
 const generateSlug = async (size = DEFAULTS.SLUG_SIZE) => {
   // ตรวจสอบความถูกต้องของ size (Validation)
   const length = typeof size === "number" && size > 0 ? size : DEFAULTS.SLUG_SIZE;
 
   // โหลดและเรียกใช้ nanoid
-  const _nanoid = await loadNanoid();
-  return _nanoid(length);
+  const generate = await loadNanoid();
+  return generate(length);
 };
 
 module.exports = {

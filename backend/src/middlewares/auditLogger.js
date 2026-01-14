@@ -12,11 +12,11 @@ const auditLogger = (req, res, next) => {
 
     // บันทึก Log: [ROLE] Email (ID) -> Method URL
     logger.info(
-      `👤 User Access: [${role}] ${email} (${id}) request to ${req.method} ${req.originalUrl}`
+      `User Access: [${role}] ${email} (${id}) request to ${req.method} ${req.originalUrl}`
     );
   } else {
     // (Optional) ถ้าอยากรู้ว่าคนนอก (Anonymous) เข้ามาทำอะไรบ้าง ให้เปิดบรรทัดนี้
-    logger.debug(`👽 Anon Access: ${req.method} ${req.originalUrl}`);
+    logger.debug(`Anon Access: ${req.method} ${req.originalUrl}`);
   }
 
   next(); // ปล่อยให้ทำงานต่อไปยัง Controller

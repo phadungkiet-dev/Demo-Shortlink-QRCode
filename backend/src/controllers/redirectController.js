@@ -1,9 +1,7 @@
 const linkService = require("../services/linkService");
 const catchAsync = require("../utils/catchAsync");
 
-// -------------------------------------------------------------------
-// Handle Redirect
-// -------------------------------------------------------------------
+// [---------- Handle Redirect ----------]
 const handleRedirect = catchAsync(async (req, res, next) => {
   const { slug } = req.params;
   if (!slug) {
@@ -25,7 +23,7 @@ const handleRedirect = catchAsync(async (req, res, next) => {
   if (!targetUrl) {
     // Redirect ไปหน้า 404 ของ Frontend
     // Logic การดึง Frontend URL ให้เหมือน authController
-    const rawFrontendUrl = process.env.FRONTEND_URL || process.env.CORS_ORIGIN;
+    const rawFrontendUrl = process.env.FRONTEND_URL;
     const frontendUrl = rawFrontendUrl
       ? rawFrontendUrl.split(",")[0]
       : "http://localhost:5173";

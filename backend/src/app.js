@@ -1,10 +1,11 @@
 // [---------- Initial Setup & Configurations ----------]
+// Load environment variables first
 require("dotenv").config();
 
-// บังคับ Timezone ให้เป็นเวลาไทย (Asia/Bangkok)
+// Force Timezone to Asia/Bangkok (or value from .env)
 process.env.TZ = process.env.TIMEZONE || "Asia/Bangkok";
 
-// Import External Libraries
+// [---------- Import External Libraries ----------]
 const express = require("express");
 const helmet = require("helmet"); // ความปลอดภัย HTTP Headers (ป้องกัน XSS, Clickjacking)
 const cors = require("cors"); // จัดการ Cross-Origin Resource Sharing
@@ -14,36 +15,34 @@ const cookieParser = require("cookie-parser"); // แปลง Cookie header เ
 const passport = require("passport"); // Authentication Framework
 const path = require("path");
 
-// Import Internal Modules
+// [---------- Import Internal Modules ----------]
 const { prisma } = require("./config/prisma");
-// const { COOKIE, ROUTES } = require("./config/constants");
 const { ROUTES } = require("./config/constants");
 const logger = require("./utils/logger");
 const globalErrorHandler = require("./middlewares/errorHandler");
 const { redirectLimiter } = require("./middlewares/rateLimit");
 const initCronJobs = require("./jobs/cron");
 const auditLogger = require("./middlewares/auditLogger");
+const AppError = require("./utils/AppError");
 
-// Load Passport Configuration (Strategy Setup)
+// Load Passport Strategy (JWT)
 require("./config/passport");
 
-// Import Routes
+// [---------- Import Routes ----------]
 const redirectRouter = require("./routes/redirect");
 const apiRouter = require("./routes/index"); // รวม API Routes ทั้งหมดไว้ที่นี่
 
-// Initialize Express App
+// [---------- Initialize Express App ----------]
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// --- Environment Flags ---
-// ตรวจสอบโหมดการทำงาน (Production/Development)
+// Environment Flags
+// ตรวจสอบโหมดการทำงาน (Development/Production)
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const USE_HTTPS = process.env.USE_HTTPS === "true";
 
 // [---------- Security & Core Middlewares Setup ----------]
-// Trust Proxy Configuration
-// จำเป็นมากเมื่อ Deploy บน Cloud (Render/Heroku/Nginx)
-// เพื่อให้ Express ได้ IP จริงของ User และรู้ Protocol (http/https) ที่ถูกต้อง
+// Trust Proxy: Required for Cloud Deployment (Render/Nginx) to get real IP
 app.set("trust proxy", 1);
 
 // CORS Configuration (Cross-Origin Resource Sharing)
@@ -55,7 +54,7 @@ const allowedOrigins = process.env.FRONTEND_URL
 app.use(
   cors({
     origin: (origin, callback) => {
-      // อนุญาต request ที่ไม่มี origin (เช่น Server-to-Server, Mobile App, curl)
+      // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
 
       // ตรวจสอบว่า origin อยู่ใน whitelist หรือไม่
@@ -97,7 +96,8 @@ app.use(
 // Compression: บีบอัด Response (Gzip)
 app.use(compression());
 
-// กำหนด Token 'date-local' ให้ Morgan ใช้เวลาตามเครื่อง (ซึ่งเราตั้ง TZ เป็น Asia/Bangkok ไว้แล้ว)
+// Logger (Morgan + Winston)
+// Define token for local time
 morgan.token("date-local", () => {
   return new Date()
     .toLocaleString("en-CA", {
@@ -142,20 +142,18 @@ const shouldAllowLargeBody = (req) => {
 
 // Middleware: เลือกใช้ Parser ตามเงื่อนไข
 app.use((req, res, next) => {
-  const isLarge = shouldAllowLargeBody(req);
-  if (isLarge) return jsonLarge(req, res, next);
-  return jsonSmall(req, res, next);
+  const parser = shouldAllowLargeBody(req) ? jsonLarge : jsonSmall;
+  parser(req, res, next);
 });
 
 app.use((req, res, next) => {
-  const isLarge = shouldAllowLargeBody(req);
-  if (isLarge) return urlencodedLarge(req, res, next);
-  return urlencodedSmall(req, res, next);
+  const parser = shouldAllowLargeBody(req) ? urlencodedLarge : urlencodedSmall;
+  parser(req, res, next);
 });
 
 // [IMPORTANT] Cookie Parser: จำเป็นต้องมีเพื่ออ่าน Refresh Token ที่เป็น HttpOnly Cookie
 // process.env.SESSION_SECRET ใช้สำหรับ Signed Cookie (ถ้ามี)
-app.use(cookieParser(process.env.SESSION_SECRET)); // อ่าน Cookie
+app.use(cookieParser()); // อ่าน Cookie
 
 // [---------- Authentication Middleware (Stateless JWT) ----------]
 // Initialize Passport (Authentication)
@@ -184,12 +182,12 @@ app.get("/health", (req, res) => {
   });
 });
 
+// API Routes
 app.use("/api", apiRouter);
 
 // [---------- Error Handling & Jobs ----------]
 // 404 Not Found Handler (Global)
 // จำเป็นต้องมีไว้เพื่อดักจับ Request ที่หลุดรอดจาก Route ทั้งหมด (เช่น /random-path)
-const AppError = require("./utils/AppError");
 app.all(/.*/, (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
@@ -198,25 +196,24 @@ app.all(/.*/, (req, res, next) => {
 // ดักจับ Error ทั้งหมดที่ถูกส่งมาจาก next(err) เพื่อส่ง Response ที่เหมาะสม
 app.use(globalErrorHandler);
 
+// [---------- BACKGROUND JOBS ----------]
 // Init Cron Jobs (งานเบื้องหลังตามเวลา)
 // เช่น ลบลิงก์ Anonymous ที่หมดอายุ
 initCronJobs();
 
-// -------------------------------------------------------------------
-// Server Start & Graceful Shutdown
-// -------------------------------------------------------------------
+// [---------- SERVER STARTUP ----------]
 const server = app.listen(PORT, () => {
   logger.info(
-    `🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
+    `/ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
   );
   logger.info(
-    `🔒 Security Config: HTTPS=${USE_HTTPS}, SecureCookie=${
+    `Security Config: HTTPS=${USE_HTTPS}, SecureCookie=${
       IS_PRODUCTION || USE_HTTPS
-    } (handled by Auth Controller)`
+    }`
   );
 });
 
-// Graceful Shutdown Logic
+// [---------- GRACEFUL SHUTDOWN ----------]
 // รองรับการปิด Server เมื่อได้รับสัญญาณ (SIGTERM/SIGINT)
 // ปิดรับ Request ใหม่ -> รอ Process จบ -> ปิด DB Connection
 const gracefulShutdown = async (signal) => {
@@ -242,12 +239,12 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 // Global Error Catching (Last Resort)
 // ดักจับ Error ร้ายแรงที่หลุดรอดจาก Express
 process.on("uncaughtException", (err) => {
-  logger.error("UNCAUGHT EXCEPTION! 💥 Shutting down...", err);
+  logger.error("UNCAUGHT EXCEPTION! Shutting down...", err);
   process.exit(1); // ต้องปิด Process ทันทีเพื่อความปลอดภัย
 });
 
 process.on("unhandledRejection", (err) => {
-  logger.error("UNHANDLED REJECTION! 💥 Shutting down...", err);
+  logger.error("UNHANDLED REJECTION! Shutting down...", err);
   server.close(() => process.exit(1)); // รอ Request จบแล้วค่อยปิด
 });
 

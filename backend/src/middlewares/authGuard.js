@@ -12,12 +12,12 @@ const { USER_ROLES } = require("../config/constants");
  */
 const authGuard = (req, res, next) => {
   passport.authenticate("jwt", { session: false }, (err, user, info) => {
-    // 1. Error จาก System/Database
+    // Error จาก System/Database
     if (err) {
       return next(err);
     }
 
-    // 2. Token ไม่ถูกต้อง / หมดอายุ / ไม่ส่งมา
+    // Token ไม่ถูกต้อง / หมดอายุ / ไม่ส่งมา
     if (!user) {
       // info จะมีรายละเอียด Error ที่ Passport ส่งมา
       // เช่น name: "TokenExpiredError", message: "jwt expired"
@@ -34,7 +34,7 @@ const authGuard = (req, res, next) => {
       return next(new AppError(errorMessage, 401));
     }
 
-    // 3. ผ่าน -> แนบ User เข้า Request
+    // ผ่าน -> แนบ User เข้า Request
     req.user = user;
     next();
   })(req, res, next);

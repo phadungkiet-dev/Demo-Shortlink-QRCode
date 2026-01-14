@@ -9,9 +9,9 @@ const authService = require("../services/authService");
 const AppError = require("../utils/AppError");
 const catchAsync = require("../utils/catchAsync");
 const logger = require("../utils/logger");
-const { COOKIE } = require("../config/constants");
+const { AUTH } = require("../config/constants");
 
-// Config Cookie สำหรับ Refresh Token
+// [---------- Cookie Configuration ----------]
 const cookieOptions = {
   httpOnly: true, // Client JS อ่านไม่ได้ (ป้องกัน XSS)
   secure:
@@ -20,17 +20,18 @@ const cookieOptions = {
   // - 'none' ถ้า Frontend/Backend คนละ Domain (และต้องมี Secure=true)
   // - 'lax' ถ้า Domain เดียวกัน หรือ Localhost
   sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
+  maxAge: parseInt(process.env.COOKIE_MAX_AGE_MS) || 7 * 24 * 60 * 60 * 1000, // 7 วัน
   path: "/", // ให้ Cookie ส่งไปทุก Path
 };
 
+// [---------- Helper ----------]
 // --- Helper: ส่ง Token Response ---
 const sendTokenResponse = (user, statusCode, res) => {
   // สร้าง Token คู่ (Access + Refresh)
   const { accessToken, refreshToken } = authService.generateTokens(user);
 
   // ส่ง Refresh Token ไปเก็บใน HttpOnly Cookie
-  res.cookie("refreshToken", refreshToken, cookieOptions);
+  res.cookie(AUTH.REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
 
   // ส่ง Access Token และข้อมูล User ไปใน Response Body (JSON)
   res.status(statusCode).json({
@@ -66,7 +67,7 @@ const loginLocal = (req, res, next) => {
 // [---------- Logout ----------]
 const logout = (req, res) => {
   // เคลียร์ Refresh Token Cookie
-  res.clearCookie("refreshToken", {
+  res.clearCookie(AUTH.REFRESH_COOKIE_NAME, {
     ...cookieOptions,
     maxAge: 0, // หมดอายุทันที
   });
@@ -79,7 +80,7 @@ const logout = (req, res) => {
 // [---------- Refresh Token ----------]
 const refreshToken = catchAsync(async (req, res, next) => {
   // อ่าน Refresh Token จาก Cookie
-  const refreshToken = req.cookies.refreshToken;
+  const refreshToken = req.cookies[AUTH.REFRESH_COOKIE_NAME];
 
   if (!refreshToken) {
     return next(
@@ -121,7 +122,7 @@ const getMe = (req, res) => {
 const googleAuth = (req, res, next) => {
   passport.authenticate("google", {
     scope: ["profile", "email"],
-    session: false, // สำคัญ: ปิด Session
+    session: false,
   })(req, res, next);
 };
 
@@ -140,10 +141,10 @@ const googleCallback = (req, res, next) => {
     // Login สำเร็จ -> สร้าง Token
     const { refreshToken } = authService.generateTokens(user);
 
-    // 1. ฝาก Refresh Token ใน Cookie
-    res.cookie("refreshToken", refreshToken, cookieOptions);
+    // ฝาก Refresh Token ใน Cookie
+    res.cookie(AUTH.REFRESH_COOKIE_NAME, refreshToken, cookieOptions);
 
-    // 2. Redirect กลับ Frontend
+    // Redirect กลับ Frontend
     // ให้ Frontend ยิง /api/auth/refresh-token อีกทีเพื่อเอา Access Token
     res.redirect(`${frontendUrl}/auth/callback`);
   })(req, res, next);
@@ -194,14 +195,14 @@ const deleteAccount = catchAsync(async (req, res, next) => {
   await authService.deleteAccount(req.user.id);
 
   // ลบ Cookie ออกด้วย
-  res.clearCookie("refreshToken", cookieOptions);
+  res.clearCookie(AUTH.REFRESH_COOKIE_NAME, cookieOptions);
 
   res
     .status(200)
     .json({ status: "success", message: "Account deleted successfully." });
 });
 
-// [---------- Forgot ----------]
+// [---------- Forgot Password ----------]
 const forgotPassword = catchAsync(async (req, res, next) => {
   const { email } = req.body;
   if (!email) throw new AppError("Please provide your email address.", 400);
@@ -235,7 +236,7 @@ const verifyResetToken = catchAsync(async (req, res, next) => {
 module.exports = {
   loginLocal,
   logout,
-  refreshToken, // [ADDED]
+  refreshToken,
   changePassword,
   getMe,
   googleAuth,

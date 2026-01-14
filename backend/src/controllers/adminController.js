@@ -4,9 +4,7 @@ const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/AppError");
 const { ROUTES } = require("../config/constants");
 
-// -------------------------------------------------------------------
-// Get All Users (with Filtering & Pagination)
-// -------------------------------------------------------------------
+// [---------- Get All Users (with Filtering & Pagination) ----------]
 const getAllUsers = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
   const page = parseInt(req.query.page) || 1;
@@ -41,9 +39,7 @@ const getAllUsers = catchAsync(async (req, res, next) => {
   });
 });
 
-// -------------------------------------------------------------------
-// Update User Status (Block/Unblock)
-// -------------------------------------------------------------------
+// [---------- Update User Status (Block/Unblock) ----------]
 const updateUserStatus = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
   const userIdToUpdate = req.params.id;
@@ -66,9 +62,7 @@ const updateUserStatus = catchAsync(async (req, res, next) => {
   res.json(updatedUser);
 });
 
-// -------------------------------------------------------------------
-// Delete User
-// -------------------------------------------------------------------
+// [---------- Delete User ----------]
 const deleteUser = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
   const userIdToDelete = req.params.id;
@@ -77,9 +71,7 @@ const deleteUser = catchAsync(async (req, res, next) => {
   res.json(result);
 });
 
-// -------------------------------------------------------------------
-// Change User Role
-// -------------------------------------------------------------------
+// [---------- Change User Role ----------]
 const changeUserRole = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
   const userIdToUpdate = req.params.id;
@@ -93,9 +85,7 @@ const changeUserRole = catchAsync(async (req, res, next) => {
   res.json(updatedUser);
 });
 
-// -------------------------------------------------------------------
-// Update User Limit
-// -------------------------------------------------------------------
+// [---------- Update User Limit ----------]
 const updateUserLimit = catchAsync(async (req, res, next) => {
   const adminId = req.user.id;
   const userIdToUpdate = req.params.id;
@@ -113,9 +103,7 @@ const updateUserLimit = catchAsync(async (req, res, next) => {
   res.json(updatedUser);
 });
 
-// -------------------------------------------------------------------
-// Get User Links (View as Admin)
-// -------------------------------------------------------------------
+// [---------- Get User Links (View as Admin) ----------]
 const getUserLinks = catchAsync(async (req, res, next) => {
   const userId = req.params.id;
   const page = parseInt(req.query.page) || 1;

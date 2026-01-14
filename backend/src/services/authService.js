@@ -7,11 +7,10 @@ const { sendEmail, resetPasswordTemplate } = require("../utils/email");
 const { DEFAULTS, USER_ROLES, SECURITY } = require("../config/constants");
 
 // Constants for JWT
-const JWT_SECRET = process.env.JWT_SECRET || "access_secret_should_be_changed";
-const JWT_REFRESH_SECRET =
-  process.env.JWT_REFRESH_SECRET || "refresh_secret_should_be_changed";
-const ACCESS_EXPIRES_IN = "15m"; // 15 นาที
-const REFRESH_EXPIRES_IN = "7d"; // 7 วัน
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
+const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
 
 /**
  * @function getSafeUser
@@ -19,7 +18,6 @@ const REFRESH_EXPIRES_IN = "7d"; // 7 วัน
  */
 const getSafeUser = (user) => {
   if (!user) return null;
-  // ตัด passwordHash และข้อมูล sensitive อื่นๆ
   const {
     passwordHash,
     resetPasswordToken,
@@ -58,7 +56,7 @@ const verifyUserCredentials = async (email, password) => {
     throw new AppError("Incorrect email or password.", 401);
   }
 
-  // ถ้าไม่มี passwordHash แสดงว่าเป็น User ที่สมัครผ่าน Google
+  // Check provider type
   if (!user.passwordHash) {
     throw new AppError(
       "This email is registered with Google. Please login with Google.",
@@ -83,12 +81,12 @@ const handleGoogleAuth = async (email, googleId, name, avatar) => {
 
   if (user) {
     // ถ้ามี User อยู่แล้ว แต่ยังไม่มี googleId (เช่นเคยสมัคร Local ไว้) -> Link Account
-    if (!user.googleId) {
+    if (!user.providerId) {
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
-          googleId,
-          avatar: user.avatar || avatar, // อัปเดตรูปถ้าของเดิมไม่มี
+          provider: "GOOGLE",
+          providerId: googleId,
         },
       });
     }
@@ -97,13 +95,10 @@ const handleGoogleAuth = async (email, googleId, name, avatar) => {
     user = await prisma.user.create({
       data: {
         email,
-        name: name || "Google User",
-        googleId,
-        avatar,
         provider: "GOOGLE",
+        providerId: googleId,
         role: USER_ROLES.USER,
         linkLimit: DEFAULTS.LINK_LIMIT,
-        isVerified: true, // Google email ถือว่า verify แล้ว
       },
     });
   }
@@ -116,10 +111,10 @@ const handleGoogleAuth = async (email, googleId, name, avatar) => {
  */
 const refreshAccessToken = async (refreshToken) => {
   try {
-    // 1. Verify Signature
+    // Verify Signature
     const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
 
-    // 2. Check if user exists
+    // Check if user exists
     const user = await prisma.user.findUnique({ where: { id: decoded.sub } });
     if (!user) {
       throw new AppError("User not found.", 401);
@@ -229,6 +224,7 @@ const forgotPassword = async (email) => {
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
+
   const expiresAt = new Date(Date.now() + DEFAULTS.PASSWORD_RESET_EXPIRY_MS);
 
   await prisma.user.update({
@@ -260,6 +256,7 @@ const forgotPassword = async (email) => {
 
     return { message: "Email sent successfully." };
   } catch (err) {
+    // Rollback token if email fails
     await prisma.user.update({
       where: { id: user.id },
       data: {

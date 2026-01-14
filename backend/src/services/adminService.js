@@ -99,6 +99,7 @@ const updateUserStatus = async (userId, adminId, isBlocked) => {
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!targetUser) throw new AppError("User not found.", 404);
+
   if (targetUser.role === USER_ROLES.ADMIN)
     throw new AppError("Cannot block another Admin.", 403);
 
@@ -121,8 +122,8 @@ const deleteUser = async (userId, adminId) => {
     throw new AppError("Cannot delete your own account.", 400);
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId } });
-
   if (!targetUser) throw new AppError("User not found.", 404);
+  
   if (targetUser.role === USER_ROLES.ADMIN)
     throw new AppError("Cannot delete another Admin.", 403);
 

@@ -6,32 +6,33 @@ const ExtractJwt = require("passport-jwt").ExtractJwt;
 const { prisma } = require("./prisma");
 const authService = require("../services/authService");
 require("dotenv").config();
-const AppError = require("../utils/AppError");
 
 // [---------- JWT Strategy (สำหรับ Protected Routes) ----------]
+// ตรวจสอบ Token ที่แนบมาใน Header: Authorization: Bearer <token>
 const jwtOptions = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-  secretOrKey: process.env.JWT_SECRET || "access_secret_should_be_changed",
-  // algorithm: ["HS256"] // Default is HS256
+  secretOrKey: process.env.JWT_SECRET || "63f4945d921d599f27ae4fdf5bada3f2",
 };
 
 passport.use(
   new JwtStrategy(jwtOptions, async (payload, done) => {
     try {
-      // payload.sub คือ userId ที่เราฝังไว้ตอน sign token
-      // ตรวจสอบว่า User ยังมีตัวตนอยู่จริงใน DB (และไม่โดนแบน)
+      // payload.sub คือ User ID ที่ฝังไว้ใน Token
       const user = await prisma.user.findUnique({
         where: { id: payload.sub },
       });
 
+      // ถ้าไม่เจอ User (เช่น ถูกลบไปแล้ว) -> Token ถือว่าโมฆะ
       if (!user) {
-        return done(null, false); // Token ถูกต้องแต่ไม่พบ User
+        return done(null, false);
       }
 
-      // [Optional] เช็คสถานะโดนแบนตรงนี้ก็ได้ ถ้าต้องการให้ Token ใช้ไม่ได้ทันทีที่โดนแบน
-      // if (user.isBlocked) return done(null, false);
+      // [Security] ถ้า User โดนแบน ให้ปฏิเสธทันที
+      if (user.isBlocked) {
+        return done(null, false);
+      }
 
-      // ส่ง user object ไปให้ req.user
+      // ผ่าน -> แนบ User Object ไปที่ req.user
       return done(null, user);
     } catch (error) {
       return done(error, false);
@@ -45,25 +46,24 @@ passport.use(
     {
       usernameField: "email",
       passwordField: "password",
-      session: false, // Explicitly state no session
+      session: false, // เราใช้ JWT ไม่ใช้ Session
     },
     async (email, password, done) => {
       try {
-        // Delegate logic ไปที่ authService
+        // ให้ authService ตรวจสอบความถูกต้อง
         const user = await authService.verifyUserCredentials(email, password);
 
-        // เช็คสถานะโดนแบน (Logic นี้อาจจะซ้ำกับ Service แต่ใส่ไว้เพื่อความชัวร์ในระดับ Strategy)
+        // ตรวจสอบสถานะโดนแบน
         if (user.isBlocked) {
           return done(null, false, {
             message: "Your account has been suspended.",
           });
         }
 
-        // Login ผ่าน! ส่ง user object ไปให้ Passport
+        // ผ่าน -> ส่ง User กลับไปเพื่อสร้าง Token
         return done(null, user);
       } catch (error) {
-        // กรณี Password ผิด หรือไม่พบ User หรือ Service throw error มา
-        // ส่ง false พร้อม message เพื่อให้ Passport handle เป็น 401
+        // กรณี User/Pass ผิด หรือ Error อื่นๆ
         return done(null, false, { message: error.message });
       }
     }
@@ -87,29 +87,22 @@ passport.use(
           profile.emails && profile.emails[0] ? profile.emails[0].value : null;
         const displayName = profile.displayName;
         const googleId = profile.id;
-        const avatar =
-          profile.photos && profile.photos[0] ? profile.photos[0].value : null;
 
         if (!email) {
           return done(new Error("No email found from Google profile."), false);
         }
-        // if (!email) {
-        //   return done(
-        //     new AppError("No email found from Google profile.", 400),
-        //     null
-        //   );
-        // }
 
-        // ใช้ Service จัดการ Find or Create
+        // ส่งข้อมูลให้ Service จัดการ (Find or Create)
         const user = await authService.handleGoogleAuth(
           email,
           googleId,
           displayName,
-          avatar
         );
 
         if (user.isBlocked) {
-          return done(null, false, { message: "Your account has been suspended." });
+          return done(null, false, {
+            message: "Your account has been suspended.",
+          });
         }
 
         return done(null, user);

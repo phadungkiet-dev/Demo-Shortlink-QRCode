@@ -3,14 +3,20 @@ const { PrismaPg } = require("@prisma/adapter-pg");
 const { PrismaClient } = require("@prisma/client");
 
 // [---------- Database Connection Setup (Runtime) ----------]
-// อ่านค่า DATABASE_URL (Transaction Pooler - Port 6543) จาก .env
-// ต้องมั่นใจว่า process.env.DATABASE_URL มีค่าอยู่จริง
+// [DATABASE CONNECTION SETUP]
+// Validate Environment Variable
+if (!process.env.DATABASE_URL) {
+  console.error("Error: DATABASE_URL is missing in .env");
+  process.exit(1);
+}
+
+// Connection String (Transaction Pooler - Port 6543)
 const connectionString = process.env.DATABASE_URL;
 
-// สร้าง PostgreSQL Connection Pool
+// Create PostgreSQL Connection Pool
 const pool = new Pool({
   connectionString,
-  // ตั้งค่า Pool Size ให้เหมาะสม (Supabase Pooler จัดการให้แล้ว ไม่ต้องตั้งเยอะ)
+  // ตั้งค่า Pool Size ให้เหมาะสม (Supabase Pooler)
   max: 10,
 });
 
@@ -23,8 +29,8 @@ const prisma = new PrismaClient({
   adapter,
   log:
     process.env.NODE_ENV === "development"
-      ? ["query", "error", "warn"] // Dev: เห็น Query
-      : ["error"], // Prod: เห็นแค่ Error
+      ? ["query", "error", "warn"] // Dev: Show detailed logs
+      : ["error"], // Prod: Errors only
 });
 
 module.exports = { prisma };

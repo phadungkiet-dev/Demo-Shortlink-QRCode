@@ -3,7 +3,7 @@ require("winston-daily-rotate-file");
 const path = require("path");
 const fs = require("fs");
 
-// สร้างโฟลเดอร์ logs ถ้ายังไม่มี
+// [---------- Initialization ----------]
 const logDir = "logs";
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir);

@@ -1,80 +1,69 @@
 module.exports = {
-  // --- สิทธิ์ผู้ใช้งาน (User Roles) ---
+  // [---------- User Roles ----------]
   USER_ROLES: {
     ADMIN: "ADMIN",
     USER: "USER",
   },
-
-  // --- การตั้งค่าเส้นทาง (Routes Configuration) ---
+  // [---------- Routes Configuration ----------]
   ROUTES: {
     SHORT_LINK_PREFIX: "sl", // Prefix ของลิงก์ย่อ (เช่น domain.com/sl/xxxx)
   },
-
-  // --- ความปลอดภัย (Security) ---
+  // [---------- Security Constants ----------]
   SECURITY: {
-    SALT_ROUNDS: 10, // ความยากในการ Hash Password (มาตรฐานปัจจุบันคือ 10-12)
+    SALT_ROUNDS: 10, // ความยากในการ Hash Password (Bcrypt)
   },
-
-  // --- ค่าเริ่มต้นของระบบ (System Defaults) ---
+  // [---------- Authentication & Cookies (JWT System) ----------]
+  AUTH: {
+    // ชื่อ Cookie ที่ใช้เก็บ Refresh Token (HttpOnly)
+    REFRESH_COOKIE_NAME: "shortlink_refresh_token",
+  },
+  // [---------- System Defaults ----------]
   DEFAULTS: {
-    LINK_LIMIT: 10, // ผู้ใช้ทั่วไปสร้างได้ไม่เกิน 10 ลิงก์ (ป้องกัน DB บวม)
-    ANON_LINK_EXPIRY_DAYS: 7, // ลิงก์จากคนไม่ล็อกอิน อยู่ได้ 7 วัน
-    USER_LINK_EXPIRY_DAYS: 30, // ลิงก์จากสมาชิก อยู่ได้ 30 วัน
-
+    LINK_LIMIT: 10, // ผู้ใช้ทั่วไปสร้างได้ไม่เกิน 10 ลิงก์
+    // อายุ links
+    ANON_LINK_EXPIRY_DAYS: 7, // Guest: 7 วัน
+    USER_LINK_EXPIRY_DAYS: 30, // Member: 30 วัน
+    // Slug Configuration
     SLUG_SIZE: 7, // ขนาดความยาวของ Slug (Default)
-
-    // เวลาหมดอายุของ Reset Password Token (1 ชั่วโมง = 3600000 ms)
+    SLUG_RETRIES: 5, // จำนวนครั้งที่ลองสุ่มใหม่ถ้าซ้ำ
+    // Reset Password Token อายุ 1 ชั่วโมง
     PASSWORD_RESET_EXPIRY_MS: 60 * 60 * 1000,
-    // จำนวนครั้งสูงสุดในการสุ่ม Slug ใหม่ถ้าซ้ำ
-    SLUG_RETRIES: 5,
   },
-
-  // --- การตั้งค่า Cookie & Session ---
-  COOKIE: {
-    NAME: "connect.sid", // ชื่อ Cookie ที่จะฝังใน Browser
-    SECRET_KEY: "_csrf", // ชื่อ Cookie สำหรับ CSRF Token
-    MAX_AGE: 900000, // 15 นาที (หน่วย Milliseconds) - Session หลุดถ้าไม่ใช้งาน
-  },
-
-  // --- การจัดการไฟล์ (Storage) ---
+  // [---------- File Storage ----------]
   STORAGE: {
     LOCAL_PATH: "storage/logos",
-    MAX_FILE_SIZE: 1 * 1024 * 1024, // 1MB (คำนวณให้เห็นชัดๆ: 1 * 1024KB * 1024Bytes)
+    MAX_FILE_SIZE: 1 * 1024 * 1024, // 1MB (1 * 1024KB * 1024Bytes)
   },
-
-  // --- Rate Limiting (ป้องกัน Spam/DDoS) ---
+  // [---------- Rate Limiting (Anti-Spam/DDoS) ----------]
   RATE_LIMIT: {
-    // กฎสำหรับการสร้างลิงก์ (Create Link)
+    // สร้างลิงก์ (POST /api/links)
     CREATE: {
-      WINDOW_MS: 60 * 60 * 1000, // ภายใน 1 ชั่วโมง
-      MAX_DEV: 1000, // Dev: สร้างได้รัวๆ ไว้เทส
-      MAX_PROD: 5, // Prod: อนุญาตแค่ 5 ลิงก์ (สำหรับ Anonymous) กัน spam
+      WINDOW_MS: 60 * 60 * 1000, // 1 hour
+      MAX_DEV: 1000,
+      MAX_PROD: 5, // Guest: สร้างได้ 5 link/hour (Member ไม่โดนจำกัดตรงนี้)
     },
-    // กฎสำหรับ API ทั่วไป (เช่น Login, Get Links)
+    // API ทั่วไป (Global)
     GENERAL: {
-      WINDOW_MS: 15 * 60 * 1000, // ภายใน 15 นาที
+      WINDOW_MS: 15 * 60 * 1000, // 15 min
       MAX_DEV: 5000,
       MAX_PROD: 200, // 200 Requests (เฉลี่ย 13 req/นาที)
     },
-    // Redirect Link (/sl/:slug)
+    // Redirect Link (/sl/:slug) - ต้องรองรับ Traffic เยอะๆ
     REDIRECT: {
-      WINDOW_MS: 1 * 60 * 1000, // 1 นาที
-      MAX_DEV: 10000, // Dev: ปล่อยฟรี
+      WINDOW_MS: 1 * 60 * 1000, // 1 min
+      MAX_DEV: 10000,
       MAX_PROD: 600, // Prod: 600 ครั้ง/นาที (เฉลี่ย 10 req/วิ)
     },
   },
-
-  // --- กฎการตรวจสอบข้อมูล (Validation Rules) ---
-  // ใช้ร่วมกับ Zod Schema
+  // [---------- Validation Rules (Zod) ----------]
   VALIDATION: {
     PASSWORD_MIN_LEN: 8,
-    SLUG_MIN_LEN: 3, // สั้นสุดเช่น /sl/abc
-    SLUG_MAX_LEN: 30, // ยาวสุดไม่เกินนี้
+    SLUG_MIN_LEN: 3, // link สั้นสุด
+    SLUG_MAX_LEN: 30, // link ยาวสุด
   },
-
-  // --- การตั้งค่า Cron Job ---
+  // [---------- Cron Jobs ----------]
   CRON: {
-    // เปลี่ยนจาก "0 * * * *" (ทุกชั่วโมง) เป็น "0 1 * * *" (ตี 1 ทุกวัน)
+    // รันตอนตี 1 ของทุกวัน (01:00 AM)
     CLEANUP_SCHEDULE: "0 1 * * *",
   },
 };
